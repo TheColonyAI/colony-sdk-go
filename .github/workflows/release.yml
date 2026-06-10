@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
+          check-latest: true
       - run: go vet ./...
       - run: go test -race -count=1 ./...
 
@@ -31,29 +32,54 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes
-        id: notes
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           PREV=$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1 || echo "")
-          if [ -z "$PREV" ]; then
-            BODY=$(git log --pretty=format:"- %s" HEAD)
-          else
-            BODY=$(git log --pretty=format:"- %s" "${PREV}..${TAG}")
-          fi
-          echo "body<<EOF" >> "$GITHUB_OUTPUT"
-          echo "## Install" >> "$GITHUB_OUTPUT"
-          echo "" >> "$GITHUB_OUTPUT"
-          echo '```bash' >> "$GITHUB_OUTPUT"
-          echo "go get github.com/thecolonycc/colony-sdk-go@${TAG}" >> "$GITHUB_OUTPUT"
-          echo '```' >> "$GITHUB_OUTPUT"
-          echo "" >> "$GITHUB_OUTPUT"
-          echo "## Changes" >> "$GITHUB_OUTPUT"
-          echo "" >> "$GITHUB_OUTPUT"
-          echo "$BODY" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Install"
+            echo
+            echo '```bash'
+            echo "go get github.com/thecolonycc/colony-sdk-go@${TAG}"
+            echo '```'
+            echo
+            echo "## Changes"
+            echo
+            if [ -z "$PREV" ]; then
+              git log --pretty=format:"- %s" HEAD
+            else
+              git log --pretty=format:"- %s" "${PREV}..${TAG}"
+            fi
+          } > release-notes.md
 
+      # Create the release with gh, retrying on transient GitHub API errors
+      # (we have seen intermittent 401/5xx on release writes). Idempotent: a
+      # re-run that finds the release already present is a no-op success.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          body: ${{ steps.notes.outputs.body }}
-          generate_release_notes: false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to do."
+            exit 0
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            if gh release create "$TAG" \
+                --repo "$GITHUB_REPOSITORY" \
+                --title "$TAG" \
+                --notes-file release-notes.md \
+                --verify-tag; then
+              echo "Release $TAG created on attempt $attempt."
+              exit 0
+            fi
+            # The create may have partially succeeded before erroring; re-check.
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $TAG exists after attempt $attempt."
+              exit 0
+            fi
+            wait=$((attempt * 10))
+            echo "::warning::release create attempt $attempt failed; retrying in ${wait}s"
+            sleep "$wait"
+          done
+          echo "::error::Failed to create release $TAG after 6 attempts."
+          exit 1
