@@ -1304,3 +1304,258 @@ func TestClaims(t *testing.T) {
 		t.Errorf("expected rejected, got %s", rej.Detail)
 	}
 }
+
+// --- v0.5.0: presence / cold-budget ---
+
+func TestGetPresence(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /users/presence": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			ids, _ := body["user_ids"].([]any)
+			if len(ids) != 2 {
+				t.Errorf("expected 2 user_ids, got %v", body["user_ids"])
+			}
+			jsonResp(w, map[string]any{
+				"u1": map[string]any{"online": true, "last_seen_at": 1700000000.0},
+				"u2": map[string]any{"online": false, "last_seen_at": nil},
+			})
+		},
+	}))
+	presence, err := client.GetPresence(context.Background(), []string{"u1", "u2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !presence["u1"].Online || presence["u1"].LastSeenAt == nil {
+		t.Errorf("expected u1 online with last_seen, got %+v", presence["u1"])
+	}
+	if presence["u2"].Online || presence["u2"].LastSeenAt != nil {
+		t.Errorf("expected u2 offline, got %+v", presence["u2"])
+	}
+}
+
+func TestMyStatus(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": "P1s only"})
+		},
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["presence_status"] != "focused" {
+				t.Errorf("expected presence_status focused, got %v", body["presence_status"])
+			}
+			if _, ok := body["custom_status_text"]; ok {
+				t.Errorf("expected custom_status_text omitted, got %v", body["custom_status_text"])
+			}
+			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": nil})
+		},
+	}))
+	ctx := context.Background()
+	got, err := client.GetMyStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PresenceStatus == nil || *got.PresenceStatus != "focused" {
+		t.Errorf("unexpected status: %+v", got)
+	}
+	set, err := client.SetMyStatus(ctx, &colony.SetMyStatusOptions{PresenceStatus: colony.Ptr("focused")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set.CustomStatusText != nil {
+		t.Errorf("expected nil custom text, got %v", *set.CustomStatusText)
+	}
+}
+
+func TestSetMyStatusNilOpts(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": nil})
+		},
+	}))
+	if _, err := client.SetMyStatus(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetColdBudget(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{
+				"tier": "L1", "tier_label": "New",
+				"daily":      map[string]any{"cap": 10, "remaining": 9, "window_seconds": 86400, "earliest_send_in_window_at": nil},
+				"hourly":     map[string]any{"cap": 5, "remaining": 5, "window_seconds": 3600, "earliest_send_in_window_at": nil},
+				"inbox_mode": "open", "inbox_quiet_min_karma": nil, "next_tier": nil,
+			})
+		},
+	}))
+	cb, err := client.GetColdBudget(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cb.Tier != "L1" || cb.Daily.Remaining != 9 || cb.Hourly.Cap != 5 {
+		t.Errorf("unexpected cold budget: %+v", cb)
+	}
+}
+
+func TestListColdBudgetPeers(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget/peers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("cursor") != "abc" || r.URL.Query().Get("limit") != "10" {
+				t.Errorf("expected cursor=abc limit=10, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"items":       []map[string]any{{"handle": "bob", "warm": false, "awaiting_reply": true, "last_outbound_at": "2026-01-01T00:00:00Z"}},
+				"next_cursor": nil,
+			})
+		},
+	}))
+	page, err := client.ListColdBudgetPeers(context.Background(), &colony.ListColdBudgetPeersOptions{Cursor: "abc", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || !page.Items[0].AwaitingReply {
+		t.Errorf("unexpected peers: %+v", page)
+	}
+}
+
+func TestListColdBudgetPeersDefault(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget/peers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" || r.URL.Query().Has("cursor") {
+				t.Errorf("expected default limit=50 no cursor, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"items": []map[string]any{}, "next_cursor": nil})
+		},
+	}))
+	if _, err := client.ListColdBudgetPeers(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetInboxMode(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PATCH /me/inbox": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["inbox_mode"] != "quiet" {
+				t.Errorf("expected inbox_mode quiet, got %v", body["inbox_mode"])
+			}
+			if body["inbox_quiet_min_karma"] != 5.0 {
+				t.Errorf("expected karma 5, got %v", body["inbox_quiet_min_karma"])
+			}
+			jsonResp(w, map[string]any{"inbox_mode": "quiet", "inbox_quiet_min_karma": 5})
+		},
+	}))
+	state, err := client.SetInboxMode(context.Background(), colony.InboxModeQuiet, &colony.SetInboxModeOptions{InboxQuietMinKarma: colony.Ptr(5)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.InboxMode != "quiet" || state.InboxQuietMinKarma == nil || *state.InboxQuietMinKarma != 5 {
+		t.Errorf("unexpected state: %+v", state)
+	}
+}
+
+func TestSetInboxModeNoKarma(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PATCH /me/inbox": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if _, ok := body["inbox_quiet_min_karma"]; ok {
+				t.Errorf("expected no karma key, got %v", body["inbox_quiet_min_karma"])
+			}
+			jsonResp(w, map[string]any{"inbox_mode": "open", "inbox_quiet_min_karma": nil})
+		},
+	}))
+	if _, err := client.SetInboxMode(context.Background(), colony.InboxModeOpen, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestV050ErrorPaths exercises the error-return branch of every method added
+// in v0.5.0 by pointing them at a server that 500s on every route.
+func TestV050ErrorPaths(t *testing.T) {
+	_, client := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/token" {
+			json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	})
+	ctx := context.Background()
+	checks := []func() error{
+		func() error {
+			_, e := client.UpdateProfile(ctx, &colony.UpdateProfileOptions{Bio: colony.Ptr("x")})
+			return e
+		},
+		func() error { _, e := client.GetFollowers(ctx, "u1", nil); return e },
+		func() error { _, e := client.GetFollowing(ctx, "u1", nil); return e },
+		func() error { return client.BookmarkPost(ctx, "p1") },
+		func() error { return client.UnbookmarkPost(ctx, "p1") },
+		func() error { _, e := client.ListBookmarks(ctx, nil); return e },
+		func() error { return client.WatchPost(ctx, "p1") },
+		func() error { return client.UnwatchPost(ctx, "p1") },
+		func() error { _, e := client.ConversationHistory(ctx, "a", "m1", nil); return e },
+		func() error { _, e := client.ConversationTail(ctx, "a", nil); return e },
+		func() error { return client.BlockUser(ctx, "u1") },
+		func() error { return client.UnblockUser(ctx, "u1") },
+		func() error { _, e := client.ListBlocked(ctx); return e },
+		func() error { _, e := client.ReportUser(ctx, "u1", "r"); return e },
+		func() error { _, e := client.ReportPost(ctx, "p1", "r"); return e },
+		func() error { _, e := client.ReportComment(ctx, "c1", "r"); return e },
+		func() error { _, e := client.ReportMessage(ctx, "m1", "r"); return e },
+		func() error { _, e := client.MarkConversationSpam(ctx, "a", nil); return e },
+		func() error { _, e := client.UnmarkConversationSpam(ctx, "a"); return e },
+		func() error { _, e := client.ListClaims(ctx); return e },
+		func() error { _, e := client.GetClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.ConfirmClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.RejectClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.GetPresence(ctx, []string{"u1"}); return e },
+		func() error { _, e := client.GetMyStatus(ctx); return e },
+		func() error { _, e := client.SetMyStatus(ctx, nil); return e },
+		func() error { _, e := client.GetColdBudget(ctx); return e },
+		func() error { _, e := client.ListColdBudgetPeers(ctx, nil); return e },
+		func() error { _, e := client.SetInboxMode(ctx, colony.InboxModeOpen, nil); return e },
+	}
+	for i, fn := range checks {
+		if err := fn(); err == nil {
+			t.Errorf("check %d: expected error from 500 server, got nil", i)
+		}
+	}
+}
+
+func TestGetFollowersPaging(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/followers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "5" || r.URL.Query().Get("offset") != "15" {
+				t.Errorf("expected limit=5 offset=15, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{})
+		},
+	}))
+	if _, err := client.GetFollowers(context.Background(), "u1", &colony.FollowGraphOptions{Limit: 5, Offset: 15}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetMyStatusCustomText(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["custom_status_text"] != "heads down" {
+				t.Errorf("expected custom_status_text 'heads down', got %v", body["custom_status_text"])
+			}
+			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": "heads down"})
+		},
+	}))
+	st, err := client.SetMyStatus(context.Background(), &colony.SetMyStatusOptions{CustomStatusText: colony.Ptr("heads down")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.CustomStatusText == nil || *st.CustomStatusText != "heads down" {
+		t.Errorf("unexpected status: %+v", st)
+	}
+}

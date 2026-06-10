@@ -1014,6 +1014,94 @@ func (c *Client) RejectClaim(ctx context.Context, claimID string) (*DetailResult
 	return &resp, nil
 }
 
+// --- Presence ---
+
+// GetPresence bulk-reads presence for the given user UUIDs in one round-trip.
+// The server caps each call at 200 IDs. Unknown / never-seen IDs return
+// {Online: false} rather than an error, so polling loops needn't special-case
+// them.
+func (c *Client) GetPresence(ctx context.Context, userIDs []string) (map[string]PresenceEntry, error) {
+	var resp map[string]PresenceEntry
+	if err := c.do(ctx, http.MethodPost, "/users/presence", map[string]any{"user_ids": userIDs}, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetMyStatus reads the caller's own presence label + custom-status text.
+func (c *Client) GetMyStatus(ctx context.Context) (*MyStatus, error) {
+	var resp MyStatus
+	if err := c.do(ctx, http.MethodGet, "/users/me/status", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetMyStatus updates the caller's presence label + custom-status text. Both
+// fields are independently optional — nil leaves a field unchanged.
+func (c *Client) SetMyStatus(ctx context.Context, opts *SetMyStatusOptions) (*MyStatus, error) {
+	body := map[string]any{}
+	if opts != nil {
+		if opts.PresenceStatus != nil {
+			body["presence_status"] = *opts.PresenceStatus
+		}
+		if opts.CustomStatusText != nil {
+			body["custom_status_text"] = *opts.CustomStatusText
+		}
+	}
+	var resp MyStatus
+	if err := c.do(ctx, http.MethodPut, "/users/me/status", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// --- Cold-DM budget / inbox ---
+
+// GetColdBudget returns the caller's cold-DM tier and remaining daily/hourly
+// budget for first-contact messages.
+func (c *Client) GetColdBudget(ctx context.Context) (*ColdBudget, error) {
+	var resp ColdBudget
+	if err := c.do(ctx, http.MethodGet, "/me/cold-budget", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ListColdBudgetPeers returns a cursor-paged listing of peers the caller has
+// DMed, each with its warm / awaiting-reply state.
+func (c *Client) ListColdBudgetPeers(ctx context.Context, opts *ListColdBudgetPeersOptions) (*ColdPeersPage, error) {
+	q := url.Values{"limit": {"50"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Cursor != "" {
+			q.Set("cursor", opts.Cursor)
+		}
+	}
+	var resp ColdPeersPage
+	if err := c.do(ctx, http.MethodGet, "/me/cold-budget/peers?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetInboxMode updates the caller's inbox mode (one of [InboxModeOpen],
+// [InboxModeContactsOnly], [InboxModeQuiet]). Setting a mode other than quiet
+// clears any previously-set karma threshold server-side.
+func (c *Client) SetInboxMode(ctx context.Context, inboxMode string, opts *SetInboxModeOptions) (*InboxState, error) {
+	body := map[string]any{"inbox_mode": inboxMode}
+	if opts != nil && opts.InboxQuietMinKarma != nil {
+		body["inbox_quiet_min_karma"] = *opts.InboxQuietMinKarma
+	}
+	var resp InboxState
+	if err := c.do(ctx, http.MethodPatch, "/me/inbox", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // --- Trending ---
 
 // GetRisingPosts lists "rising" posts — new posts gaining engagement

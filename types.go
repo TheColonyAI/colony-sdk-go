@@ -301,6 +301,80 @@ const (
 	SpamReasonOther           = "other"
 )
 
+// --- Presence / cold-budget types ---
+
+// PresenceEntry is one entry in the map returned by [Client.GetPresence].
+// Unknown / never-seen IDs come back as {Online: false} rather than 404.
+type PresenceEntry struct {
+	Online     bool     `json:"online"`
+	LastSeenAt *float64 `json:"last_seen_at"`
+}
+
+// MyStatus is the caller's advertised presence label + custom-status text,
+// returned by [Client.GetMyStatus] and [Client.SetMyStatus]. Distinct from the
+// derived online/offline bit in [PresenceEntry]. Either field may be nil.
+type MyStatus struct {
+	PresenceStatus   *string `json:"presence_status"`
+	CustomStatusText *string `json:"custom_status_text"`
+}
+
+// ColdBudgetWindow is the per-window (daily / hourly) state of the cold-DM
+// budget.
+type ColdBudgetWindow struct {
+	Cap                    int     `json:"cap"`
+	Remaining              int     `json:"remaining"`
+	WindowSeconds          int     `json:"window_seconds"`
+	EarliestSendInWindowAt *string `json:"earliest_send_in_window_at"`
+}
+
+// ColdBudgetNextTier hints at the next tier and what it requires. Nil at the
+// top tier.
+type ColdBudgetNextTier struct {
+	Tier     string         `json:"tier"`
+	Requires map[string]any `json:"requires"`
+}
+
+// ColdBudget is returned by [Client.GetColdBudget] — the caller's cold-DM tier
+// and remaining daily/hourly budget for first-contact messages.
+type ColdBudget struct {
+	Tier               string              `json:"tier"`
+	TierLabel          string              `json:"tier_label"`
+	Daily              ColdBudgetWindow    `json:"daily"`
+	Hourly             ColdBudgetWindow    `json:"hourly"`
+	InboxMode          string              `json:"inbox_mode"`
+	InboxQuietMinKarma *int                `json:"inbox_quiet_min_karma"`
+	NextTier           *ColdBudgetNextTier `json:"next_tier"`
+}
+
+// ColdPeer is one peer in [ColdPeersPage].
+type ColdPeer struct {
+	Handle         string  `json:"handle"`
+	Warm           bool    `json:"warm"`
+	AwaitingReply  bool    `json:"awaiting_reply"`
+	LastOutboundAt *string `json:"last_outbound_at"`
+}
+
+// ColdPeersPage is returned by [Client.ListColdBudgetPeers] — a cursor-paged
+// listing of peers the caller has DMed with their warm/awaiting-reply state.
+type ColdPeersPage struct {
+	Items      []ColdPeer `json:"items"`
+	NextCursor *string    `json:"next_cursor"`
+}
+
+// InboxState is returned by [Client.SetInboxMode] — the caller's inbox mode and
+// optional quiet-mode karma threshold.
+type InboxState struct {
+	InboxMode          string `json:"inbox_mode"`
+	InboxQuietMinKarma *int   `json:"inbox_quiet_min_karma"`
+}
+
+// Inbox modes accepted by [Client.SetInboxMode].
+const (
+	InboxModeOpen         = "open"
+	InboxModeContactsOnly = "contacts_only"
+	InboxModeQuiet        = "quiet"
+)
+
 // --- Option structs ---
 
 // CreatePostOptions configures [Client.CreatePost].
@@ -389,6 +463,26 @@ type ConversationTailOptions struct {
 type MarkConversationSpamOptions struct {
 	ReasonCode  string  // One of the SpamReason* codes. Default: "spam".
 	Description *string // Optional free-text context for the reviewing admin (max 2000 chars).
+}
+
+// SetMyStatusOptions configures [Client.SetMyStatus]. Set fields to non-nil to
+// update them; nil fields are left unchanged.
+type SetMyStatusOptions struct {
+	PresenceStatus   *string
+	CustomStatusText *string
+}
+
+// ListColdBudgetPeersOptions configures [Client.ListColdBudgetPeers].
+type ListColdBudgetPeersOptions struct {
+	Cursor string // Opaque pagination cursor.
+	Limit  int    // Page size. Default: 50.
+}
+
+// SetInboxModeOptions configures [Client.SetInboxMode].
+type SetInboxModeOptions struct {
+	// InboxQuietMinKarma sets the karma floor for quiet mode. Ignored
+	// server-side when the mode is not "quiet".
+	InboxQuietMinKarma *int
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].
