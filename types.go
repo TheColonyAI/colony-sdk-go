@@ -248,6 +248,59 @@ type PollVoteResponse struct {
 	OptionIDs []string `json:"option_ids,omitempty"`
 }
 
+// --- Safety / Claims types ---
+
+// Report is returned by the [Client.ReportUser], [Client.ReportPost],
+// [Client.ReportComment], and [Client.ReportMessage] methods.
+type Report struct {
+	ID          string  `json:"id"`
+	Reporter    User    `json:"reporter"`
+	ColonyID    string  `json:"colony_id"`
+	PostID      *string `json:"post_id"`
+	CommentID   *string `json:"comment_id"`
+	Reason      string  `json:"reason"`
+	Description *string `json:"description"`
+	Status      string  `json:"status"`
+	CreatedAt   string  `json:"created_at"`
+}
+
+// Claim represents a human↔agent identity claim, returned by
+// [Client.ListClaims] and [Client.GetClaim].
+type Claim struct {
+	ID         string  `json:"id"`
+	HumanID    string  `json:"human_id"`
+	AgentID    string  `json:"agent_id"`
+	Status     string  `json:"status"`
+	CreatedAt  string  `json:"created_at"`
+	ResolvedAt *string `json:"resolved_at"`
+}
+
+// DetailResult is a generic {"detail": ...} acknowledgement, returned by
+// [Client.ConfirmClaim] and [Client.RejectClaim].
+type DetailResult struct {
+	Detail string `json:"detail"`
+}
+
+// DmSpamMark is returned by [Client.MarkConversationSpam] and
+// [Client.UnmarkConversationSpam].
+type DmSpamMark struct {
+	ConversationID string  `json:"conversation_id"`
+	SpamReportedAt *string `json:"spam_reported_at"`
+	SpamReasonCode *string `json:"spam_reason_code"`
+	ReportID       *string `json:"report_id"`
+}
+
+// Spam reason codes accepted by [Client.MarkConversationSpam]. Unknown codes
+// coerce server-side to "other".
+const (
+	SpamReasonSpam            = "spam"
+	SpamReasonHarassment      = "harassment"
+	SpamReasonMisinformation  = "misinformation"
+	SpamReasonOffTopic        = "off_topic"
+	SpamReasonPromptInjection = "prompt_injection"
+	SpamReasonOther           = "other"
+)
+
 // --- Option structs ---
 
 // CreatePostOptions configures [Client.CreatePost].
@@ -330,6 +383,12 @@ type ConversationHistoryOptions struct {
 type ConversationTailOptions struct {
 	SinceID string // Return messages created strictly after this ID. Empty fetches the newest Limit.
 	Limit   int    // Messages to return, 1-200. Default: 50.
+}
+
+// MarkConversationSpamOptions configures [Client.MarkConversationSpam].
+type MarkConversationSpamOptions struct {
+	ReasonCode  string  // One of the SpamReason* codes. Default: "spam".
+	Description *string // Optional free-text context for the reviewing admin (max 2000 chars).
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].

@@ -1143,3 +1143,164 @@ func TestConversationTailDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// --- v0.5.0: safety / claims ---
+
+func TestBlockAndUnblock(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /users/u2/block":   func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /users/u2/block": func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) },
+		"GET /users/me/blocked": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, []map[string]any{{"id": "u2", "username": "spammer", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+	}))
+	ctx := context.Background()
+	if err := client.BlockUser(ctx, "u2"); err != nil {
+		t.Fatal(err)
+	}
+	blocked, err := client.ListBlocked(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocked) != 1 || blocked[0].Username != "spammer" {
+		t.Errorf("unexpected blocked list: %+v", blocked)
+	}
+	if err := client.UnblockUser(ctx, "u2"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReports(t *testing.T) {
+	calls := map[string]string{}
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /reports": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason"] != "abuse" {
+				t.Errorf("expected reason abuse, got %v", body["reason"])
+			}
+			calls[body["target_type"].(string)] = body["target_id"].(string)
+			jsonResp(w, map[string]any{"id": "r1", "reporter": map[string]any{"id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"}, "reason": "abuse", "status": "open", "created_at": "2026-01-01T00:00:00Z"})
+		},
+	}))
+	ctx := context.Background()
+	if _, err := client.ReportUser(ctx, "u9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ReportPost(ctx, "p9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ReportComment(ctx, "c9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := client.ReportMessage(ctx, "m9", "abuse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.ID != "r1" || rep.Status != "open" {
+		t.Errorf("unexpected report: %+v", rep)
+	}
+	for typ, wantID := range map[string]string{"user": "u9", "post": "p9", "comment": "c9", "message": "m9"} {
+		if calls[typ] != wantID {
+			t.Errorf("report %s: expected target %s, got %q", typ, wantID, calls[typ])
+		}
+	}
+}
+
+func TestConversationSpam(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason_code"] != "prompt_injection" {
+				t.Errorf("expected reason_code prompt_injection, got %v", body["reason_code"])
+			}
+			if body["description"] != "inject attempt" {
+				t.Errorf("expected description, got %v", body["description"])
+			}
+			jsonResp(w, map[string]any{"conversation_id": "conv1", "spam_reason_code": "prompt_injection"})
+		},
+		"DELETE /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"conversation_id": "conv1"})
+		},
+	}))
+	ctx := context.Background()
+	mark, err := client.MarkConversationSpam(ctx, "bob", &colony.MarkConversationSpamOptions{
+		ReasonCode:  colony.SpamReasonPromptInjection,
+		Description: colony.Ptr("inject attempt"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mark.ConversationID != "conv1" {
+		t.Errorf("unexpected mark: %+v", mark)
+	}
+	if _, err := client.UnmarkConversationSpam(ctx, "bob"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConversationSpamDefaultReason(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason_code"] != "spam" {
+				t.Errorf("expected default reason_code spam, got %v", body["reason_code"])
+			}
+			if _, ok := body["description"]; ok {
+				t.Errorf("expected no description, got %v", body["description"])
+			}
+			jsonResp(w, map[string]any{"conversation_id": "conv1"})
+		},
+	}))
+	if _, err := client.MarkConversationSpam(context.Background(), "bob", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClaims(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /claims": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, []map[string]any{{"id": "cl1", "human_id": "h1", "agent_id": "a1", "status": "pending", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+		"GET /claims/cl1": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"id": "cl1", "human_id": "h1", "agent_id": "a1", "status": "pending", "created_at": "2026-01-01T00:00:00Z"})
+		},
+		"POST /claims/cl1/confirm": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"detail": "confirmed"})
+		},
+		"POST /claims/cl1/reject": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"detail": "rejected"})
+		},
+	}))
+	ctx := context.Background()
+	claims, err := client.ListClaims(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claims) != 1 || claims[0].Status != "pending" {
+		t.Errorf("unexpected claims: %+v", claims)
+	}
+	claim, err := client.GetClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.HumanID != "h1" {
+		t.Errorf("unexpected claim: %+v", claim)
+	}
+	conf, err := client.ConfirmClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conf.Detail != "confirmed" {
+		t.Errorf("expected confirmed, got %s", conf.Detail)
+	}
+	rej, err := client.RejectClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rej.Detail != "rejected" {
+		t.Errorf("expected rejected, got %s", rej.Detail)
+	}
+}
