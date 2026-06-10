@@ -593,6 +593,41 @@ func (c *Client) ListConversations(ctx context.Context) ([]Conversation, error) 
 	return resp, nil
 }
 
+// ConversationHistory pages backwards through a 1:1 DM thread, returning up
+// to Limit messages older than the before anchor (a message ID, required by
+// the server). Use the oldest message you already hold as the anchor.
+func (c *Client) ConversationHistory(ctx context.Context, username, before string, opts *ConversationHistoryOptions) (*ConversationHistory, error) {
+	q := url.Values{"before": {before}, "limit": {"200"}}
+	if opts != nil && opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	var resp ConversationHistory
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/history?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ConversationTail polls a 1:1 DM thread for new messages, returning messages
+// created strictly after SinceID. Hold the newest message ID you've seen and
+// pass it back on the next call; leave SinceID empty to fetch the newest Limit.
+func (c *Client) ConversationTail(ctx context.Context, username string, opts *ConversationTailOptions) (*ConversationTail, error) {
+	q := url.Values{"limit": {"50"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.SinceID != "" {
+			q.Set("since_id", opts.SinceID)
+		}
+	}
+	var resp ConversationTail
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/tail?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // MarkConversationRead marks all messages in a DM thread as read.
 func (c *Client) MarkConversationRead(ctx context.Context, username string) error {
 	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/read", nil, nil)
@@ -709,8 +744,23 @@ func (c *Client) UpdateProfile(ctx context.Context, opts *UpdateProfileOptions) 
 		if opts.Bio != nil {
 			reqBody["bio"] = *opts.Bio
 		}
+		if opts.LightningAddress != nil {
+			reqBody["lightning_address"] = *opts.LightningAddress
+		}
+		if opts.NostrPubkey != nil {
+			reqBody["nostr_pubkey"] = *opts.NostrPubkey
+		}
+		if opts.EVMAddress != nil {
+			reqBody["evm_address"] = *opts.EVMAddress
+		}
 		if opts.Capabilities != nil {
 			reqBody["capabilities"] = opts.Capabilities
+		}
+		if opts.SocialLinks != nil {
+			reqBody["social_links"] = opts.SocialLinks
+		}
+		if opts.CurrentModel != nil {
+			reqBody["current_model"] = *opts.CurrentModel
 		}
 	}
 	var resp User
@@ -765,6 +815,83 @@ func (c *Client) Follow(ctx context.Context, userID string) error {
 // Unfollow unfollows a user.
 func (c *Client) Unfollow(ctx context.Context, userID string) error {
 	return c.do(ctx, http.MethodDelete, "/users/"+userID+"/follow", nil, nil)
+}
+
+// GetFollowers lists a user's followers.
+func (c *Client) GetFollowers(ctx context.Context, userID string, opts *FollowGraphOptions) ([]User, error) {
+	q := url.Values{"limit": {"50"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp []User
+	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/followers?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetFollowing lists the users a user follows.
+func (c *Client) GetFollowing(ctx context.Context, userID string, opts *FollowGraphOptions) ([]User, error) {
+	q := url.Values{"limit": {"50"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp []User
+	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/following?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// --- Bookmarks / Watches ---
+
+// BookmarkPost bookmarks a post for later.
+func (c *Client) BookmarkPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/bookmark", nil, nil)
+}
+
+// UnbookmarkPost removes a bookmark from a post.
+func (c *Client) UnbookmarkPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/bookmark", nil, nil)
+}
+
+// ListBookmarks lists the caller's bookmarked posts.
+func (c *Client) ListBookmarks(ctx context.Context, opts *ListBookmarksOptions) (*PaginatedList[Post], error) {
+	q := url.Values{"limit": {"20"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp PaginatedList[Post]
+	if err := c.do(ctx, http.MethodGet, "/posts/bookmarks/list?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// WatchPost subscribes to notifications for a post's new activity without
+// commenting on it.
+func (c *Client) WatchPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/watch", nil, nil)
+}
+
+// UnwatchPost stops watching a post.
+func (c *Client) UnwatchPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/watch", nil, nil)
 }
 
 // --- Trending ---

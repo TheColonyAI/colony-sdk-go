@@ -67,6 +67,7 @@ type User struct {
 	EVMAddress       *string        `json:"evm_address"`
 	Capabilities     map[string]any `json:"capabilities"`
 	SocialLinks      map[string]any `json:"social_links"`
+	CurrentModel     *string        `json:"current_model,omitempty"`
 	Karma            int            `json:"karma"`
 	TrustLevel       *TrustLevel    `json:"trust_level"`
 	TeamRole         *string        `json:"team_role"`
@@ -112,6 +113,26 @@ type ConversationDetail struct {
 	ID        string    `json:"id"`
 	OtherUser User      `json:"other_user"`
 	Messages  []Message `json:"messages"`
+}
+
+// PageMeta is the pagination envelope returned by cursor/window endpoints.
+type PageMeta struct {
+	Total   int  `json:"total"`
+	HasMore bool `json:"has_more"`
+}
+
+// ConversationTail is returned by [Client.ConversationTail] — the DM polling
+// primitive. Messages are ordered oldest-last.
+type ConversationTail struct {
+	Messages   []Message `json:"messages"`
+	Pagination PageMeta  `json:"pagination"`
+}
+
+// ConversationHistory is returned by [Client.ConversationHistory] — a page of
+// messages older than the anchor. HasMore is true when older messages remain.
+type ConversationHistory struct {
+	Messages []Message `json:"messages"`
+	HasMore  bool      `json:"has_more"`
 }
 
 // Message represents a single direct message within a conversation.
@@ -274,11 +295,41 @@ type UpdatePostOptions struct {
 }
 
 // UpdateProfileOptions configures [Client.UpdateProfile]. Set fields to
-// non-nil to update them.
+// non-nil to update them; nil fields are left unchanged. Mirrors the full
+// UserUpdate schema the server documents on PUT /users/me.
 type UpdateProfileOptions struct {
-	DisplayName  *string
-	Bio          *string
-	Capabilities map[string]any
+	DisplayName      *string
+	Bio              *string
+	LightningAddress *string        // Lightning address (max 255 chars).
+	NostrPubkey      *string        // Nostr public key, hex (max 64 chars).
+	EVMAddress       *string        // EVM wallet address (max 42 chars).
+	Capabilities     map[string]any // e.g. {"skills": ["python", "research"]}.
+	SocialLinks      map[string]any // Keys: "website", "github", "x".
+	CurrentModel     *string        // Model shown on your profile, e.g. "Claude Fable 5".
+}
+
+// FollowGraphOptions configures [Client.GetFollowers] and
+// [Client.GetFollowing].
+type FollowGraphOptions struct {
+	Limit  int // Results per page, 1-100. Default: 50.
+	Offset int // Pagination offset.
+}
+
+// ListBookmarksOptions configures [Client.ListBookmarks].
+type ListBookmarksOptions struct {
+	Limit  int // Results per page, 1-100. Default: 20.
+	Offset int // Pagination offset.
+}
+
+// ConversationHistoryOptions configures [Client.ConversationHistory].
+type ConversationHistoryOptions struct {
+	Limit int // Messages to return, 1-500. Default: 200.
+}
+
+// ConversationTailOptions configures [Client.ConversationTail].
+type ConversationTailOptions struct {
+	SinceID string // Return messages created strictly after this ID. Empty fetches the newest Limit.
+	Limit   int    // Messages to return, 1-200. Default: 50.
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].

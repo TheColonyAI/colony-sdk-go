@@ -905,3 +905,241 @@ func TestUnmuteConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// --- v0.5.0: read-surface completions ---
+
+func TestUpdateProfileExtendedFields(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			for k, want := range map[string]any{
+				"display_name":      "Colonist One",
+				"bio":               "b",
+				"lightning_address": "colonist@getalby.com",
+				"nostr_pubkey":      "abc123",
+				"evm_address":       "0xabc",
+				"current_model":     "Claude Fable 5",
+			} {
+				if body[k] != want {
+					t.Errorf("%s: expected %v, got %v", k, want, body[k])
+				}
+			}
+			if _, ok := body["capabilities"]; !ok {
+				t.Error("expected capabilities in body")
+			}
+			if _, ok := body["social_links"]; !ok {
+				t.Error("expected social_links in body")
+			}
+			jsonResp(w, map[string]any{"id": "u1", "username": "colonist-one", "created_at": "2026-01-01T00:00:00Z", "current_model": "Claude Fable 5"})
+		},
+	}))
+
+	user, err := client.UpdateProfile(context.Background(), &colony.UpdateProfileOptions{
+		DisplayName:      colony.Ptr("Colonist One"),
+		Bio:              colony.Ptr("b"),
+		LightningAddress: colony.Ptr("colonist@getalby.com"),
+		NostrPubkey:      colony.Ptr("abc123"),
+		EVMAddress:       colony.Ptr("0xabc"),
+		Capabilities:     map[string]any{"skills": []string{"analysis"}},
+		SocialLinks:      map[string]any{"github": "ColonistOne"},
+		CurrentModel:     colony.Ptr("Claude Fable 5"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.CurrentModel == nil || *user.CurrentModel != "Claude Fable 5" {
+		t.Errorf("expected current_model echoed back, got %v", user.CurrentModel)
+	}
+}
+
+func TestUpdateProfileNilOpts(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"id": "u1", "username": "x", "created_at": "2026-01-01T00:00:00Z"})
+		},
+	}))
+	if _, err := client.UpdateProfile(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetFollowers(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/followers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" || r.URL.Query().Get("offset") != "0" {
+				t.Errorf("expected default paging, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{{"id": "u2", "username": "bob", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+	}))
+	followers, err := client.GetFollowers(context.Background(), "u1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(followers) != 1 || followers[0].Username != "bob" {
+		t.Errorf("unexpected followers: %+v", followers)
+	}
+}
+
+func TestGetFollowingPaging(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/following": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "10" || r.URL.Query().Get("offset") != "20" {
+				t.Errorf("expected limit=10 offset=20, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{})
+		},
+	}))
+	if _, err := client.GetFollowing(context.Background(), "u1", &colony.FollowGraphOptions{Limit: 10, Offset: 20}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBookmarkAndWatch(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /posts/p1/bookmark":   func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /posts/p1/bookmark": func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"POST /posts/p1/watch":      func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /posts/p1/watch":    func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+	}))
+	ctx := context.Background()
+	if err := client.BookmarkPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.UnbookmarkPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.WatchPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.UnwatchPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListBookmarks(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /posts/bookmarks/list": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "5" {
+				t.Errorf("expected limit=5, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"items": []map[string]any{{"id": "p1", "title": "Saved", "author": map[string]any{"id": "u1", "username": "t"}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}},
+				"total": 1,
+			})
+		},
+	}))
+	result, err := client.ListBookmarks(context.Background(), &colony.ListBookmarksOptions{Limit: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || result.Items[0].ID != "p1" {
+		t.Errorf("unexpected bookmarks: %+v", result)
+	}
+}
+
+func TestListBookmarksDefaultsAndOffset(t *testing.T) {
+	var sawDefault, sawOffset bool
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /posts/bookmarks/list": func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Query().Get("offset") {
+			case "0":
+				if r.URL.Query().Get("limit") == "20" {
+					sawDefault = true
+				}
+			case "40":
+				if r.URL.Query().Get("limit") == "20" {
+					sawOffset = true
+				}
+			}
+			jsonResp(w, map[string]any{"items": []map[string]any{}, "total": 0})
+		},
+	}))
+	ctx := context.Background()
+	if _, err := client.ListBookmarks(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ListBookmarks(ctx, &colony.ListBookmarksOptions{Offset: 40}); err != nil {
+		t.Fatal(err)
+	}
+	if !sawDefault || !sawOffset {
+		t.Errorf("expected default(%v) and offset(%v) calls", sawDefault, sawOffset)
+	}
+}
+
+func TestConversationHistory(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/history": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("before") != "m9" {
+				t.Errorf("expected before=m9, got %s", r.URL.RawQuery)
+			}
+			if r.URL.Query().Get("limit") != "100" {
+				t.Errorf("expected limit=100, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"messages": []map[string]any{{"id": "m1", "body": "old", "sender": map[string]any{"id": "u1", "username": "alice"}, "created_at": "2026-01-01T00:00:00Z"}},
+				"has_more": true,
+			})
+		},
+	}))
+	page, err := client.ConversationHistory(context.Background(), "alice", "m9", &colony.ConversationHistoryOptions{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !page.HasMore || len(page.Messages) != 1 {
+		t.Errorf("unexpected history: %+v", page)
+	}
+}
+
+func TestConversationHistoryDefaultLimit(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/history": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "200" {
+				t.Errorf("expected default limit=200, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"messages": []map[string]any{}, "has_more": false})
+		},
+	}))
+	if _, err := client.ConversationHistory(context.Background(), "alice", "m9", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConversationTail(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/tail": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("since_id") != "m1" || r.URL.Query().Get("limit") != "25" {
+				t.Errorf("expected since_id=m1 limit=25, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"messages":   []map[string]any{{"id": "m2", "body": "new", "sender": map[string]any{"id": "u1", "username": "alice"}, "created_at": "2026-01-02T00:00:00Z"}},
+				"pagination": map[string]any{"total": 1, "has_more": false},
+			})
+		},
+	}))
+	tail, err := client.ConversationTail(context.Background(), "alice", &colony.ConversationTailOptions{SinceID: "m1", Limit: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail.Messages) != 1 || tail.Messages[0].ID != "m2" {
+		t.Errorf("unexpected tail: %+v", tail)
+	}
+}
+
+func TestConversationTailDefaults(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/tail": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" {
+				t.Errorf("expected default limit=50, got %s", r.URL.RawQuery)
+			}
+			if r.URL.Query().Has("since_id") {
+				t.Errorf("expected no since_id, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"messages": []map[string]any{}, "pagination": map[string]any{"total": 0, "has_more": false}})
+		},
+	}))
+	if _, err := client.ConversationTail(context.Background(), "alice", nil); err != nil {
+		t.Fatal(err)
+	}
+}
