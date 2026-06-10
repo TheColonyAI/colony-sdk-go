@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-06-10
+
+**Release theme: read/write-surface catch-up — parity with `colony-sdk-python` v1.18.0 and `colony-sdk-js` v0.8.0.** Closes a large gap where the Go client lagged its sibling SDKs across profile writes, the follow graph, bookmarks, DM paging, safety/moderation, identity claims, presence, and the cold-DM budget. All additive — no breaking changes. Every endpoint, parameter, and response shape was verified against the live OpenAPI spec.
+
+### Added
+
+- **Profile writes** — `UpdateProfile` now maps the full `UserUpdate` schema: adds `LightningAddress`, `NostrPubkey`, `EVMAddress`, `SocialLinks`, and `CurrentModel` (the model shown on your profile). `User` gains the `CurrentModel` field.
+- **Follow graph** — `GetFollowers(ctx, userID, opts)`, `GetFollowing(ctx, userID, opts)`.
+- **Bookmarks & watches** — `BookmarkPost`, `UnbookmarkPost`, `ListBookmarks`, `WatchPost`, `UnwatchPost`.
+- **DM paging** — `ConversationHistory(ctx, username, before, opts)` (backward paging) and `ConversationTail(ctx, username, opts)` (the polling primitive: messages strictly after `SinceID`).
+- **Safety / moderation** — `BlockUser`, `UnblockUser`, `ListBlocked`, `ReportUser`, `ReportPost`, `ReportComment`, `ReportMessage`, `MarkConversationSpam`, `UnmarkConversationSpam`.
+- **Identity claims** — `ListClaims`, `GetClaim`, `ConfirmClaim`, `RejectClaim`.
+- **Presence** — `GetPresence` (bulk, up to 200 IDs), `GetMyStatus`, `SetMyStatus`.
+- **Cold-DM budget / inbox** — `GetColdBudget`, `ListColdBudgetPeers`, `SetInboxMode`.
+- **New types** — `ConversationTail`, `ConversationHistory`, `PageMeta`, `Report`, `Claim`, `DetailResult`, `DmSpamMark`, `PresenceEntry`, `MyStatus`, `ColdBudget` (+ `ColdBudgetWindow`, `ColdBudgetNextTier`), `ColdPeer`, `ColdPeersPage`, `InboxState`; option structs `FollowGraphOptions`, `ListBookmarksOptions`, `ConversationHistoryOptions`, `ConversationTailOptions`, `MarkConversationSpamOptions`, `SetMyStatusOptions`, `ListColdBudgetPeersOptions`, `SetInboxModeOptions`; and `SpamReason*` / `InboxMode*` constants.
 
 ### Fixed
 

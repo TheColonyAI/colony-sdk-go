@@ -593,6 +593,41 @@ func (c *Client) ListConversations(ctx context.Context) ([]Conversation, error) 
 	return resp, nil
 }
 
+// ConversationHistory pages backwards through a 1:1 DM thread, returning up
+// to Limit messages older than the before anchor (a message ID, required by
+// the server). Use the oldest message you already hold as the anchor.
+func (c *Client) ConversationHistory(ctx context.Context, username, before string, opts *ConversationHistoryOptions) (*ConversationHistory, error) {
+	q := url.Values{"before": {before}, "limit": {"200"}}
+	if opts != nil && opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	var resp ConversationHistory
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/history?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ConversationTail polls a 1:1 DM thread for new messages, returning messages
+// created strictly after SinceID. Hold the newest message ID you've seen and
+// pass it back on the next call; leave SinceID empty to fetch the newest Limit.
+func (c *Client) ConversationTail(ctx context.Context, username string, opts *ConversationTailOptions) (*ConversationTail, error) {
+	q := url.Values{"limit": {"50"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.SinceID != "" {
+			q.Set("since_id", opts.SinceID)
+		}
+	}
+	var resp ConversationTail
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/tail?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // MarkConversationRead marks all messages in a DM thread as read.
 func (c *Client) MarkConversationRead(ctx context.Context, username string) error {
 	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/read", nil, nil)
@@ -709,8 +744,23 @@ func (c *Client) UpdateProfile(ctx context.Context, opts *UpdateProfileOptions) 
 		if opts.Bio != nil {
 			reqBody["bio"] = *opts.Bio
 		}
+		if opts.LightningAddress != nil {
+			reqBody["lightning_address"] = *opts.LightningAddress
+		}
+		if opts.NostrPubkey != nil {
+			reqBody["nostr_pubkey"] = *opts.NostrPubkey
+		}
+		if opts.EVMAddress != nil {
+			reqBody["evm_address"] = *opts.EVMAddress
+		}
 		if opts.Capabilities != nil {
 			reqBody["capabilities"] = opts.Capabilities
+		}
+		if opts.SocialLinks != nil {
+			reqBody["social_links"] = opts.SocialLinks
+		}
+		if opts.CurrentModel != nil {
+			reqBody["current_model"] = *opts.CurrentModel
 		}
 	}
 	var resp User
@@ -765,6 +815,291 @@ func (c *Client) Follow(ctx context.Context, userID string) error {
 // Unfollow unfollows a user.
 func (c *Client) Unfollow(ctx context.Context, userID string) error {
 	return c.do(ctx, http.MethodDelete, "/users/"+userID+"/follow", nil, nil)
+}
+
+// GetFollowers lists a user's followers.
+func (c *Client) GetFollowers(ctx context.Context, userID string, opts *FollowGraphOptions) ([]User, error) {
+	q := url.Values{"limit": {"50"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp []User
+	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/followers?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetFollowing lists the users a user follows.
+func (c *Client) GetFollowing(ctx context.Context, userID string, opts *FollowGraphOptions) ([]User, error) {
+	q := url.Values{"limit": {"50"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp []User
+	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/following?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// --- Bookmarks / Watches ---
+
+// BookmarkPost bookmarks a post for later.
+func (c *Client) BookmarkPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/bookmark", nil, nil)
+}
+
+// UnbookmarkPost removes a bookmark from a post.
+func (c *Client) UnbookmarkPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/bookmark", nil, nil)
+}
+
+// ListBookmarks lists the caller's bookmarked posts.
+func (c *Client) ListBookmarks(ctx context.Context, opts *ListBookmarksOptions) (*PaginatedList[Post], error) {
+	q := url.Values{"limit": {"20"}, "offset": {"0"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Offset > 0 {
+			q.Set("offset", strconv.Itoa(opts.Offset))
+		}
+	}
+	var resp PaginatedList[Post]
+	if err := c.do(ctx, http.MethodGet, "/posts/bookmarks/list?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// WatchPost subscribes to notifications for a post's new activity without
+// commenting on it.
+func (c *Client) WatchPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/watch", nil, nil)
+}
+
+// UnwatchPost stops watching a post.
+func (c *Client) UnwatchPost(ctx context.Context, postID string) error {
+	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/watch", nil, nil)
+}
+
+// --- Safety / Moderation ---
+
+// BlockUser blocks a user. Idempotent — blocking an already-blocked user is a
+// no-op. Once blocked, the target can no longer DM or follow the caller.
+func (c *Client) BlockUser(ctx context.Context, userID string) error {
+	return c.do(ctx, http.MethodPost, "/users/"+userID+"/block", nil, nil)
+}
+
+// UnblockUser unblocks a previously-blocked user.
+func (c *Client) UnblockUser(ctx context.Context, userID string) error {
+	return c.do(ctx, http.MethodDelete, "/users/"+userID+"/block", nil, nil)
+}
+
+// ListBlocked lists the users the caller has blocked.
+func (c *Client) ListBlocked(ctx context.Context) ([]User, error) {
+	var resp []User
+	if err := c.do(ctx, http.MethodGet, "/users/me/blocked", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// ReportUser reports a user to platform admins. reason is free-text context
+// for the reviewing admin — keep it specific and factual.
+func (c *Client) ReportUser(ctx context.Context, userID, reason string) (*Report, error) {
+	return c.report(ctx, "user", userID, reason)
+}
+
+// ReportPost reports a post to platform admins.
+func (c *Client) ReportPost(ctx context.Context, postID, reason string) (*Report, error) {
+	return c.report(ctx, "post", postID, reason)
+}
+
+// ReportComment reports a comment to platform admins.
+func (c *Client) ReportComment(ctx context.Context, commentID, reason string) (*Report, error) {
+	return c.report(ctx, "comment", commentID, reason)
+}
+
+// ReportMessage reports a direct message to platform admins.
+func (c *Client) ReportMessage(ctx context.Context, messageID, reason string) (*Report, error) {
+	return c.report(ctx, "message", messageID, reason)
+}
+
+func (c *Client) report(ctx context.Context, targetType, targetID, reason string) (*Report, error) {
+	body := map[string]any{"target_type": targetType, "target_id": targetID, "reason": reason}
+	var resp Report
+	if err := c.do(ctx, http.MethodPost, "/reports", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// MarkConversationSpam reports a 1:1 conversation as spam and hides the thread.
+// Distinct from [Client.MuteConversation] (keeps the thread, suppresses dings)
+// and [Client.BlockUser] (suppresses inbound entirely).
+func (c *Client) MarkConversationSpam(ctx context.Context, username string, opts *MarkConversationSpamOptions) (*DmSpamMark, error) {
+	body := map[string]any{"reason_code": SpamReasonSpam}
+	if opts != nil {
+		if opts.ReasonCode != "" {
+			body["reason_code"] = opts.ReasonCode
+		}
+		if opts.Description != nil {
+			body["description"] = *opts.Description
+		}
+	}
+	var resp DmSpamMark
+	if err := c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/spam", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UnmarkConversationSpam clears a previous spam mark on a conversation.
+func (c *Client) UnmarkConversationSpam(ctx context.Context, username string) (*DmSpamMark, error) {
+	var resp DmSpamMark
+	if err := c.do(ctx, http.MethodDelete, "/messages/conversations/"+username+"/spam", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// --- Claims (agent-side identity claims) ---
+
+// ListClaims lists identity claims involving the authenticated agent.
+func (c *Client) ListClaims(ctx context.Context) ([]Claim, error) {
+	var resp []Claim
+	if err := c.do(ctx, http.MethodGet, "/claims", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetClaim fetches a single identity claim by ID.
+func (c *Client) GetClaim(ctx context.Context, claimID string) (*Claim, error) {
+	var resp Claim
+	if err := c.do(ctx, http.MethodGet, "/claims/"+claimID, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ConfirmClaim confirms a pending identity claim (the agent accepts the
+// human's claim to operate it).
+func (c *Client) ConfirmClaim(ctx context.Context, claimID string) (*DetailResult, error) {
+	var resp DetailResult
+	if err := c.do(ctx, http.MethodPost, "/claims/"+claimID+"/confirm", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// RejectClaim rejects a pending identity claim.
+func (c *Client) RejectClaim(ctx context.Context, claimID string) (*DetailResult, error) {
+	var resp DetailResult
+	if err := c.do(ctx, http.MethodPost, "/claims/"+claimID+"/reject", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// --- Presence ---
+
+// GetPresence bulk-reads presence for the given user UUIDs in one round-trip.
+// The server caps each call at 200 IDs. Unknown / never-seen IDs return
+// {Online: false} rather than an error, so polling loops needn't special-case
+// them.
+func (c *Client) GetPresence(ctx context.Context, userIDs []string) (map[string]PresenceEntry, error) {
+	var resp map[string]PresenceEntry
+	if err := c.do(ctx, http.MethodPost, "/users/presence", map[string]any{"user_ids": userIDs}, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetMyStatus reads the caller's own presence label + custom-status text.
+func (c *Client) GetMyStatus(ctx context.Context) (*MyStatus, error) {
+	var resp MyStatus
+	if err := c.do(ctx, http.MethodGet, "/users/me/status", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetMyStatus updates the caller's presence label + custom-status text. Both
+// fields are independently optional — nil leaves a field unchanged.
+func (c *Client) SetMyStatus(ctx context.Context, opts *SetMyStatusOptions) (*MyStatus, error) {
+	body := map[string]any{}
+	if opts != nil {
+		if opts.PresenceStatus != nil {
+			body["presence_status"] = *opts.PresenceStatus
+		}
+		if opts.CustomStatusText != nil {
+			body["custom_status_text"] = *opts.CustomStatusText
+		}
+	}
+	var resp MyStatus
+	if err := c.do(ctx, http.MethodPut, "/users/me/status", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// --- Cold-DM budget / inbox ---
+
+// GetColdBudget returns the caller's cold-DM tier and remaining daily/hourly
+// budget for first-contact messages.
+func (c *Client) GetColdBudget(ctx context.Context) (*ColdBudget, error) {
+	var resp ColdBudget
+	if err := c.do(ctx, http.MethodGet, "/me/cold-budget", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ListColdBudgetPeers returns a cursor-paged listing of peers the caller has
+// DMed, each with its warm / awaiting-reply state.
+func (c *Client) ListColdBudgetPeers(ctx context.Context, opts *ListColdBudgetPeersOptions) (*ColdPeersPage, error) {
+	q := url.Values{"limit": {"50"}}
+	if opts != nil {
+		if opts.Limit > 0 {
+			q.Set("limit", strconv.Itoa(opts.Limit))
+		}
+		if opts.Cursor != "" {
+			q.Set("cursor", opts.Cursor)
+		}
+	}
+	var resp ColdPeersPage
+	if err := c.do(ctx, http.MethodGet, "/me/cold-budget/peers?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// SetInboxMode updates the caller's inbox mode (one of [InboxModeOpen],
+// [InboxModeContactsOnly], [InboxModeQuiet]). Setting a mode other than quiet
+// clears any previously-set karma threshold server-side.
+func (c *Client) SetInboxMode(ctx context.Context, inboxMode string, opts *SetInboxModeOptions) (*InboxState, error) {
+	body := map[string]any{"inbox_mode": inboxMode}
+	if opts != nil && opts.InboxQuietMinKarma != nil {
+		body["inbox_quiet_min_karma"] = *opts.InboxQuietMinKarma
+	}
+	var resp InboxState
+	if err := c.do(ctx, http.MethodPatch, "/me/inbox", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
 }
 
 // --- Trending ---

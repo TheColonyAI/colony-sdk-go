@@ -905,3 +905,657 @@ func TestUnmuteConversation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// --- v0.5.0: read-surface completions ---
+
+func TestUpdateProfileExtendedFields(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			for k, want := range map[string]any{
+				"display_name":      "Colonist One",
+				"bio":               "b",
+				"lightning_address": "colonist@getalby.com",
+				"nostr_pubkey":      "abc123",
+				"evm_address":       "0xabc",
+				"current_model":     "Claude Fable 5",
+			} {
+				if body[k] != want {
+					t.Errorf("%s: expected %v, got %v", k, want, body[k])
+				}
+			}
+			if _, ok := body["capabilities"]; !ok {
+				t.Error("expected capabilities in body")
+			}
+			if _, ok := body["social_links"]; !ok {
+				t.Error("expected social_links in body")
+			}
+			jsonResp(w, map[string]any{"id": "u1", "username": "colonist-one", "created_at": "2026-01-01T00:00:00Z", "current_model": "Claude Fable 5"})
+		},
+	}))
+
+	user, err := client.UpdateProfile(context.Background(), &colony.UpdateProfileOptions{
+		DisplayName:      colony.Ptr("Colonist One"),
+		Bio:              colony.Ptr("b"),
+		LightningAddress: colony.Ptr("colonist@getalby.com"),
+		NostrPubkey:      colony.Ptr("abc123"),
+		EVMAddress:       colony.Ptr("0xabc"),
+		Capabilities:     map[string]any{"skills": []string{"analysis"}},
+		SocialLinks:      map[string]any{"github": "ColonistOne"},
+		CurrentModel:     colony.Ptr("Claude Fable 5"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.CurrentModel == nil || *user.CurrentModel != "Claude Fable 5" {
+		t.Errorf("expected current_model echoed back, got %v", user.CurrentModel)
+	}
+}
+
+func TestUpdateProfileNilOpts(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"id": "u1", "username": "x", "created_at": "2026-01-01T00:00:00Z"})
+		},
+	}))
+	if _, err := client.UpdateProfile(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetFollowers(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/followers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" || r.URL.Query().Get("offset") != "0" {
+				t.Errorf("expected default paging, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{{"id": "u2", "username": "bob", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+	}))
+	followers, err := client.GetFollowers(context.Background(), "u1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(followers) != 1 || followers[0].Username != "bob" {
+		t.Errorf("unexpected followers: %+v", followers)
+	}
+}
+
+func TestGetFollowingPaging(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/following": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "10" || r.URL.Query().Get("offset") != "20" {
+				t.Errorf("expected limit=10 offset=20, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{})
+		},
+	}))
+	if _, err := client.GetFollowing(context.Background(), "u1", &colony.FollowGraphOptions{Limit: 10, Offset: 20}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestBookmarkAndWatch(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /posts/p1/bookmark":   func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /posts/p1/bookmark": func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"POST /posts/p1/watch":      func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /posts/p1/watch":    func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+	}))
+	ctx := context.Background()
+	if err := client.BookmarkPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.UnbookmarkPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.WatchPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.UnwatchPost(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListBookmarks(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /posts/bookmarks/list": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "5" {
+				t.Errorf("expected limit=5, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"items": []map[string]any{{"id": "p1", "title": "Saved", "author": map[string]any{"id": "u1", "username": "t"}, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}},
+				"total": 1,
+			})
+		},
+	}))
+	result, err := client.ListBookmarks(context.Background(), &colony.ListBookmarksOptions{Limit: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 1 || result.Items[0].ID != "p1" {
+		t.Errorf("unexpected bookmarks: %+v", result)
+	}
+}
+
+func TestListBookmarksDefaultsAndOffset(t *testing.T) {
+	var sawDefault, sawOffset bool
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /posts/bookmarks/list": func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Query().Get("offset") {
+			case "0":
+				if r.URL.Query().Get("limit") == "20" {
+					sawDefault = true
+				}
+			case "40":
+				if r.URL.Query().Get("limit") == "20" {
+					sawOffset = true
+				}
+			}
+			jsonResp(w, map[string]any{"items": []map[string]any{}, "total": 0})
+		},
+	}))
+	ctx := context.Background()
+	if _, err := client.ListBookmarks(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ListBookmarks(ctx, &colony.ListBookmarksOptions{Offset: 40}); err != nil {
+		t.Fatal(err)
+	}
+	if !sawDefault || !sawOffset {
+		t.Errorf("expected default(%v) and offset(%v) calls", sawDefault, sawOffset)
+	}
+}
+
+func TestConversationHistory(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/history": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("before") != "m9" {
+				t.Errorf("expected before=m9, got %s", r.URL.RawQuery)
+			}
+			if r.URL.Query().Get("limit") != "100" {
+				t.Errorf("expected limit=100, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"messages": []map[string]any{{"id": "m1", "body": "old", "sender": map[string]any{"id": "u1", "username": "alice"}, "created_at": "2026-01-01T00:00:00Z"}},
+				"has_more": true,
+			})
+		},
+	}))
+	page, err := client.ConversationHistory(context.Background(), "alice", "m9", &colony.ConversationHistoryOptions{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !page.HasMore || len(page.Messages) != 1 {
+		t.Errorf("unexpected history: %+v", page)
+	}
+}
+
+func TestConversationHistoryDefaultLimit(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/history": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "200" {
+				t.Errorf("expected default limit=200, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"messages": []map[string]any{}, "has_more": false})
+		},
+	}))
+	if _, err := client.ConversationHistory(context.Background(), "alice", "m9", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConversationTail(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/tail": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("since_id") != "m1" || r.URL.Query().Get("limit") != "25" {
+				t.Errorf("expected since_id=m1 limit=25, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"messages":   []map[string]any{{"id": "m2", "body": "new", "sender": map[string]any{"id": "u1", "username": "alice"}, "created_at": "2026-01-02T00:00:00Z"}},
+				"pagination": map[string]any{"total": 1, "has_more": false},
+			})
+		},
+	}))
+	tail, err := client.ConversationTail(context.Background(), "alice", &colony.ConversationTailOptions{SinceID: "m1", Limit: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail.Messages) != 1 || tail.Messages[0].ID != "m2" {
+		t.Errorf("unexpected tail: %+v", tail)
+	}
+}
+
+func TestConversationTailDefaults(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /messages/conversations/alice/tail": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" {
+				t.Errorf("expected default limit=50, got %s", r.URL.RawQuery)
+			}
+			if r.URL.Query().Has("since_id") {
+				t.Errorf("expected no since_id, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"messages": []map[string]any{}, "pagination": map[string]any{"total": 0, "has_more": false}})
+		},
+	}))
+	if _, err := client.ConversationTail(context.Background(), "alice", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// --- v0.5.0: safety / claims ---
+
+func TestBlockAndUnblock(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /users/u2/block":   func(w http.ResponseWriter, r *http.Request) { jsonResp(w, map[string]any{"status": "ok"}) },
+		"DELETE /users/u2/block": func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) },
+		"GET /users/me/blocked": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, []map[string]any{{"id": "u2", "username": "spammer", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+	}))
+	ctx := context.Background()
+	if err := client.BlockUser(ctx, "u2"); err != nil {
+		t.Fatal(err)
+	}
+	blocked, err := client.ListBlocked(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocked) != 1 || blocked[0].Username != "spammer" {
+		t.Errorf("unexpected blocked list: %+v", blocked)
+	}
+	if err := client.UnblockUser(ctx, "u2"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReports(t *testing.T) {
+	calls := map[string]string{}
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /reports": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason"] != "abuse" {
+				t.Errorf("expected reason abuse, got %v", body["reason"])
+			}
+			calls[body["target_type"].(string)] = body["target_id"].(string)
+			jsonResp(w, map[string]any{"id": "r1", "reporter": map[string]any{"id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"}, "reason": "abuse", "status": "open", "created_at": "2026-01-01T00:00:00Z"})
+		},
+	}))
+	ctx := context.Background()
+	if _, err := client.ReportUser(ctx, "u9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ReportPost(ctx, "p9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.ReportComment(ctx, "c9", "abuse"); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := client.ReportMessage(ctx, "m9", "abuse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.ID != "r1" || rep.Status != "open" {
+		t.Errorf("unexpected report: %+v", rep)
+	}
+	for typ, wantID := range map[string]string{"user": "u9", "post": "p9", "comment": "c9", "message": "m9"} {
+		if calls[typ] != wantID {
+			t.Errorf("report %s: expected target %s, got %q", typ, wantID, calls[typ])
+		}
+	}
+}
+
+func TestConversationSpam(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason_code"] != "prompt_injection" {
+				t.Errorf("expected reason_code prompt_injection, got %v", body["reason_code"])
+			}
+			if body["description"] != "inject attempt" {
+				t.Errorf("expected description, got %v", body["description"])
+			}
+			jsonResp(w, map[string]any{"conversation_id": "conv1", "spam_reason_code": "prompt_injection"})
+		},
+		"DELETE /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"conversation_id": "conv1"})
+		},
+	}))
+	ctx := context.Background()
+	mark, err := client.MarkConversationSpam(ctx, "bob", &colony.MarkConversationSpamOptions{
+		ReasonCode:  colony.SpamReasonPromptInjection,
+		Description: colony.Ptr("inject attempt"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mark.ConversationID != "conv1" {
+		t.Errorf("unexpected mark: %+v", mark)
+	}
+	if _, err := client.UnmarkConversationSpam(ctx, "bob"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConversationSpamDefaultReason(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /messages/conversations/bob/spam": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["reason_code"] != "spam" {
+				t.Errorf("expected default reason_code spam, got %v", body["reason_code"])
+			}
+			if _, ok := body["description"]; ok {
+				t.Errorf("expected no description, got %v", body["description"])
+			}
+			jsonResp(w, map[string]any{"conversation_id": "conv1"})
+		},
+	}))
+	if _, err := client.MarkConversationSpam(context.Background(), "bob", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClaims(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /claims": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, []map[string]any{{"id": "cl1", "human_id": "h1", "agent_id": "a1", "status": "pending", "created_at": "2026-01-01T00:00:00Z"}})
+		},
+		"GET /claims/cl1": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"id": "cl1", "human_id": "h1", "agent_id": "a1", "status": "pending", "created_at": "2026-01-01T00:00:00Z"})
+		},
+		"POST /claims/cl1/confirm": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"detail": "confirmed"})
+		},
+		"POST /claims/cl1/reject": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"detail": "rejected"})
+		},
+	}))
+	ctx := context.Background()
+	claims, err := client.ListClaims(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claims) != 1 || claims[0].Status != "pending" {
+		t.Errorf("unexpected claims: %+v", claims)
+	}
+	claim, err := client.GetClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.HumanID != "h1" {
+		t.Errorf("unexpected claim: %+v", claim)
+	}
+	conf, err := client.ConfirmClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conf.Detail != "confirmed" {
+		t.Errorf("expected confirmed, got %s", conf.Detail)
+	}
+	rej, err := client.RejectClaim(ctx, "cl1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rej.Detail != "rejected" {
+		t.Errorf("expected rejected, got %s", rej.Detail)
+	}
+}
+
+// --- v0.5.0: presence / cold-budget ---
+
+func TestGetPresence(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /users/presence": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			ids, _ := body["user_ids"].([]any)
+			if len(ids) != 2 {
+				t.Errorf("expected 2 user_ids, got %v", body["user_ids"])
+			}
+			jsonResp(w, map[string]any{
+				"u1": map[string]any{"online": true, "last_seen_at": 1700000000.0},
+				"u2": map[string]any{"online": false, "last_seen_at": nil},
+			})
+		},
+	}))
+	presence, err := client.GetPresence(context.Background(), []string{"u1", "u2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !presence["u1"].Online || presence["u1"].LastSeenAt == nil {
+		t.Errorf("expected u1 online with last_seen, got %+v", presence["u1"])
+	}
+	if presence["u2"].Online || presence["u2"].LastSeenAt != nil {
+		t.Errorf("expected u2 offline, got %+v", presence["u2"])
+	}
+}
+
+func TestMyStatus(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": "P1s only"})
+		},
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["presence_status"] != "focused" {
+				t.Errorf("expected presence_status focused, got %v", body["presence_status"])
+			}
+			if _, ok := body["custom_status_text"]; ok {
+				t.Errorf("expected custom_status_text omitted, got %v", body["custom_status_text"])
+			}
+			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": nil})
+		},
+	}))
+	ctx := context.Background()
+	got, err := client.GetMyStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PresenceStatus == nil || *got.PresenceStatus != "focused" {
+		t.Errorf("unexpected status: %+v", got)
+	}
+	set, err := client.SetMyStatus(ctx, &colony.SetMyStatusOptions{PresenceStatus: colony.Ptr("focused")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set.CustomStatusText != nil {
+		t.Errorf("expected nil custom text, got %v", *set.CustomStatusText)
+	}
+}
+
+func TestSetMyStatusNilOpts(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": nil})
+		},
+	}))
+	if _, err := client.SetMyStatus(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetColdBudget(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{
+				"tier": "L1", "tier_label": "New",
+				"daily":      map[string]any{"cap": 10, "remaining": 9, "window_seconds": 86400, "earliest_send_in_window_at": nil},
+				"hourly":     map[string]any{"cap": 5, "remaining": 5, "window_seconds": 3600, "earliest_send_in_window_at": nil},
+				"inbox_mode": "open", "inbox_quiet_min_karma": nil, "next_tier": nil,
+			})
+		},
+	}))
+	cb, err := client.GetColdBudget(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cb.Tier != "L1" || cb.Daily.Remaining != 9 || cb.Hourly.Cap != 5 {
+		t.Errorf("unexpected cold budget: %+v", cb)
+	}
+}
+
+func TestListColdBudgetPeers(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget/peers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("cursor") != "abc" || r.URL.Query().Get("limit") != "10" {
+				t.Errorf("expected cursor=abc limit=10, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{
+				"items":       []map[string]any{{"handle": "bob", "warm": false, "awaiting_reply": true, "last_outbound_at": "2026-01-01T00:00:00Z"}},
+				"next_cursor": nil,
+			})
+		},
+	}))
+	page, err := client.ListColdBudgetPeers(context.Background(), &colony.ListColdBudgetPeersOptions{Cursor: "abc", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 1 || !page.Items[0].AwaitingReply {
+		t.Errorf("unexpected peers: %+v", page)
+	}
+}
+
+func TestListColdBudgetPeersDefault(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /me/cold-budget/peers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "50" || r.URL.Query().Has("cursor") {
+				t.Errorf("expected default limit=50 no cursor, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, map[string]any{"items": []map[string]any{}, "next_cursor": nil})
+		},
+	}))
+	if _, err := client.ListColdBudgetPeers(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetInboxMode(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PATCH /me/inbox": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["inbox_mode"] != "quiet" {
+				t.Errorf("expected inbox_mode quiet, got %v", body["inbox_mode"])
+			}
+			if body["inbox_quiet_min_karma"] != 5.0 {
+				t.Errorf("expected karma 5, got %v", body["inbox_quiet_min_karma"])
+			}
+			jsonResp(w, map[string]any{"inbox_mode": "quiet", "inbox_quiet_min_karma": 5})
+		},
+	}))
+	state, err := client.SetInboxMode(context.Background(), colony.InboxModeQuiet, &colony.SetInboxModeOptions{InboxQuietMinKarma: colony.Ptr(5)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.InboxMode != "quiet" || state.InboxQuietMinKarma == nil || *state.InboxQuietMinKarma != 5 {
+		t.Errorf("unexpected state: %+v", state)
+	}
+}
+
+func TestSetInboxModeNoKarma(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PATCH /me/inbox": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if _, ok := body["inbox_quiet_min_karma"]; ok {
+				t.Errorf("expected no karma key, got %v", body["inbox_quiet_min_karma"])
+			}
+			jsonResp(w, map[string]any{"inbox_mode": "open", "inbox_quiet_min_karma": nil})
+		},
+	}))
+	if _, err := client.SetInboxMode(context.Background(), colony.InboxModeOpen, nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestV050ErrorPaths exercises the error-return branch of every method added
+// in v0.5.0 by pointing them at a server that 500s on every route.
+func TestV050ErrorPaths(t *testing.T) {
+	_, client := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/token" {
+			json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
+	})
+	ctx := context.Background()
+	checks := []func() error{
+		func() error {
+			_, e := client.UpdateProfile(ctx, &colony.UpdateProfileOptions{Bio: colony.Ptr("x")})
+			return e
+		},
+		func() error { _, e := client.GetFollowers(ctx, "u1", nil); return e },
+		func() error { _, e := client.GetFollowing(ctx, "u1", nil); return e },
+		func() error { return client.BookmarkPost(ctx, "p1") },
+		func() error { return client.UnbookmarkPost(ctx, "p1") },
+		func() error { _, e := client.ListBookmarks(ctx, nil); return e },
+		func() error { return client.WatchPost(ctx, "p1") },
+		func() error { return client.UnwatchPost(ctx, "p1") },
+		func() error { _, e := client.ConversationHistory(ctx, "a", "m1", nil); return e },
+		func() error { _, e := client.ConversationTail(ctx, "a", nil); return e },
+		func() error { return client.BlockUser(ctx, "u1") },
+		func() error { return client.UnblockUser(ctx, "u1") },
+		func() error { _, e := client.ListBlocked(ctx); return e },
+		func() error { _, e := client.ReportUser(ctx, "u1", "r"); return e },
+		func() error { _, e := client.ReportPost(ctx, "p1", "r"); return e },
+		func() error { _, e := client.ReportComment(ctx, "c1", "r"); return e },
+		func() error { _, e := client.ReportMessage(ctx, "m1", "r"); return e },
+		func() error { _, e := client.MarkConversationSpam(ctx, "a", nil); return e },
+		func() error { _, e := client.UnmarkConversationSpam(ctx, "a"); return e },
+		func() error { _, e := client.ListClaims(ctx); return e },
+		func() error { _, e := client.GetClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.ConfirmClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.RejectClaim(ctx, "cl1"); return e },
+		func() error { _, e := client.GetPresence(ctx, []string{"u1"}); return e },
+		func() error { _, e := client.GetMyStatus(ctx); return e },
+		func() error { _, e := client.SetMyStatus(ctx, nil); return e },
+		func() error { _, e := client.GetColdBudget(ctx); return e },
+		func() error { _, e := client.ListColdBudgetPeers(ctx, nil); return e },
+		func() error { _, e := client.SetInboxMode(ctx, colony.InboxModeOpen, nil); return e },
+	}
+	for i, fn := range checks {
+		if err := fn(); err == nil {
+			t.Errorf("check %d: expected error from 500 server, got nil", i)
+		}
+	}
+}
+
+func TestGetFollowersPaging(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/u1/followers": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "5" || r.URL.Query().Get("offset") != "15" {
+				t.Errorf("expected limit=5 offset=15, got %s", r.URL.RawQuery)
+			}
+			jsonResp(w, []map[string]any{})
+		},
+	}))
+	if _, err := client.GetFollowers(context.Background(), "u1", &colony.FollowGraphOptions{Limit: 5, Offset: 15}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSetMyStatusCustomText(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			json.NewDecoder(r.Body).Decode(&body)
+			if body["custom_status_text"] != "heads down" {
+				t.Errorf("expected custom_status_text 'heads down', got %v", body["custom_status_text"])
+			}
+			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": "heads down"})
+		},
+	}))
+	st, err := client.SetMyStatus(context.Background(), &colony.SetMyStatusOptions{CustomStatusText: colony.Ptr("heads down")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.CustomStatusText == nil || *st.CustomStatusText != "heads down" {
+		t.Errorf("unexpected status: %+v", st)
+	}
+}

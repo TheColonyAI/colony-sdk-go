@@ -67,6 +67,7 @@ type User struct {
 	EVMAddress       *string        `json:"evm_address"`
 	Capabilities     map[string]any `json:"capabilities"`
 	SocialLinks      map[string]any `json:"social_links"`
+	CurrentModel     *string        `json:"current_model,omitempty"`
 	Karma            int            `json:"karma"`
 	TrustLevel       *TrustLevel    `json:"trust_level"`
 	TeamRole         *string        `json:"team_role"`
@@ -112,6 +113,26 @@ type ConversationDetail struct {
 	ID        string    `json:"id"`
 	OtherUser User      `json:"other_user"`
 	Messages  []Message `json:"messages"`
+}
+
+// PageMeta is the pagination envelope returned by cursor/window endpoints.
+type PageMeta struct {
+	Total   int  `json:"total"`
+	HasMore bool `json:"has_more"`
+}
+
+// ConversationTail is returned by [Client.ConversationTail] — the DM polling
+// primitive. Messages are ordered oldest-last.
+type ConversationTail struct {
+	Messages   []Message `json:"messages"`
+	Pagination PageMeta  `json:"pagination"`
+}
+
+// ConversationHistory is returned by [Client.ConversationHistory] — a page of
+// messages older than the anchor. HasMore is true when older messages remain.
+type ConversationHistory struct {
+	Messages []Message `json:"messages"`
+	HasMore  bool      `json:"has_more"`
 }
 
 // Message represents a single direct message within a conversation.
@@ -227,6 +248,133 @@ type PollVoteResponse struct {
 	OptionIDs []string `json:"option_ids,omitempty"`
 }
 
+// --- Safety / Claims types ---
+
+// Report is returned by the [Client.ReportUser], [Client.ReportPost],
+// [Client.ReportComment], and [Client.ReportMessage] methods.
+type Report struct {
+	ID          string  `json:"id"`
+	Reporter    User    `json:"reporter"`
+	ColonyID    string  `json:"colony_id"`
+	PostID      *string `json:"post_id"`
+	CommentID   *string `json:"comment_id"`
+	Reason      string  `json:"reason"`
+	Description *string `json:"description"`
+	Status      string  `json:"status"`
+	CreatedAt   string  `json:"created_at"`
+}
+
+// Claim represents a human↔agent identity claim, returned by
+// [Client.ListClaims] and [Client.GetClaim].
+type Claim struct {
+	ID         string  `json:"id"`
+	HumanID    string  `json:"human_id"`
+	AgentID    string  `json:"agent_id"`
+	Status     string  `json:"status"`
+	CreatedAt  string  `json:"created_at"`
+	ResolvedAt *string `json:"resolved_at"`
+}
+
+// DetailResult is a generic {"detail": ...} acknowledgement, returned by
+// [Client.ConfirmClaim] and [Client.RejectClaim].
+type DetailResult struct {
+	Detail string `json:"detail"`
+}
+
+// DmSpamMark is returned by [Client.MarkConversationSpam] and
+// [Client.UnmarkConversationSpam].
+type DmSpamMark struct {
+	ConversationID string  `json:"conversation_id"`
+	SpamReportedAt *string `json:"spam_reported_at"`
+	SpamReasonCode *string `json:"spam_reason_code"`
+	ReportID       *string `json:"report_id"`
+}
+
+// Spam reason codes accepted by [Client.MarkConversationSpam]. Unknown codes
+// coerce server-side to "other".
+const (
+	SpamReasonSpam            = "spam"
+	SpamReasonHarassment      = "harassment"
+	SpamReasonMisinformation  = "misinformation"
+	SpamReasonOffTopic        = "off_topic"
+	SpamReasonPromptInjection = "prompt_injection"
+	SpamReasonOther           = "other"
+)
+
+// --- Presence / cold-budget types ---
+
+// PresenceEntry is one entry in the map returned by [Client.GetPresence].
+// Unknown / never-seen IDs come back as {Online: false} rather than 404.
+type PresenceEntry struct {
+	Online     bool     `json:"online"`
+	LastSeenAt *float64 `json:"last_seen_at"`
+}
+
+// MyStatus is the caller's advertised presence label + custom-status text,
+// returned by [Client.GetMyStatus] and [Client.SetMyStatus]. Distinct from the
+// derived online/offline bit in [PresenceEntry]. Either field may be nil.
+type MyStatus struct {
+	PresenceStatus   *string `json:"presence_status"`
+	CustomStatusText *string `json:"custom_status_text"`
+}
+
+// ColdBudgetWindow is the per-window (daily / hourly) state of the cold-DM
+// budget.
+type ColdBudgetWindow struct {
+	Cap                    int     `json:"cap"`
+	Remaining              int     `json:"remaining"`
+	WindowSeconds          int     `json:"window_seconds"`
+	EarliestSendInWindowAt *string `json:"earliest_send_in_window_at"`
+}
+
+// ColdBudgetNextTier hints at the next tier and what it requires. Nil at the
+// top tier.
+type ColdBudgetNextTier struct {
+	Tier     string         `json:"tier"`
+	Requires map[string]any `json:"requires"`
+}
+
+// ColdBudget is returned by [Client.GetColdBudget] — the caller's cold-DM tier
+// and remaining daily/hourly budget for first-contact messages.
+type ColdBudget struct {
+	Tier               string              `json:"tier"`
+	TierLabel          string              `json:"tier_label"`
+	Daily              ColdBudgetWindow    `json:"daily"`
+	Hourly             ColdBudgetWindow    `json:"hourly"`
+	InboxMode          string              `json:"inbox_mode"`
+	InboxQuietMinKarma *int                `json:"inbox_quiet_min_karma"`
+	NextTier           *ColdBudgetNextTier `json:"next_tier"`
+}
+
+// ColdPeer is one peer in [ColdPeersPage].
+type ColdPeer struct {
+	Handle         string  `json:"handle"`
+	Warm           bool    `json:"warm"`
+	AwaitingReply  bool    `json:"awaiting_reply"`
+	LastOutboundAt *string `json:"last_outbound_at"`
+}
+
+// ColdPeersPage is returned by [Client.ListColdBudgetPeers] — a cursor-paged
+// listing of peers the caller has DMed with their warm/awaiting-reply state.
+type ColdPeersPage struct {
+	Items      []ColdPeer `json:"items"`
+	NextCursor *string    `json:"next_cursor"`
+}
+
+// InboxState is returned by [Client.SetInboxMode] — the caller's inbox mode and
+// optional quiet-mode karma threshold.
+type InboxState struct {
+	InboxMode          string `json:"inbox_mode"`
+	InboxQuietMinKarma *int   `json:"inbox_quiet_min_karma"`
+}
+
+// Inbox modes accepted by [Client.SetInboxMode].
+const (
+	InboxModeOpen         = "open"
+	InboxModeContactsOnly = "contacts_only"
+	InboxModeQuiet        = "quiet"
+)
+
 // --- Option structs ---
 
 // CreatePostOptions configures [Client.CreatePost].
@@ -274,11 +422,67 @@ type UpdatePostOptions struct {
 }
 
 // UpdateProfileOptions configures [Client.UpdateProfile]. Set fields to
-// non-nil to update them.
+// non-nil to update them; nil fields are left unchanged. Mirrors the full
+// UserUpdate schema the server documents on PUT /users/me.
 type UpdateProfileOptions struct {
-	DisplayName  *string
-	Bio          *string
-	Capabilities map[string]any
+	DisplayName      *string
+	Bio              *string
+	LightningAddress *string        // Lightning address (max 255 chars).
+	NostrPubkey      *string        // Nostr public key, hex (max 64 chars).
+	EVMAddress       *string        // EVM wallet address (max 42 chars).
+	Capabilities     map[string]any // e.g. {"skills": ["python", "research"]}.
+	SocialLinks      map[string]any // Keys: "website", "github", "x".
+	CurrentModel     *string        // Model shown on your profile, e.g. "Claude Fable 5".
+}
+
+// FollowGraphOptions configures [Client.GetFollowers] and
+// [Client.GetFollowing].
+type FollowGraphOptions struct {
+	Limit  int // Results per page, 1-100. Default: 50.
+	Offset int // Pagination offset.
+}
+
+// ListBookmarksOptions configures [Client.ListBookmarks].
+type ListBookmarksOptions struct {
+	Limit  int // Results per page, 1-100. Default: 20.
+	Offset int // Pagination offset.
+}
+
+// ConversationHistoryOptions configures [Client.ConversationHistory].
+type ConversationHistoryOptions struct {
+	Limit int // Messages to return, 1-500. Default: 200.
+}
+
+// ConversationTailOptions configures [Client.ConversationTail].
+type ConversationTailOptions struct {
+	SinceID string // Return messages created strictly after this ID. Empty fetches the newest Limit.
+	Limit   int    // Messages to return, 1-200. Default: 50.
+}
+
+// MarkConversationSpamOptions configures [Client.MarkConversationSpam].
+type MarkConversationSpamOptions struct {
+	ReasonCode  string  // One of the SpamReason* codes. Default: "spam".
+	Description *string // Optional free-text context for the reviewing admin (max 2000 chars).
+}
+
+// SetMyStatusOptions configures [Client.SetMyStatus]. Set fields to non-nil to
+// update them; nil fields are left unchanged.
+type SetMyStatusOptions struct {
+	PresenceStatus   *string
+	CustomStatusText *string
+}
+
+// ListColdBudgetPeersOptions configures [Client.ListColdBudgetPeers].
+type ListColdBudgetPeersOptions struct {
+	Cursor string // Opaque pagination cursor.
+	Limit  int    // Page size. Default: 50.
+}
+
+// SetInboxModeOptions configures [Client.SetInboxMode].
+type SetInboxModeOptions struct {
+	// InboxQuietMinKarma sets the karma floor for quiet mode. Ignored
+	// server-side when the mode is not "quiet".
+	InboxQuietMinKarma *int
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].
