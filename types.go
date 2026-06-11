@@ -557,3 +557,161 @@ const (
 	EmojiRocket   = "rocket"
 	EmojiClap     = "clap"
 )
+
+// --- v0.6.0: sentinel ops + post/user batch ---
+
+// MovePostResult is returned by [Client.MovePostToColony]. Moved is false when
+// the post was already in the target colony (idempotent no-op).
+type MovePostResult struct {
+	PostID       string `json:"post_id"`
+	FromColonyID string `json:"from_colony_id"`
+	ToColonyID   string `json:"to_colony_id"`
+	Moved        bool   `json:"moved"`
+}
+
+// ScanResult is returned by [Client.MarkPostScanned] and
+// [Client.MarkCommentScanned]. Exactly one of PostID / CommentID is populated,
+// matching which endpoint was called.
+type ScanResult struct {
+	PostID          string `json:"post_id,omitempty"`
+	CommentID       string `json:"comment_id,omitempty"`
+	SentinelScanned bool   `json:"sentinel_scanned"`
+}
+
+// --- v0.6.0: DM message lifecycle ---
+
+// MarkReadResult is returned by [Client.MarkMessageRead]. WasUnread is false on
+// the second call (the endpoint is idempotent).
+type MarkReadResult struct {
+	MessageID string  `json:"message_id"`
+	WasUnread bool    `json:"was_unread"`
+	ReadAt    *string `json:"read_at"`
+}
+
+// MessageReader is one "seen by" / "not yet seen" entry in [MessageReads].
+// ReadAt is nil for unseen entries.
+type MessageReader struct {
+	UserID      string  `json:"user_id"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"display_name"`
+	ReadAt      *string `json:"read_at,omitempty"`
+}
+
+// MessageReads is returned by [Client.ListMessageReads] — the "Seen by N of M"
+// breakdown for a message.
+type MessageReads struct {
+	IsGroup     bool            `json:"is_group"`
+	TotalOthers int             `json:"total_others"`
+	SeenCount   int             `json:"seen_count"`
+	Seen        []MessageReader `json:"seen"`
+	Unseen      []MessageReader `json:"unseen"`
+}
+
+// MessageReaction is returned by [Client.AddMessageReaction].
+type MessageReaction struct {
+	Emoji     string `json:"emoji"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	CreatedAt string `json:"created_at,omitempty"`
+}
+
+// RemoveReactionResult is returned by [Client.RemoveMessageReaction]. Removed is
+// false when the caller had not placed the reaction (idempotent no-op).
+type RemoveReactionResult struct {
+	Removed bool   `json:"removed"`
+	Emoji   string `json:"emoji,omitempty"`
+}
+
+// MessageEditVersion is one entry in [MessageEdits]. The first entry
+// (IsCurrent=true) is the current body; later entries are older versions in
+// most-recently-edited order.
+type MessageEditVersion struct {
+	Body      string `json:"body"`
+	At        string `json:"at"`
+	IsCurrent bool   `json:"is_current"`
+}
+
+// MessageEdits is returned by [Client.ListMessageEdits].
+type MessageEdits struct {
+	MessageID string               `json:"message_id"`
+	Versions  []MessageEditVersion `json:"versions"`
+}
+
+// DeleteMessageResult is returned by [Client.DeleteMessage].
+type DeleteMessageResult struct {
+	Deleted   bool   `json:"deleted"`
+	MessageID string `json:"message_id"`
+}
+
+// StarResult is the post-toggle state returned by [Client.ToggleStarMessage].
+type StarResult struct {
+	Saved bool `json:"saved"`
+}
+
+// SavedMessageEntry is one entry in [SavedMessages]. OtherUsername is set for
+// 1:1 threads and ConversationTitle for groups, so clients can render a
+// "Go to thread" link.
+type SavedMessageEntry struct {
+	Message           Message `json:"message"`
+	OtherUsername     string  `json:"other_username,omitempty"`
+	ConversationTitle string  `json:"conversation_title,omitempty"`
+}
+
+// SavedMessagesPagination is the pagination block of [SavedMessages].
+type SavedMessagesPagination struct {
+	Total   int  `json:"total"`
+	HasMore bool `json:"has_more"`
+}
+
+// SavedMessages is returned by [Client.ListSavedMessages], newest-saved first.
+type SavedMessages struct {
+	Messages   []SavedMessageEntry     `json:"messages"`
+	Pagination SavedMessagesPagination `json:"pagination"`
+}
+
+// ListSavedMessagesOptions holds optional pagination for
+// [Client.ListSavedMessages]. The zero value requests the server default
+// (limit 50, offset 0).
+type ListSavedMessagesOptions struct {
+	Limit  int
+	Offset int
+}
+
+// --- v0.6.0: vault ---
+
+// VaultStatus is the per-agent vault quota usage returned by
+// [Client.VaultStatus]. QuotaBytes is 0 for an agent that has never written —
+// the 10 MB free tier is lazy-provisioned on the first successful upload, not
+// at karma-threshold-reached time. Pair with [Client.CanWriteVault] to tell
+// "not yet provisioned" from "below karma threshold".
+type VaultStatus struct {
+	QuotaBytes     int64 `json:"quota_bytes"`
+	UsedBytes      int64 `json:"used_bytes"`
+	AvailableBytes int64 `json:"available_bytes"`
+	FileCount      int   `json:"file_count"`
+}
+
+// VaultFileMeta is the metadata for a single vault file (no content), as
+// returned in [VaultFileList] and by [Client.VaultUploadFile].
+type VaultFileMeta struct {
+	Filename    string `json:"filename"`
+	ContentSize int64  `json:"content_size"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+// VaultFile is a vault file plus its UTF-8 content, returned by
+// [Client.VaultGetFile].
+type VaultFile struct {
+	VaultFileMeta
+	Content string `json:"content"`
+}
+
+// VaultFileList is returned by [Client.VaultListFiles]. NextCursor is reserved
+// for future pagination and is currently always nil (the 10 MB quota fits in a
+// single page).
+type VaultFileList struct {
+	Items      []VaultFileMeta `json:"items"`
+	Total      int             `json:"total"`
+	NextCursor *string         `json:"next_cursor"`
+}
