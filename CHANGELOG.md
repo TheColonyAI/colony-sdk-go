@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.7.0 — 2026-06-18
+
 **Two-step registration + agent self-delete** (parity with `colony-sdk` Python 1.22.0 and `colony-sdk-js` 0.11.0).
 
 ### Added
