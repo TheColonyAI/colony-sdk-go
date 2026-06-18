@@ -1347,3 +1347,158 @@ func itoa(i int) string {
 	}
 	return string(buf[pos:])
 }
+
+// --- Two-step registration + agent self-delete ---
+
+func TestRegisterBegin(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/register/begin" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		jsonResp(w, map[string]any{
+			"status": "pending", "api_key": "col_abcdefVfm4S4", "claim_token": "rct_tok",
+			"id": "u1", "username": "alice", "expires_at": "2026-06-18T02:21:21Z",
+			"key_persistence_required": true, "important": "SAVE api_key NOW",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	resp, err := colony.RegisterBegin(
+		context.Background(), "alice", "Alice", "hi",
+		map[string]any{"skills": []string{"testing"}},
+		colony.WithBaseURL(srv.URL),
+		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != "pending" || resp.APIKey != "col_abcdefVfm4S4" || resp.ClaimToken != "rct_tok" {
+		t.Errorf("unexpected response: %+v", resp)
+	}
+	if gotBody["username"] != "alice" || gotBody["display_name"] != "Alice" {
+		t.Errorf("request body missing expected fields: %+v", gotBody)
+	}
+}
+
+func TestRegisterConfirm(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/auth/register/confirm" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		jsonResp(w, map[string]any{"status": "active", "id": "u1", "username": "alice"})
+	}))
+	t.Cleanup(srv.Close)
+
+	resp, err := colony.RegisterConfirm(
+		context.Background(), "rct_tok", "Vfm4S4",
+		colony.WithBaseURL(srv.URL),
+		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != "active" || resp.Username != "alice" {
+		t.Errorf("unexpected response: %+v", resp)
+	}
+	if gotBody["claim_token"] != "rct_tok" || gotBody["key_fingerprint"] != "Vfm4S4" {
+		t.Errorf("confirm body wrong: %+v", gotBody)
+	}
+}
+
+func TestRegisterConfirmMismatch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"detail":{"code":"REGISTER_FINGERPRINT_MISMATCH","message":"mismatch"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := colony.RegisterConfirm(
+		context.Background(), "rct_tok", "XXXXXX",
+		colony.WithBaseURL(srv.URL),
+		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
+	)
+	var ve *colony.ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %v", err)
+	}
+	if ve.Code != "REGISTER_FINGERPRINT_MISMATCH" {
+		t.Errorf("expected code REGISTER_FINGERPRINT_MISMATCH, got %q", ve.Code)
+	}
+}
+
+func TestDeleteAccount(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"DELETE /auth/account": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		},
+	}))
+	if err := client.DeleteAccount(context.Background()); err != nil {
+		t.Fatalf("expected nil error on 204, got %v", err)
+	}
+}
+
+func TestDeleteAccountHasActivity(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"DELETE /auth/account": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"detail":{"code":"ACCOUNT_DELETE_HAS_ACTIVITY","message":"has activity"}}`))
+		},
+	}))
+	err := client.DeleteAccount(context.Background())
+	var ce *colony.ConflictError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected ConflictError, got %v", err)
+	}
+	if ce.Code != "ACCOUNT_DELETE_HAS_ACTIVITY" {
+		t.Errorf("expected ACCOUNT_DELETE_HAS_ACTIVITY, got %q", ce.Code)
+	}
+}
+
+// TestRegisterBeginNoCapabilities covers the capabilities==nil branch.
+func TestRegisterBeginNoCapabilities(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		jsonResp(w, map[string]any{"status": "pending", "api_key": "col_x", "claim_token": "rct_x"})
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := colony.RegisterBegin(context.Background(), "alice", "Alice", "hi", nil, colony.WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present := gotBody["capabilities"]; present {
+		t.Errorf("expected capabilities absent when nil, got: %v", gotBody["capabilities"])
+	}
+}
+
+// TestRegisterBeginTaken covers the error-return path of RegisterBegin.
+func TestRegisterBeginTaken(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"detail":{"code":"REGISTER_USERNAME_TAKEN","message":"taken"}}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := colony.RegisterBegin(
+		context.Background(), "taken", "x", "x", nil,
+		colony.WithBaseURL(srv.URL),
+		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
+	)
+	var ce *colony.ConflictError
+	if !errors.As(err, &ce) {
+		t.Fatalf("expected ConflictError, got %v", err)
+	}
+	if ce.Code != "REGISTER_USERNAME_TAKEN" {
+		t.Errorf("expected REGISTER_USERNAME_TAKEN, got %q", ce.Code)
+	}
+}

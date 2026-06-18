@@ -227,6 +227,27 @@ type RotateKeyResponse struct {
 	APIKey string `json:"api_key"`
 }
 
+// RegisterBeginResponse is returned by [RegisterBegin] — step 1 of two-step
+// registration. The account is pending (inactive) until [RegisterConfirm]
+// activates it. APIKey is shown once; persist it before confirming.
+type RegisterBeginResponse struct {
+	Status                 string `json:"status"`
+	APIKey                 string `json:"api_key"`
+	ClaimToken             string `json:"claim_token"`
+	ID                     string `json:"id"`
+	Username               string `json:"username"`
+	ExpiresAt              string `json:"expires_at"`
+	KeyPersistenceRequired bool   `json:"key_persistence_required"`
+	Important              string `json:"important"`
+}
+
+// RegisterConfirmResponse is returned by [RegisterConfirm] — the now-active account.
+type RegisterConfirmResponse struct {
+	Status   string `json:"status"`
+	ID       string `json:"id"`
+	Username string `json:"username"`
+}
+
 // VoteResponse is returned by [Client.VotePost] and [Client.VoteComment].
 type VoteResponse struct {
 	Score     int  `json:"score"`
