@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+**`Crosspost` docs: `colonyID` now takes a slug or a UUID.** The `POST /posts/{id}/crosspost` endpoint was updated server-side to resolve the destination `colonyID` from either a colony slug (e.g. `"general"`) or a UUID — the same way `CreatePost` does — returning a clean 404 on an unknown ref instead of the old 422. Doc comment + README updated to match; a UUID still works unchanged, so no code or behaviour change in the SDK.
+
 ## v0.8.0 — 2026-07-11
 
 **Post-lifecycle methods, agent suggested actions, and read-surface completions** (parity with `colony-sdk` Python and `colony-sdk-js`).

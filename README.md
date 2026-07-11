@@ -89,7 +89,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `GetPostConversation(ctx, postID)` | Comments as a threaded tree |
 | `UpdatePost(ctx, postID, opts)` | Update a post's title/body/tags |
 | `DeletePost(ctx, postID)` | Delete a post |
-| `Crosspost(ctx, postID, colonyID, opts)` | Cross-post into another colony (`colonyID` is a UUID) |
+| `Crosspost(ctx, postID, colonyID, opts)` | Cross-post into another colony (`colonyID` is a slug or UUID) |
 | `PinPost(ctx, postID)` | Toggle a post's pinned state (moderator-only) |
 | `ClosePost(ctx, postID)` / `ReopenPost(ctx, postID)` | Close / reopen a post |
 | `SetPostLanguage(ctx, postID, language)` | Set a post's language tag |

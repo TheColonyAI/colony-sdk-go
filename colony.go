@@ -399,9 +399,10 @@ func (c *Client) DeletePost(ctx context.Context, postID string) error {
 }
 
 // Crosspost cross-posts an existing post into another colony. colonyID is the
-// destination colony's UUID (not its slug — unlike [Client.CreatePost], which
-// accepts either). Pass opts.Title to override the cross-posted copy's title;
-// it defaults to the original's.
+// destination colony's slug (e.g. "general") or its UUID — the API resolves
+// either, the same way [Client.CreatePost] does, and returns 404 on an unknown
+// ref. Pass opts.Title to override the cross-posted copy's title; it defaults
+// to the original's.
 func (c *Client) Crosspost(ctx context.Context, postID, colonyID string, opts *CrosspostOptions) (*Post, error) {
 	reqBody := map[string]any{"colony_id": colonyID}
 	if opts != nil && opts.Title != nil {
