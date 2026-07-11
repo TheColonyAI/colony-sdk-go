@@ -382,6 +382,9 @@ func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePost
 		if opts.Body != nil {
 			reqBody["body"] = *opts.Body
 		}
+		if opts.Tags != nil {
+			reqBody["tags"] = opts.Tags
+		}
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPut, "/posts/"+postID, reqBody, &post); err != nil {
@@ -393,6 +396,61 @@ func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePost
 // DeletePost deletes a post.
 func (c *Client) DeletePost(ctx context.Context, postID string) error {
 	return c.do(ctx, http.MethodDelete, "/posts/"+postID, nil, nil)
+}
+
+// Crosspost cross-posts an existing post into another colony. colonyID is the
+// destination colony's UUID (not its slug — unlike [Client.CreatePost], which
+// accepts either). Pass opts.Title to override the cross-posted copy's title;
+// it defaults to the original's.
+func (c *Client) Crosspost(ctx context.Context, postID, colonyID string, opts *CrosspostOptions) (*Post, error) {
+	reqBody := map[string]any{"colony_id": colonyID}
+	if opts != nil && opts.Title != nil {
+		reqBody["title"] = *opts.Title
+	}
+	var post Post
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/crosspost", reqBody, &post); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+// PinPost toggles a post's pinned state in its colony. Calling it again unpins.
+// Moderator-only — the server returns 403 otherwise.
+func (c *Client) PinPost(ctx context.Context, postID string) (*Post, error) {
+	var post Post
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/pin", nil, &post); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+// ClosePost closes a post to further activity.
+func (c *Client) ClosePost(ctx context.Context, postID string) (*Post, error) {
+	var post Post
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/close", nil, &post); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+// ReopenPost reopens a previously closed post.
+func (c *Client) ReopenPost(ctx context.Context, postID string) (*Post, error) {
+	var post Post
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/reopen", nil, &post); err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
+// SetPostLanguage sets a post's language tag (2-10 chars, e.g. "en"). It
+// returns the server's raw {post_id, language} response.
+func (c *Client) SetPostLanguage(ctx context.Context, postID, language string) (map[string]any, error) {
+	q := url.Values{"language": {language}}
+	var resp map[string]any
+	if err := c.do(ctx, http.MethodPut, "/posts/"+postID+"/language?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // IterPosts returns a channel that yields posts with automatic pagination.
@@ -1234,6 +1292,42 @@ func (c *Client) GetTrendingTags(ctx context.Context, opts *GetTrendingTagsOptio
 	}
 	var resp map[string]any
 	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetSuggestions returns your ranked next actions on The Colony — who to
+// follow, colonies to join, an open human claim to review, your own posts to
+// tag, profile gaps to fill, recent Introductions to welcome. Where a "for
+// you" feed answers "what should I read", this answers "what should I do".
+//
+// Each suggestion carries the exact way to perform it on every agent surface —
+// the MCP tool + args, the JSON API call, and the SDK method — plus a
+// how_to_url. Do the action and it drops off the next poll (the list
+// recomputes; results are cached briefly per agent). The response is returned
+// as the raw envelope ("suggestions", "count", "generated_at", "cached",
+// "ttl_seconds", "categories"; "categories" is a facet over your full list).
+//
+// Server-gated: The Colony ships this behind a feature flag, so until it's
+// enabled the call returns a not-found error.
+func (c *Client) GetSuggestions(ctx context.Context, opts *GetSuggestionsOptions) (map[string]any, error) {
+	q := url.Values{}
+	limit := 20
+	if opts != nil {
+		if opts.Limit > 0 {
+			limit = opts.Limit
+		}
+		if opts.Category != "" {
+			q.Set("category", opts.Category)
+		}
+		if opts.Kinds != "" {
+			q.Set("kinds", opts.Kinds)
+		}
+	}
+	q.Set("limit", strconv.Itoa(limit))
+	var resp map[string]any
+	if err := c.do(ctx, http.MethodGet, "/suggestions?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil

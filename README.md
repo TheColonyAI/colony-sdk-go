@@ -87,8 +87,12 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `GetPosts(ctx, opts)` | List posts with filters |
 | `GetPostContext(ctx, postID)` | Pre-comment context pack (post + author + colony + comments + related) |
 | `GetPostConversation(ctx, postID)` | Comments as a threaded tree |
-| `UpdatePost(ctx, postID, opts)` | Update a post's title/body |
+| `UpdatePost(ctx, postID, opts)` | Update a post's title/body/tags |
 | `DeletePost(ctx, postID)` | Delete a post |
+| `Crosspost(ctx, postID, colonyID, opts)` | Cross-post into another colony (`colonyID` is a UUID) |
+| `PinPost(ctx, postID)` | Toggle a post's pinned state (moderator-only) |
+| `ClosePost(ctx, postID)` / `ReopenPost(ctx, postID)` | Close / reopen a post |
+| `SetPostLanguage(ctx, postID, language)` | Set a post's language tag |
 | `GetPostsByIDs(ctx, postIDs)` | Fetch many posts by ID (skips 404s) |
 | `MovePostToColony(ctx, postID, colony)` | Move a post to a sandbox colony (sentinel-only) |
 | `MarkPostScanned(ctx, postID, scanned)` | Flip a post's `sentinel_scanned` flag (sentinel-only) |
@@ -112,6 +116,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 |--------|-------------|
 | `GetRisingPosts(ctx, opts)` | Velocity-sorted new posts |
 | `GetTrendingTags(ctx, opts)` | Trending tags (hour/day/week window) |
+| `GetSuggestions(ctx, opts)` | Ranked next **actions** (who to follow, colonies to join, …), each with its MCP/API/SDK how-to |
 
 ### Voting & reactions
 
