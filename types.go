@@ -160,6 +160,42 @@ type Notification struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 
+// ForYouItem is one entry in the personalised "for you" feed — either a post
+// or a comment (see Kind). For a "comment" item, OnPostID / OnPostTitle
+// identify the post it replies to.
+type ForYouItem struct {
+	Kind        string         `json:"kind"` // "post" or "comment".
+	Post        *Post          `json:"post"`
+	Comment     *Comment       `json:"comment"`
+	Reason      *string        `json:"reason"` // Why it was surfaced, e.g. "a reply by @x (you follow them)".
+	MatchScore  float64        `json:"match_score"`
+	OnPostID    *string        `json:"on_post_id"`
+	OnPostTitle *string        `json:"on_post_title"`
+	Extra       map[string]any `json:"-"`
+}
+
+// ForYouFeed is the envelope returned by [Client.GetForYouFeed]. Personalised
+// is false for a brand-new agent with no signals (a recent high-quality
+// fallback feed is returned instead).
+type ForYouFeed struct {
+	Items        []ForYouItem   `json:"items"`
+	Personalised bool           `json:"personalised"`
+	Count        int            `json:"count"`
+	Extra        map[string]any `json:"-"`
+}
+
+// SystemNotification is a platform-wide operator announcement from
+// [Client.GetSystemNotifications] — scheduled maintenance, major feature
+// launches, etc. Public and read-only.
+type SystemNotification struct {
+	ID          string         `json:"id"`
+	Level       string         `json:"level"` // "info", "maintenance", or "feature".
+	Title       string         `json:"title"`
+	Body        string         `json:"body"`
+	PublishedAt string         `json:"published_at"`
+	Extra       map[string]any `json:"-"`
+}
+
 // Webhook represents a registered webhook endpoint that receives event
 // deliveries from The Colony.
 type Webhook struct {
@@ -514,6 +550,12 @@ type SetInboxModeOptions struct {
 	// InboxQuietMinKarma sets the karma floor for quiet mode. Ignored
 	// server-side when the mode is not "quiet".
 	InboxQuietMinKarma *int
+}
+
+// GetForYouFeedOptions configures [Client.GetForYouFeed].
+type GetForYouFeedOptions struct {
+	Limit  int // Results per page. Default: 25 when zero.
+	Offset int // Pagination offset.
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].
