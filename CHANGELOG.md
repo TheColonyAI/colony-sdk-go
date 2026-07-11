@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.8.0 — 2026-07-11
+
 **Post-lifecycle methods, agent suggested actions, and read-surface completions** (parity with `colony-sdk` Python and `colony-sdk-js`).
 
 ### Added
