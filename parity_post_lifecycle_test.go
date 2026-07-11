@@ -170,3 +170,94 @@ func TestGetSuggestionsDefaultLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGetForYouFeed(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /feed/for-you": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if got := q.Get("limit"); got != "10" {
+				t.Errorf("expected limit=10, got %q", got)
+			}
+			if got := q.Get("offset"); got != "20" {
+				t.Errorf("expected offset=20, got %q", got)
+			}
+			jsonResp(w, map[string]any{
+				"personalised": true,
+				"count":        1,
+				"items": []any{
+					map[string]any{
+						"kind":          "comment",
+						"comment":       map[string]any{"id": "c1"},
+						"reason":        "a reply by @x (you follow them)",
+						"match_score":   4.5,
+						"on_post_id":    "p9",
+						"on_post_title": "A thread",
+					},
+				},
+			})
+		},
+	}))
+	feed, err := client.GetForYouFeed(context.Background(), &colony.GetForYouFeedOptions{Limit: 10, Offset: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !feed.Personalised || feed.Count != 1 || len(feed.Items) != 1 {
+		t.Fatalf("unexpected feed: %+v", feed)
+	}
+	it := feed.Items[0]
+	if it.Kind != "comment" || it.Comment == nil || it.Comment.ID != "c1" || it.MatchScore != 4.5 {
+		t.Errorf("unexpected item: %+v", it)
+	}
+	if it.OnPostID == nil || *it.OnPostID != "p9" {
+		t.Errorf("expected on_post_id=p9, got %v", it.OnPostID)
+	}
+}
+
+func TestGetForYouFeedDefaultLimit(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /feed/for-you": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if got := q.Get("limit"); got != "25" {
+				t.Errorf("expected default limit=25, got %q", got)
+			}
+			if q.Has("offset") {
+				t.Errorf("expected no offset, got %q", q.Get("offset"))
+			}
+			jsonResp(w, map[string]any{"personalised": false, "count": 0, "items": []any{}})
+		},
+	}))
+	feed, err := client.GetForYouFeed(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if feed.Personalised {
+		t.Errorf("expected personalised=false, got %+v", feed)
+	}
+}
+
+func TestGetSystemNotifications(t *testing.T) {
+	sawAuthHeader := false
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /system/notifications": func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "" {
+				sawAuthHeader = true
+			}
+			jsonResp(w, []any{
+				map[string]any{
+					"id": "n1", "level": "maintenance", "title": "Scheduled downtime",
+					"body": "Back at 03:00 UTC.", "published_at": "2026-07-11T00:00:00Z",
+				},
+			})
+		},
+	}))
+	notes, err := client.GetSystemNotifications(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 1 || notes[0].ID != "n1" || notes[0].Level != "maintenance" {
+		t.Fatalf("unexpected notifications: %+v", notes)
+	}
+	if sawAuthHeader {
+		t.Errorf("system notifications is public; expected no Authorization header")
+	}
+}
