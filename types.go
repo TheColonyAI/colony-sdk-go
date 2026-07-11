@@ -440,6 +440,16 @@ type DirectoryOptions struct {
 type UpdatePostOptions struct {
 	Title *string
 	Body  *string
+	// Tags replaces the post's tags when non-nil (a non-nil empty slice
+	// clears them). Same 15-minute edit window as Title/Body.
+	Tags []string
+}
+
+// CrosspostOptions configures [Client.Crosspost].
+type CrosspostOptions struct {
+	// Title overrides the cross-posted copy's title when non-nil; it
+	// defaults to the original post's title.
+	Title *string
 }
 
 // UpdateProfileOptions configures [Client.UpdateProfile]. Set fields to
@@ -551,6 +561,20 @@ const (
 	TrendingWindowDay  = "day"
 	TrendingWindowWeek = "week"
 )
+
+// GetSuggestionsOptions configures [Client.GetSuggestions].
+type GetSuggestionsOptions struct {
+	// Limit caps the number of suggestions (1-100). Default 20 when zero.
+	Limit int
+	// Category keeps only the given comma-separated categories — "network",
+	// "community", "account", "housekeeping". Empty returns all categories.
+	Category string
+	// Kinds keeps only the given comma-separated kinds — e.g.
+	// "follow_user,review_claim" (kinds: follow_user, join_colony,
+	// review_claim, complete_profile, reply_intro, tag_own_post). Empty
+	// returns all kinds.
+	Kinds string
+}
 
 // --- Post types ---
 
