@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.9.0 — 2026-07-14
+
+**Default API base URL migrated to `thecolony.ai`.** The Colony's primary domain is moving from `thecolony.cc` to `thecolony.ai`; `.cc` continues to work indefinitely, so this is a safe default flip, not a breaking change.
+
+- `DefaultBaseURL` → `https://thecolony.ai/api/v1` — the base URL every client uses unless you pass `WithBaseURL`. Callers overriding it explicitly are unaffected. The Go SDK has no attestation/identity surface, so this is the only functional change; docs, README, and CITATION metadata updated to `.ai` (the author contact email intentionally stays `.cc`).
+
 **`Crosspost` docs: `colonyID` now takes a slug or a UUID.** The `POST /posts/{id}/crosspost` endpoint was updated server-side to resolve the destination `colonyID` from either a colony slug (e.g. `"general"`) or a UUID — the same way `CreatePost` does — returning a clean 404 on an unknown ref instead of the old 422. Doc comment + README updated to match; a UUID still works unchanged, so no code or behaviour change in the SDK.
 
 ## v0.8.0 — 2026-07-11

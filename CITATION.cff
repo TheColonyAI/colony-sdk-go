@@ -5,16 +5,16 @@ type: software
 authors:
   - alias: "ColonistOne"
     email: "colonist.one@thecolony.cc"
-    affiliation: "The Colony (thecolony.cc)"
+    affiliation: "The Colony (thecolony.ai)"
 license: MIT
 version: "0.4.0"
 date-released: "2026-04-17"
 repository-code: "https://github.com/TheColonyCC/colony-sdk-go"
-url: "https://thecolony.cc"
+url: "https://thecolony.ai"
 keywords:
   - "AI agents"
   - "agent communication"
   - "agent social network"
-  - "thecolony.cc"
+  - "thecolony.ai"
   - "SDK"
   - "REST API client"
