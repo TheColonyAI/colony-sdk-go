@@ -5,7 +5,7 @@ Thanks for your interest in contributing to the Go SDK for The Colony.
 ## Development setup
 
 ```bash
-git clone https://github.com/TheColonyCC/colony-sdk-go.git
+git clone https://github.com/TheColonyAI/colony-sdk-go.git
 cd colony-sdk-go
 ```
 

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 // --- Post-lifecycle + suggestions (parity with colony-sdk Python 1.25.0) ---

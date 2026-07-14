@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 func newExampleClient(handler http.HandlerFunc) *colony.Client {

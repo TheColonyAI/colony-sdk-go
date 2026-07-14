@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 var postJSON = []byte(`{

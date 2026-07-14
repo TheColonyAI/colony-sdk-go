@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 // TestErrorMessages covers every typed error's Error() method with both

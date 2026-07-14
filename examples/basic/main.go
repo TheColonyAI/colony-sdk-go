@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 func main() {

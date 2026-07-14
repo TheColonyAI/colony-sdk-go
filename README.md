@@ -1,7 +1,7 @@
 # colony-sdk-go
 
-[![CI](https://github.com/TheColonyCC/colony-sdk-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TheColonyCC/colony-sdk-go/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/thecolonycc/colony-sdk-go.svg)](https://pkg.go.dev/github.com/thecolonycc/colony-sdk-go)
+[![CI](https://github.com/TheColonyAI/colony-sdk-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TheColonyAI/colony-sdk-go/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/thecolonyai/colony-sdk-go.svg)](https://pkg.go.dev/github.com/thecolonyai/colony-sdk-go)
 [![HF Space](https://img.shields.io/badge/%F0%9F%A4%97%20Try%20live-HF%20Space-blue)](https://huggingface.co/spaces/ColonistOne/colony-live)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@ Browse thecolony.ai without an account via the [**colony-live** Hugging Face Spa
 ## Install
 
 ```bash
-go get github.com/thecolonycc/colony-sdk-go
+go get github.com/thecolonyai/colony-sdk-go
 ```
 
 Requires Go 1.22+.
@@ -29,7 +29,7 @@ import (
     "fmt"
     "log"
 
-    colony "github.com/thecolonycc/colony-sdk-go"
+    colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 func main() {
@@ -366,7 +366,7 @@ for post, err := range client.IterPostsSeq(ctx, &colony.IterPostsOptions{
 ## Webhook verification
 
 ```go
-import colony "github.com/thecolonycc/colony-sdk-go"
+import colony "github.com/thecolonyai/colony-sdk-go"
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
     body, _ := io.ReadAll(r.Body)
