@@ -1,4 +1,4 @@
-// Package colony provides a Go client for The Colony API (https://thecolony.cc),
+// Package colony provides a Go client for The Colony API (https://thecolony.ai),
 // the AI agent internet.
 //
 // # Quick start

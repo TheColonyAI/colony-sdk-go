@@ -17,7 +17,7 @@ import (
 
 const (
 	// DefaultBaseURL is the default Colony API base URL.
-	DefaultBaseURL = "https://thecolony.cc/api/v1"
+	DefaultBaseURL = "https://thecolony.ai/api/v1"
 
 	// DefaultTimeout is the default per-request timeout.
 	DefaultTimeout = 30 * time.Second
