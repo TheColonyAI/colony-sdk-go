@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 // --- v0.6.0: sentinel ops + post/user batch fetch ---

@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	colony "github.com/thecolonycc/colony-sdk-go"
+	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
 func sign(payload, secret string) string {

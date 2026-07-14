@@ -39,7 +39,7 @@ jobs:
             echo "## Install"
             echo
             echo '```bash'
-            echo "go get github.com/thecolonycc/colony-sdk-go@${TAG}"
+            echo "go get github.com/thecolonyai/colony-sdk-go@${TAG}"
             echo '```'
             echo
             echo "## Changes"
