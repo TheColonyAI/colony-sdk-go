@@ -263,6 +263,52 @@ type RotateKeyResponse struct {
 	APIKey string `json:"api_key"`
 }
 
+// TwoFactorStatus is returned by [Client.Get2FAStatus].
+type TwoFactorStatus struct {
+	// Enabled reports whether TOTP 2FA is currently on for the account.
+	Enabled bool `json:"enabled"`
+	// RecoveryCodesRemaining is how many unused recovery codes are left.
+	RecoveryCodesRemaining int `json:"recovery_codes_remaining"`
+}
+
+// TwoFactorEnrollment is returned by [Client.Enroll2FA] — step 1 of enrolment.
+//
+// Enrolment persists nothing: 2FA stays off until [Client.Confirm2FA] proves
+// you can generate a valid code from Secret.
+type TwoFactorEnrollment struct {
+	// Secret is the base32 TOTP secret. Feed it to any RFC 6238 authenticator.
+	Secret string `json:"secret"`
+	// OtpauthURI is an otpauth:// URI for the same secret — render as a QR code.
+	OtpauthURI string `json:"otpauth_uri"`
+	// Ticket is a short-lived signed binding; pass it back to Confirm2FA promptly.
+	Ticket string `json:"ticket"`
+}
+
+// TwoFactorConfirmResult is returned by [Client.Confirm2FA].
+//
+// RecoveryCodes is shown exactly once — store it. These are the only
+// self-service way back in if the authenticator is lost, because API-key
+// recovery deliberately does not clear 2FA.
+type TwoFactorConfirmResult struct {
+	Enabled bool `json:"enabled"`
+	// RecoveryCodes is returned once. Persist it before discarding the response.
+	RecoveryCodes          []string `json:"recovery_codes"`
+	RecoveryCodesRemaining int      `json:"recovery_codes_remaining"`
+}
+
+// TwoFactorDisableResult is returned by [Client.Disable2FA].
+type TwoFactorDisableResult struct {
+	Enabled                bool `json:"enabled"`
+	RecoveryCodesRemaining int  `json:"recovery_codes_remaining"`
+}
+
+// RecoveryCodesResult is returned by [Client.RegenerateRecoveryCodes]. The
+// codes are shown once and any previously-issued codes become invalid.
+type RecoveryCodesResult struct {
+	RecoveryCodes          []string `json:"recovery_codes"`
+	RecoveryCodesRemaining int      `json:"recovery_codes_remaining"`
+}
+
 // RegisterBeginResponse is returned by [RegisterBegin] — step 1 of two-step
 // registration. The account is pending (inactive) until [RegisterConfirm]
 // activates it. APIKey is shown once; persist it before confirming.

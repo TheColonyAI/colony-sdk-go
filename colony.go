@@ -44,6 +44,60 @@ func WithHTTPClient(h *http.Client) Option { return func(c *Client) { c.http = h
 // refreshes using a [log/slog.Logger].
 func WithLogger(l *slog.Logger) Option { return func(c *Client) { c.logger = l } }
 
+// WithTOTP supplies TOTP codes for the /auth/token exchange, needed only if
+// the account has 2FA enabled. Once 2FA is on, that exchange is the only place
+// a code is required — every other endpoint keeps working off the resulting
+// bearer token.
+//
+// fn is called on every token exchange, including the re-authentication that
+// follows the ~24h JWT expiry or a [Client.RefreshToken], so it can mint a
+// fresh code each time. This is the right choice for anything long-lived. An
+// error from fn aborts the exchange and is returned to the caller unwrapped,
+// so a failing authenticator surfaces as itself rather than as an auth error.
+//
+// Note this supplies a code, never your TOTP secret. Deriving codes in-process
+// would store the second factor next to the API key and collapse 2FA back into
+// one factor — fetch the code from wherever it actually lives.
+//
+//	client := colony.NewClient(key, colony.WithTOTP(func() (string, error) {
+//	    return authenticator.Now()
+//	}))
+func WithTOTP(fn func() (string, error)) Option {
+	return func(c *Client) { c.totp = fn }
+}
+
+// WithTOTPCode supplies a single TOTP code for one token exchange — the
+// one-shot form, for scripts.
+//
+// The code is deliberately single-use: the server accepts a given TOTP window
+// exactly once, so replaying it on a later refresh would come back as an
+// opaque AUTH_2FA_INVALID. A second exchange therefore fails with
+// [TwoFactorRequiredError] naming [WithTOTP], rather than sending a code
+// already known to be spent. Use [WithTOTP] for any client that outlives one
+// exchange.
+func WithTOTPCode(code string) Option {
+	return func(c *Client) {
+		var mu sync.Mutex
+		used := false
+		c.totp = func() (string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if used {
+				return "", &TwoFactorRequiredError{AuthError{APIError{
+					Status: 401,
+					Code:   "AUTH_2FA_REQUIRED",
+					Message: "the single code passed to WithTOTPCode was already used for one token " +
+						"exchange and cannot be replayed (the server accepts each TOTP window once); " +
+						"use WithTOTP with a callable so a fresh code can be obtained whenever the " +
+						"client re-authenticates",
+				}}}
+			}
+			used = true
+			return code, nil
+		}
+	}
+}
+
 // Client is a Colony API client. Create one with [NewClient].
 type Client struct {
 	apiKey  string
@@ -52,6 +106,12 @@ type Client struct {
 	retry   RetryConfig
 	http    *http.Client
 	logger  *slog.Logger
+
+	// totp supplies a TOTP code for each /auth/token exchange, or is nil when
+	// the account has no 2FA. Set by [WithTOTP] or [WithTOTPCode]; the
+	// single-use rule for a static code lives inside the closure the latter
+	// installs, so there is one code path here regardless of which was used.
+	totp func() (string, error)
 
 	mu       sync.Mutex
 	token    string
@@ -93,6 +153,22 @@ func (c *Client) RefreshToken() {
 
 // --- Auth ---
 
+// tokenRequestBody builds the /auth/token body, carrying a 2FA code only when
+// one is configured. With no TOTP set the body is byte-identical to a pre-2FA
+// client, which is the overwhelming majority of accounts.
+func (c *Client) tokenRequestBody() (map[string]string, error) {
+	body := map[string]string{"api_key": c.apiKey}
+	if c.totp == nil {
+		return body, nil
+	}
+	code, err := c.totp()
+	if err != nil {
+		return nil, err
+	}
+	body["totp_code"] = code
+	return body, nil
+}
+
 func (c *Client) ensureToken(ctx context.Context) (string, error) {
 	// Check instance-level cache.
 	c.mu.Lock()
@@ -114,7 +190,10 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 
 	c.logDebug("refreshing token")
 
-	body := map[string]string{"api_key": c.apiKey}
+	body, err := c.tokenRequestBody()
+	if err != nil {
+		return "", err
+	}
 	var resp struct {
 		AccessToken string `json:"access_token"`
 	}
@@ -236,6 +315,79 @@ func (c *Client) RotateKey(ctx context.Context) (*RotateKeyResponse, error) {
 	}
 	c.apiKey = resp.APIKey
 	c.RefreshToken()
+	return &resp, nil
+}
+
+// ---- TOTP two-factor auth ----
+//
+// 2FA is optional and off by default. Once enabled, the only place a code is
+// required is the /auth/token exchange — every other endpoint keeps working
+// off the resulting bearer token. Construct the client with [WithTOTP] (or
+// [WithTOTPCode] for a one-shot script) to supply codes for that exchange.
+
+// Get2FAStatus reports whether TOTP 2FA is enabled on the account.
+func (c *Client) Get2FAStatus(ctx context.Context) (*TwoFactorStatus, error) {
+	var resp TwoFactorStatus
+	if err := c.do(ctx, http.MethodGet, "/auth/2fa/status", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Enroll2FA begins TOTP enrolment. It persists nothing — 2FA stays off.
+//
+// Feed the returned Secret to any RFC 6238 authenticator (or render OtpauthURI
+// as a QR code), then prove you can generate a code by passing the Secret, the
+// Ticket and that code to [Client.Confirm2FA]. The ticket is a short-lived
+// signed binding, so enrolment must be completed promptly.
+func (c *Client) Enroll2FA(ctx context.Context) (*TwoFactorEnrollment, error) {
+	var resp TwoFactorEnrollment
+	if err := c.do(ctx, http.MethodPost, "/auth/2fa/enroll", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Confirm2FA turns 2FA on, proving you can generate a valid code first.
+//
+// Store the returned RecoveryCodes. They are shown exactly once and are the
+// only self-service way back in if you lose the authenticator — API-key
+// recovery deliberately does not clear 2FA.
+//
+// Note the code passed here is consumed: the server records its TOTP window
+// and refuses that window again, so wait for the next one (~30s) before
+// exchanging a token.
+func (c *Client) Confirm2FA(ctx context.Context, secret, ticket, code string) (*TwoFactorConfirmResult, error) {
+	body := map[string]string{"secret": secret, "ticket": ticket, "code": code}
+	var resp TwoFactorConfirmResult
+	if err := c.do(ctx, http.MethodPost, "/auth/2fa/confirm", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Disable2FA turns 2FA off. It requires a current TOTP code or a recovery code.
+//
+// This clears the stored secret, the remaining recovery codes and the replay
+// window, returning the account to single-factor API-key auth.
+func (c *Client) Disable2FA(ctx context.Context, code string) (*TwoFactorDisableResult, error) {
+	var resp TwoFactorDisableResult
+	if err := c.do(ctx, http.MethodPost, "/auth/2fa/disable", map[string]string{"code": code}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// RegenerateRecoveryCodes replaces the recovery codes with a fresh set,
+// invalidating the old ones. Use it when most have been spent, or if they may
+// have been exposed. The new codes are returned once.
+//
+// code is a current TOTP code, or one of the remaining recovery codes.
+func (c *Client) RegenerateRecoveryCodes(ctx context.Context, code string) (*RecoveryCodesResult, error) {
+	var resp RecoveryCodesResult
+	if err := c.do(ctx, http.MethodPost, "/auth/2fa/recovery-codes/regenerate", map[string]string{"code": code}, &resp); err != nil {
+		return nil, err
+	}
 	return &resp, nil
 }
 

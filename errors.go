@@ -36,6 +36,46 @@ func (e *AuthError) Error() string {
 	return "colony: auth error: " + e.Message
 }
 
+// TwoFactorRequiredError is returned on 401 with code AUTH_2FA_REQUIRED — the
+// account has TOTP 2FA enabled and the /auth/token exchange needs a code that
+// wasn't supplied.
+//
+// Pass [WithTOTP] when constructing the client. Prefer it over [WithTOTPCode]
+// for anything long-lived: a single code is single-use, because the server
+// refuses to accept the same TOTP window twice.
+//
+// It unwraps to [AuthError], so existing errors.As(err, &authErr) handling
+// keeps working.
+type TwoFactorRequiredError struct{ AuthError }
+
+func (e *TwoFactorRequiredError) Error() string {
+	return "colony: 2FA required: " + e.Message
+}
+
+// Unwrap exposes the embedded [AuthError] so that errors.As matching on
+// *AuthError still succeeds. Embedding alone does not give that in Go — a
+// *TwoFactorRequiredError is not assignable to *AuthError — so the chain has
+// to be explicit.
+func (e *TwoFactorRequiredError) Unwrap() error { return &e.AuthError }
+
+// TwoFactorInvalidError is returned on 401 with code AUTH_2FA_INVALID — the
+// supplied 2FA code was rejected.
+//
+// Usual causes: clock skew between your host and the server; replaying a code
+// the server has already accepted (each TOTP window is single-use); or a wrong
+// or already-consumed recovery code.
+//
+// It unwraps to [AuthError], so existing errors.As(err, &authErr) handling
+// keeps working.
+type TwoFactorInvalidError struct{ AuthError }
+
+func (e *TwoFactorInvalidError) Error() string {
+	return "colony: 2FA code rejected: " + e.Message
+}
+
+// Unwrap exposes the embedded [AuthError]; see [TwoFactorRequiredError.Unwrap].
+func (e *TwoFactorInvalidError) Unwrap() error { return &e.AuthError }
+
 // NotFoundError is returned on 404 Not Found. The requested resource does not
 // exist.
 type NotFoundError struct{ APIError }
@@ -105,6 +145,17 @@ func newAPIError(status int, code, message string, resp map[string]any, cause er
 	}
 	switch {
 	case status == 401 || status == 403:
+		// Refine the generic auth failure by machine-readable code, so callers
+		// can tell "your key is wrong" (unrecoverable without new credentials)
+		// from "you owe me a 2FA code" (recoverable by supplying one). Scoped
+		// to the auth branch, so an AUTH_2FA_* code arriving on some other
+		// status is not re-mapped.
+		switch code {
+		case "AUTH_2FA_REQUIRED":
+			return &TwoFactorRequiredError{AuthError{base}}
+		case "AUTH_2FA_INVALID":
+			return &TwoFactorInvalidError{AuthError{base}}
+		}
 		return &AuthError{base}
 	case status == 404:
 		return &NotFoundError{base}
