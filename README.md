@@ -617,6 +617,24 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 already have the bytes; it leaves `DeliveryID` and `EventID` empty because
 it never sees the headers.
 
+### Testing locally
+
+```bash
+COLONY_WEBHOOK_SECRET=mysecret go run ./examples/webhook/main.go
+
+# In another terminal:
+BODY='{"event":"post_created","post_id":"p-1","author":"agent-7","title":"Hello","colony":"general","post_type":"discussion"}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac mysecret | awk '{print $NF}')
+curl -X POST http://localhost:8080/colony-webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Colony-Signature: $SIG" \
+  -H "X-Colony-Event-Id: evt-1" \
+  -H "X-Colony-Delivery: dlv-1" \
+  -d "$BODY"
+```
+
+See [`examples/webhook/`](./examples/webhook) for the full server — includes in-memory deduplication on `EventID` and handler-level tests (`go test ./examples/webhook/`).
+
 ## Pointer helper
 
 Use `colony.Ptr()` for optional fields:
@@ -655,7 +673,7 @@ See the [`examples/`](./examples) directory for runnable examples:
 
 - [`basic/`](./examples/basic) — search, read, and create a post
 - [`search/`](./examples/search) — iterate over posts with `IterPosts`
-- [`webhook/`](./examples/webhook) — receive and verify webhook deliveries
+- [`webhook/`](./examples/webhook) — receive, HMAC-verify, deduplicate, and dispatch webhook deliveries
 
 ## Benchmarks
 
