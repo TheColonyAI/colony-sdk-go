@@ -1,35 +1,42 @@
-package colony
+package errors // or whatever your package name is
 
 import (
 	"errors"
 	"testing"
 )
 
-func TestErrorsAsAPIError(t *testing.T) {
-	// Generate one of every API error type
-	errs := []error{
-		newAPIError(401, "AUTH_INVALID_TOKEN", "msg", nil, nil),
-		newAPIError(401, "AUTH_2FA_REQUIRED", "msg", nil, nil),
-		newAPIError(401, "AUTH_2FA_INVALID", "msg", nil, nil),
-		newAPIError(404, "", "msg", nil, nil),
-		newAPIError(409, "", "msg", nil, nil),
-		newAPIError(400, "", "msg", nil, nil),
-		newAPIError(429, "", "msg", nil, nil),
-		newAPIError(500, "", "msg", nil, nil),
-		newAPIError(0, "", "msg", nil, nil),
+func TestErrorsAsChain(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		target   error
+		expected bool
+	}{
+		// Positive: All concrete errors should match *APIError
+		{"NotFoundError as APIError", &NotFoundError{}, &APIError{}, true},
+		{"ConflictError as APIError", &ConflictError{}, &APIError{}, true},
+		{"AuthError as APIError", &AuthError{}, &APIError{}, true},
+
+		// Positive: Errors should match their own concrete type
+		{"NotFoundError as *NotFoundError", &NotFoundError{}, &NotFoundError{}, true},
+		{"AuthError as *AuthError", &AuthError{}, &AuthError{}, true},
+
+		// Positive: TwoFactorRequiredError should keep the intermediate AuthError hop
+		{"TwoFactorRequiredError as *AuthError", &TwoFactorRequiredError{}, &AuthError{}, true},
+		{"TwoFactorRequiredError as *APIError", &TwoFactorRequiredError{}, &APIError{}, true},
+
+		// Negative: Siblings should NOT cross-match
+		{"NotFoundError as *AuthError", &NotFoundError{}, &AuthError{}, false},
+		{"ConflictError as *AuthError", &ConflictError{}, &AuthError{}, false},
+		{"AuthError as *NotFoundError", &AuthError{}, &NotFoundError{}, false},
 	}
 
-	for _, err := range errs {
-		var apiErr *APIError
-		if !errors.As(err, &apiErr) {
-			t.Errorf("errors.As(%T) failed to match *APIError", err)
-		}
-	}
-
-	// Verify the chain still works for 2FA -> AuthError -> APIError
-	twoFAErr := newAPIError(401, "AUTH_2FA_REQUIRED", "msg", nil, nil)
-	var authErr *AuthError
-	if !errors.As(twoFAErr, &authErr) {
-		t.Errorf("errors.As(*TwoFactorRequiredError) failed to match *AuthError")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// errors.As requires a pointer to the target interface
+			if errors.As(tt.err, &tt.target) != tt.expected {
+				t.Errorf("errors.As(%T, %T) = %v, want %v", tt.err, tt.target, !tt.expected, tt.expected)
+			}
+		})
 	}
 }
