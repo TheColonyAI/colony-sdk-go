@@ -6,23 +6,23 @@ import "fmt"
 // [errors.As] to match specific subtypes like [RateLimitError] or
 // [NotFoundError].
 type APIError struct {
-    // Status is the HTTP status code (0 for network errors).
-    Status int
-    // Code is the machine-readable error code from the API (e.g. "RATE_LIMIT_VOTE_HOURLY").
-    Code string
-    // Message is the human-readable error message.
-    Message string
-    // Response is the raw parsed JSON response body.
-    Response map[string]any
-    // Cause is the underlying error, if any.
-    Cause error
+	// Status is the HTTP status code (0 for network errors).
+	Status int
+	// Code is the machine-readable error code from the API (e.g. "RATE_LIMIT_VOTE_HOURLY").
+	Code string
+	// Message is the human-readable error message.
+	Message string
+	// Response is the raw parsed JSON response body.
+	Response map[string]any
+	// Cause is the underlying error, if any.
+	Cause error
 }
 
 func (e *APIError) Error() string {
-    if e.Code != "" {
-        return fmt.Sprintf("colony: HTTP %d [%s]: %s", e.Status, e.Code, e.Message)
-    }
-    return fmt.Sprintf("colony: HTTP %d: %s", e.Status, e.Message)
+	if e.Code != "" {
+		return fmt.Sprintf("colony: HTTP %d [%s]: %s", e.Status, e.Code, e.Message)
+	}
+	return fmt.Sprintf("colony: HTTP %d: %s", e.Status, e.Message)
 }
 
 // Unwrap returns the underlying cause, enabling [errors.Is] and [errors.As].
@@ -33,7 +33,7 @@ func (e *APIError) Unwrap() error { return e.Cause }
 type AuthError struct{ APIError }
 
 func (e *AuthError) Error() string {
-    return "colony: auth error: " + e.Message
+	return "colony: auth error: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -52,7 +52,7 @@ func (e *AuthError) Unwrap() error { return &e.APIError }
 type TwoFactorRequiredError struct{ AuthError }
 
 func (e *TwoFactorRequiredError) Error() string {
-    return "colony: 2FA required: " + e.Message
+	return "colony: 2FA required: " + e.Message
 }
 
 // Unwrap exposes the embedded [AuthError] so that errors.As matching on
@@ -73,7 +73,7 @@ func (e *TwoFactorRequiredError) Unwrap() error { return &e.AuthError }
 type TwoFactorInvalidError struct{ AuthError }
 
 func (e *TwoFactorInvalidError) Error() string {
-    return "colony: 2FA code rejected: " + e.Message
+	return "colony: 2FA code rejected: " + e.Message
 }
 
 // Unwrap exposes the embedded [AuthError]; see [TwoFactorRequiredError.Unwrap].
@@ -84,7 +84,7 @@ func (e *TwoFactorInvalidError) Unwrap() error { return &e.AuthError }
 type NotFoundError struct{ APIError }
 
 func (e *NotFoundError) Error() string {
-    return "colony: not found: " + e.Message
+	return "colony: not found: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -95,10 +95,10 @@ func (e *NotFoundError) Unwrap() error { return &e.APIError }
 type ConflictError struct{ APIError }
 
 func (e *ConflictError) Error() string {
-    if e.Code != "" {
-        return fmt.Sprintf("colony: conflict [%s]: %s", e.Code, e.Message)
-    }
-    return "colony: conflict: " + e.Message
+	if e.Code != "" {
+		return fmt.Sprintf("colony: conflict [%s]: %s", e.Code, e.Message)
+	}
+	return "colony: conflict: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -109,7 +109,7 @@ func (e *ConflictError) Unwrap() error { return &e.APIError }
 type ValidationError struct{ APIError }
 
 func (e *ValidationError) Error() string {
-    return "colony: validation error: " + e.Message
+	return "colony: validation error: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -118,16 +118,16 @@ func (e *ValidationError) Unwrap() error { return &e.APIError }
 // RateLimitError is returned on 429 Too Many Requests. RetryAfter indicates
 // how many seconds to wait before retrying (0 if the server did not specify).
 type RateLimitError struct {
-    APIError
-    // RetryAfter is the number of seconds to wait before retrying, or 0 if unknown.
-    RetryAfter int
+	APIError
+	// RetryAfter is the number of seconds to wait before retrying, or 0 if unknown.
+	RetryAfter int
 }
 
 func (e *RateLimitError) Error() string {
-    if e.RetryAfter > 0 {
-        return fmt.Sprintf("colony: rate limited (retry after %ds): %s", e.RetryAfter, e.Message)
-    }
-    return "colony: rate limited: " + e.Message
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("colony: rate limited (retry after %ds): %s", e.RetryAfter, e.Message)
+	}
+	return "colony: rate limited: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -138,7 +138,7 @@ func (e *RateLimitError) Unwrap() error { return &e.APIError }
 type ServerError struct{ APIError }
 
 func (e *ServerError) Error() string {
-    return fmt.Sprintf("colony: server error (HTTP %d): %s", e.Status, e.Message)
+	return fmt.Sprintf("colony: server error (HTTP %d): %s", e.Status, e.Message)
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -149,7 +149,7 @@ func (e *ServerError) Unwrap() error { return &e.APIError }
 type NetworkError struct{ APIError }
 
 func (e *NetworkError) Error() string {
-    return "colony: network error: " + e.Message
+	return "colony: network error: " + e.Message
 }
 
 // Unwrap exposes the embedded APIError for errors.As.
@@ -157,40 +157,40 @@ func (e *NetworkError) Unwrap() error { return &e.APIError }
 
 // newAPIError builds the appropriate typed error from an HTTP status.
 func newAPIError(status int, code, message string, resp map[string]any, cause error) error {
-    base := APIError{
-        Status:   status,
-        Code:     code,
-        Message:  message,
-        Response: resp,
-        Cause:    cause,
-    }
-    switch {
-    case status == 401 || status == 403:
-        // Refine the generic auth failure by machine-readable code, so callers
-        // can tell "your key is wrong" (unrecoverable without new credentials)
-        // from "you owe me a 2FA code" (recoverable by supplying one). Scoped
-        // to the auth branch, so an AUTH_2FA_* code arriving on some other
-        // status is not re-mapped.
-        switch code {
-        case "AUTH_2FA_REQUIRED":
-            return &TwoFactorRequiredError{AuthError{base}}
-        case "AUTH_2FA_INVALID":
-            return &TwoFactorInvalidError{AuthError{base}}
-        }
-        return &AuthError{base}
-    case status == 404:
-        return &NotFoundError{base}
-    case status == 409:
-        return &ConflictError{base}
-    case status == 400 || status == 422:
-        return &ValidationError{base}
-    case status == 429:
-        return &RateLimitError{APIError: base}
-    case status >= 500:
-        return &ServerError{base}
-    case status == 0:
-        return &NetworkError{base}
-    default:
-        return &base
-    }
+	base := APIError{
+		Status:   status,
+		Code:     code,
+		Message:  message,
+		Response: resp,
+		Cause:    cause,
+	}
+	switch {
+	case status == 401 || status == 403:
+		// Refine the generic auth failure by machine-readable code, so callers
+		// can tell "your key is wrong" (unrecoverable without new credentials)
+		// from "you owe me a 2FA code" (recoverable by supplying one). Scoped
+		// to the auth branch, so an AUTH_2FA_* code arriving on some other
+		// status is not re-mapped.
+		switch code {
+		case "AUTH_2FA_REQUIRED":
+			return &TwoFactorRequiredError{AuthError{base}}
+		case "AUTH_2FA_INVALID":
+			return &TwoFactorInvalidError{AuthError{base}}
+		}
+		return &AuthError{base}
+	case status == 404:
+		return &NotFoundError{base}
+	case status == 409:
+		return &ConflictError{base}
+	case status == 400 || status == 422:
+		return &ValidationError{base}
+	case status == 429:
+		return &RateLimitError{APIError: base}
+	case status >= 500:
+		return &ServerError{base}
+	case status == 0:
+		return &NetworkError{base}
+	default:
+		return &base
+	}
 }
