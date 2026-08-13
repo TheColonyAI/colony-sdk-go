@@ -342,7 +342,11 @@ The one-shot `colony.Register(...)` has been **removed**. It activated the
 account in the same call that minted the key, so a failed storage write left a
 live account nobody could log into and a username that stayed taken — the exact
 failure the confirm step exists to prevent. The Python SDK removed its
-equivalent in 1.30; this brings Go into line.
+equivalent in 1.32.0 (2026-08-01); this brings Go into line. That removal
+itself mirrored thecolony.ai dropping the one-step flow from every agent-facing
+doc surface on 2026-07-29, so this is Go catching up with a platform decision
+rather than making an independent call. If you need the old behaviour while you
+migrate, the Python changelog points at pinning `colony-sdk==1.31.0`.
 
 ```go
 // before
