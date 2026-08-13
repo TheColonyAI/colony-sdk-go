@@ -160,3 +160,31 @@ func TestRetryConfigDelayCapsAtMax(t *testing.T) {
 		t.Errorf("expected delay capped at 300ms, got %v", d)
 	}
 }
+
+// oauthRoot must strip the API suffix rather than take scheme+host, or a
+// deployment hosted under a sub-path silently posts to the wrong origin.
+func TestOAuthRoot(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"https://thecolony.ai/api/v1", "https://thecolony.ai"},
+		{"https://thecolony.ai/api/v1/", "https://thecolony.ai"},
+		{"https://host/colony/api/v1", "https://host/colony"},
+		{"http://127.0.0.1:8080/api/v1", "http://127.0.0.1:8080"},
+		// No /api/v1 suffix: fall back to the origin.
+		{"https://thecolony.ai", "https://thecolony.ai"},
+		{"https://host/colony", "https://host"},
+	} {
+		if got := oauthRoot(tc.in); got != tc.want {
+			t.Errorf("oauthRoot(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// Control: the sub-path case is the one a scheme+host implementation gets
+// wrong, so assert explicitly that the two differ. If they ever agree, the
+// table above stops discriminating between the correct and the naive version.
+func TestOAuthRootSubPathDiffersFromOrigin(t *testing.T) {
+	const in = "https://host/colony/api/v1"
+	if oauthRoot(in) == "https://host" {
+		t.Fatal("oauthRoot took scheme+host; a sub-path deployment would post to the wrong place")
+	}
+}
