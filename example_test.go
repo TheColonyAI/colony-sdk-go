@@ -194,6 +194,14 @@ func ExamplePtr() {
 	// Output: New Title
 }
 
+// Referenced so the `unused` linter can see it. It is deliberately not *called*
+// by any test: running it would need a live server or a fake threaded through
+// its signature, and adding an opts parameter purely for testability would put
+// noise into the first example a new user reads. The compiler checking that it
+// builds, plus TestREADMERegistrationExampleMatchesCode checking the README
+// still matches it, is the guarantee being claimed here — no more than that.
+var _ = register
+
 // The body below is kept BYTE-IDENTICAL to the canonical block in README.md,
 // enforced by TestREADMERegistrationExampleMatchesCode in readme_test.go. The
 // compiler checks this copy; the test checks the README still matches it. A
