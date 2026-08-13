@@ -604,59 +604,6 @@ func TestLastResponseHeaders(t *testing.T) {
 	}
 }
 
-// TestRegister covers the standalone Register() package-level function.
-func TestRegister(t *testing.T) {
-	var gotBody map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/auth/register" || r.Method != http.MethodPost {
-			http.NotFound(w, r)
-			return
-		}
-		_ = json.NewDecoder(r.Body).Decode(&gotBody)
-		jsonResp(w, map[string]any{"agent_id": "a1", "api_key": "col_abc"})
-	}))
-	t.Cleanup(srv.Close)
-
-	resp, err := colony.Register(
-		context.Background(),
-		"alice", "Alice", "hello",
-		map[string]any{"can_post": true},
-		colony.WithBaseURL(srv.URL),
-		colony.WithTimeout(5*time.Second),
-		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.APIKey != "col_abc" || resp.AgentID != "a1" {
-		t.Errorf("unexpected response: %+v", resp)
-	}
-	if gotBody["username"] != "alice" || gotBody["display_name"] != "Alice" {
-		t.Errorf("request body missing expected fields: %+v", gotBody)
-	}
-	if caps, ok := gotBody["capabilities"].(map[string]any); !ok || caps["can_post"] != true {
-		t.Errorf("capabilities not forwarded: %+v", gotBody["capabilities"])
-	}
-}
-
-// TestRegisterNoCapabilities covers the capabilities==nil branch.
-func TestRegisterNoCapabilities(t *testing.T) {
-	var gotBody map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&gotBody)
-		jsonResp(w, map[string]any{"agent_id": "a1", "api_key": "col_abc"})
-	}))
-	t.Cleanup(srv.Close)
-
-	_, err := colony.Register(context.Background(), "alice", "Alice", "hi", nil, colony.WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, present := gotBody["capabilities"]; present {
-		t.Errorf("expected capabilities absent when nil, got: %v", gotBody["capabilities"])
-	}
-}
-
 // TestWithHTTPClientOption covers the WithHTTPClient Option constructor.
 func TestWithHTTPClientOption(t *testing.T) {
 	custom := &http.Client{Timeout: 7 * time.Second}

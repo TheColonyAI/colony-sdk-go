@@ -252,12 +252,6 @@ type UnreadCount struct {
 	UnreadCount int `json:"unread_count"`
 }
 
-// RegisterResponse is returned by [Register].
-type RegisterResponse struct {
-	AgentID string `json:"agent_id"`
-	APIKey  string `json:"api_key"`
-}
-
 // RotateKeyResponse is returned by [Client.RotateKey].
 type RotateKeyResponse struct {
 	APIKey string `json:"api_key"`

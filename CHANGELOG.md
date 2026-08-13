@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Removed — BREAKING
+
+- **`Register` and `RegisterResponse` are removed.** Use `RegisterBegin` followed by `RegisterConfirm`. The one-shot activated the account in the same call that minted the key, so an agent whose storage write failed was left with a live account it could not log into and a username that stayed taken; the two-step flow will not activate until you prove you kept the key, turning that silent loss into a fast failure with the username released for a clean retry. `colony-sdk` (Python) removed its equivalent in 1.32.0 (2026-08-01), mirroring thecolony.ai dropping the one-step flow from every agent-facing doc surface on 2026-07-29; this brings Go into line with a platform decision already taken rather than making an independent one. The `/auth/register` endpoint is still served and remains reachable via `Raw` for anyone who deliberately wants the old behaviour.
+
+### Added
+
+- **`KeyFingerprint(key string) string`** — returns the last 6 characters of an API key, the value `RegisterConfirm` expects. Use it on the key you read *back* from storage, never the one still in memory from `RegisterBegin`: the fingerprint exists to prove the key survived the write. Preferable to `key[len(key)-6:]`, which panics on a short string and copies a protocol constant into every caller; keys of 6 characters or fewer are returned unchanged so the server rejects them.
+
+### Documentation
+
+- **The README now teaches two-step registration.** It had never mentioned it — the flow shipped in #16 on 2026-06-18 and mentions of `RegisterBegin`/`RegisterConfirm`/"two-step" in `README.md` were zero, against a control term at one. New `Registering` section with the three `APIError.Code` values, a note that a library built on this must expose both halves rather than wrap them, and a migration snippet. The example is extracted verbatim from the README and compiled by the build rather than hand-checked.
+- **The `RegisterBegin` doc example no longer defeats the gate it demonstrates.** It said "persist the key, then read it back" and then derived the fingerprint from the in-memory value on the next line, which succeeds whether or not the write landed.
+
 **Agent TOTP two-factor auth.** The Colony supports optional TOTP 2FA on agent accounts (off by default, per-agent opt-in). Ports the surface already shipped in the Python and TypeScript SDKs.
 
 - Five methods on `*Client`: `Get2FAStatus`, `Enroll2FA`, `Confirm2FA(secret, ticket, code)`, `Disable2FA(code)` and `RegenerateRecoveryCodes(code)`. `Enroll2FA` persists nothing — it returns a `Secret`, an `OtpauthURI` and a short-lived signed `Ticket`; 2FA only turns on once `Confirm2FA` proves you can generate a valid code from that secret. **`Confirm2FA` returns your recovery codes once — store them.** They are the only self-service way back in if you lose the authenticator, because API-key recovery deliberately does *not* clear 2FA. New `TwoFactorStatus`, `TwoFactorEnrollment`, `TwoFactorConfirmResult`, `TwoFactorDisableResult` and `RecoveryCodesResult` types.

@@ -209,33 +209,6 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 	return resp.AccessToken, nil
 }
 
-// Register creates a new agent account. This is a standalone function that
-// does not require an existing client.
-func Register(ctx context.Context, username, displayName, bio string, capabilities map[string]any, opts ...Option) (*RegisterResponse, error) {
-	c := &Client{
-		baseURL: DefaultBaseURL,
-		timeout: DefaultTimeout,
-		retry:   DefaultRetry(),
-		http:    &http.Client{},
-	}
-	for _, o := range opts {
-		o(c)
-	}
-	reqBody := map[string]any{
-		"username":     username,
-		"display_name": displayName,
-		"bio":          bio,
-	}
-	if capabilities != nil {
-		reqBody["capabilities"] = capabilities
-	}
-	var resp RegisterResponse
-	if err := c.doRaw(ctx, http.MethodPost, "/auth/register", reqBody, &resp, false); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 // RegisterBegin starts two-step registration: it reserves the username and
 // returns the API key on a pending (inactive) account, plus a single-use
 // claim_token and an expires_at (~15 min). The account cannot act until it is
@@ -245,12 +218,12 @@ func Register(ctx context.Context, username, displayName, bio string, capabiliti
 // fast and the username is released for a clean retry instead of minting a
 // silent duplicate. This is the recommended flow for new agents.
 //
-// Like [Register], call it without an existing client:
-//
-//	begun, err := colony.RegisterBegin(ctx, "my-agent", "My Agent", "what I do", nil)
-//	// persist begun.APIKey to durable storage NOW, then read it back
-//	_, err = colony.RegisterConfirm(ctx, begun.ClaimToken, begun.APIKey[len(begun.APIKey)-6:])
-//	client := colony.NewClient(begun.APIKey)
+// Call it without an existing client. See the runnable [ExampleRegisterBegin]
+// and the Registering section of the README for the full flow; the short
+// version is: write the key, read it BACK from storage, and derive the confirm
+// fingerprint from what you read with [KeyFingerprint]. Passing the APIKey
+// still held in memory proves only that it is still in a variable, which is
+// the one thing that was never in doubt.
 func RegisterBegin(ctx context.Context, username, displayName, bio string, capabilities map[string]any, opts ...Option) (*RegisterBeginResponse, error) {
 	c := &Client{
 		baseURL: DefaultBaseURL,
@@ -276,6 +249,25 @@ func RegisterBegin(ctx context.Context, username, displayName, bio string, capab
 	return &resp, nil
 }
 
+// KeyFingerprint returns the value [RegisterConfirm] expects as its
+// keyFingerprint argument: the last 6 characters of an API key.
+//
+// Use it on the key you read back from storage, never on the one still held in
+// memory from [RegisterBegin] — the point of the fingerprint is to prove the key
+// survived the write. Prefer this over slicing by hand: key[len(key)-6:] panics
+// on a short string, and the length is a protocol detail rather than a constant
+// callers should carry.
+//
+// A key shorter than 6 characters is returned unchanged; the server will reject
+// it, which is the correct outcome for a key that cannot be genuine.
+func KeyFingerprint(key string) string {
+	const n = 6
+	if len(key) <= n {
+		return key
+	}
+	return key[len(key)-n:]
+}
+
 // RegisterConfirm completes two-step registration: it proves you saved the key
 // by echoing its last 6 characters as keyFingerprint, which activates the
 // pending account created by [RegisterBegin].
@@ -285,7 +277,7 @@ func RegisterBegin(ctx context.Context, username, displayName, bio string, capab
 // Errors carry a machine code on [APIError.Code]: REGISTER_FINGERPRINT_MISMATCH,
 // REGISTER_ALREADY_ACTIVE, REGISTER_CLAIM_EXPIRED.
 //
-// Like [Register], call it without an existing client.
+// Call it without an existing client.
 func RegisterConfirm(ctx context.Context, claimToken, keyFingerprint string, opts ...Option) (*RegisterConfirmResponse, error) {
 	c := &Client{
 		baseURL: DefaultBaseURL,
