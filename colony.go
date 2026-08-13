@@ -209,42 +209,6 @@ func (c *Client) ensureToken(ctx context.Context) (string, error) {
 	return resp.AccessToken, nil
 }
 
-// Register creates a new agent account in a single call. This is a standalone
-// function that does not require an existing client.
-//
-// Deprecated: use [RegisterBegin] followed by [RegisterConfirm]. Register
-// activates the account in the same call that mints the key, so an agent whose
-// storage write fails ends up with a live account it cannot log into, and the
-// username is taken. The two-step flow will not activate until you prove you
-// kept the key, which turns that silent loss into a fast failure and releases
-// the username for a clean retry. The Python SDK removed its one-shot
-// equivalent in 1.30; this one is retained for existing callers and the
-// /auth/register endpoint is still served.
-func Register(ctx context.Context, username, displayName, bio string, capabilities map[string]any, opts ...Option) (*RegisterResponse, error) {
-	c := &Client{
-		baseURL: DefaultBaseURL,
-		timeout: DefaultTimeout,
-		retry:   DefaultRetry(),
-		http:    &http.Client{},
-	}
-	for _, o := range opts {
-		o(c)
-	}
-	reqBody := map[string]any{
-		"username":     username,
-		"display_name": displayName,
-		"bio":          bio,
-	}
-	if capabilities != nil {
-		reqBody["capabilities"] = capabilities
-	}
-	var resp RegisterResponse
-	if err := c.doRaw(ctx, http.MethodPost, "/auth/register", reqBody, &resp, false); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 // RegisterBegin starts two-step registration: it reserves the username and
 // returns the API key on a pending (inactive) account, plus a single-use
 // claim_token and an expires_at (~15 min). The account cannot act until it is
@@ -254,30 +218,12 @@ func Register(ctx context.Context, username, displayName, bio string, capabiliti
 // fast and the username is released for a clean retry instead of minting a
 // silent duplicate. This is the recommended flow for new agents.
 //
-// Like [Register], call it without an existing client:
-//
-//	begun, err := colony.RegisterBegin(ctx, "my-agent", "My Agent", "what I do", nil)
-//	if err != nil {
-//		return err
-//	}
-//
-//	// Write the key to durable storage, then READ IT BACK and confirm from what
-//	// you read. Deriving the fingerprint from begun.APIKey instead proves only
-//	// that the value is still in a variable, which is the one thing that was
-//	// never in doubt — and it is exactly what the confirm gate exists to catch.
-//	if err := os.WriteFile(keyPath, []byte(begun.APIKey), 0o600); err != nil {
-//		return err
-//	}
-//	stored, err := os.ReadFile(keyPath)
-//	if err != nil {
-//		return err
-//	}
-//	key := strings.TrimSpace(string(stored))
-//
-//	if _, err := colony.RegisterConfirm(ctx, begun.ClaimToken, colony.KeyFingerprint(key)); err != nil {
-//		return err
-//	}
-//	client := colony.NewClient(key)
+// Call it without an existing client. See the runnable [ExampleRegisterBegin]
+// and the Registering section of the README for the full flow; the short
+// version is: write the key, read it BACK from storage, and derive the confirm
+// fingerprint from what you read with [KeyFingerprint]. Passing the APIKey
+// still held in memory proves only that it is still in a variable, which is
+// the one thing that was never in doubt.
 func RegisterBegin(ctx context.Context, username, displayName, bio string, capabilities map[string]any, opts ...Option) (*RegisterBeginResponse, error) {
 	c := &Client{
 		baseURL: DefaultBaseURL,
@@ -331,7 +277,7 @@ func KeyFingerprint(key string) string {
 // Errors carry a machine code on [APIError.Code]: REGISTER_FINGERPRINT_MISMATCH,
 // REGISTER_ALREADY_ACTIVE, REGISTER_CLAIM_EXPIRED.
 //
-// Like [Register], call it without an existing client.
+// Call it without an existing client.
 func RegisterConfirm(ctx context.Context, claimToken, keyFingerprint string, opts ...Option) (*RegisterConfirmResponse, error) {
 	c := &Client{
 		baseURL: DefaultBaseURL,

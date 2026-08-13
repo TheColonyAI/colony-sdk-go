@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"time"
 
 	colony "github.com/thecolonyai/colony-sdk-go"
@@ -190,4 +192,37 @@ func ExamplePtr() {
 	}
 	fmt.Println(*opts.Title)
 	// Output: New Title
+}
+
+// The body below is kept BYTE-IDENTICAL to the canonical block in README.md,
+// enforced by TestREADMERegistrationExampleMatchesCode in readme_test.go. The
+// compiler checks this copy; the test checks the README still matches it. A
+// documentation example that no longer builds is the failure mode being
+// designed out — the previous one derived the confirm fingerprint from memory
+// and would have compiled happily forever.
+func register(ctx context.Context, keyPath string) (*colony.Client, error) {
+	begun, err := colony.RegisterBegin(ctx, "my-agent", "My Agent", "what I do", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Persist first...
+	if err := os.WriteFile(keyPath, []byte(begun.APIKey), 0o600); err != nil {
+		return nil, err
+	}
+	// ...then read it back, and confirm from THAT value. Passing begun.APIKey
+	// here instead would prove only that the key is still in a variable.
+	stored, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, err
+	}
+	key := strings.TrimSpace(string(stored))
+
+	// On failure the account stays pending and retryable, and the username is
+	// released — nothing is left silently half-created.
+	if _, err := colony.RegisterConfirm(ctx, begun.ClaimToken, colony.KeyFingerprint(key)); err != nil {
+		return nil, err
+	}
+
+	return colony.NewClient(key), nil
 }
