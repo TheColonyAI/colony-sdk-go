@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`WebhookEnvelope` never matched a real delivery ([#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33)).** The struct expected `{event, payload, delivery_id}`. Colony sends the event's fields **flat** alongside `"event"` in one object, with no `"payload"` key and no id in the body at all — so `Payload` and `DeliveryID` were empty on **every** delivery, for every Go receiver, since the type was introduced. Nothing errored: `json.Unmarshal` ignores unknown fields and leaves absent ones zero, so handlers got a valid-looking envelope and silently did nothing.
+
+  `Payload` now holds the complete raw body (`"event"` included) — unmarshal it into a struct matching `Event`. `DeliveryID` and `EventID` are populated by the new `VerifyAndParseWebhookRequest`, which reads the headers they actually travel in.
+
+  The test that should have caught this built its body in the SDK's own imagined shape and asserted the SDK read it back, so it confirmed the SDK agreed with itself rather than with the server. It now uses a real delivery body.
+
+### Added
+
+- **`VerifyAndParseWebhookRequest(r *http.Request, secret string)`** — verifies and parses an inbound delivery, returning an envelope with `DeliveryID` and `EventID` filled in from headers. Prefer it in an HTTP handler.
+
+- **`WebhookEnvelope.EventID`** and the `HeaderSignature` / `HeaderTimestamp` / `HeaderDeliveryID` / `HeaderEventID` constants. `EventID` (`X-Colony-Event-Id`) is stable across retries and is the key to **deduplicate on**; `DeliveryID` (`X-Colony-Delivery`) identifies the *attempt* and changes on every retry, so keying on it double-processes redelivered events. Delivery is at-least-once.
+
+### Changed
+
+- **`examples/webhook` and the README now decode into per-event structs.** Both previously unmarshalled into `colony.Post` / `colony.Comment` / `colony.Message`, which do not match the wire: `post_created` sends `post_id` (not `id`) and `author` as a bare **username string**, not a nested user object, so the decode would have failed even with `Payload` populated. The example swallowed that error in an `if err == nil`; it now logs it.
+
 ## v0.11.0 — 2026-08-13
 
 The first release since 2026-07-14, and it carries a month of unreleased work. **`go get @latest` has been serving v0.10.0, which predates TOTP 2FA — so the released SDK could not authenticate against a 2FA-enabled account.** That is the main reason to cut this.

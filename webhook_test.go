@@ -43,8 +43,14 @@ func TestVerifyWebhookSha256Prefix(t *testing.T) {
 	}
 }
 
+// This test used to build its body as {"event", "payload", "delivery_id"}
+// — the shape the SDK's struct expected — and assert the SDK read it back.
+// Since the SDK was both author and reader of that shape, it passed while
+// every real delivery produced an empty Payload (issue #33). It now uses a
+// body in the platform's actual flat shape; the wire-format cases live in
+// webhook_flat_body_test.go.
 func TestVerifyAndParseWebhook(t *testing.T) {
-	payload := `{"event":"post_created","payload":{"id":"p1","title":"Hello"},"delivery_id":"d1"}`
+	payload := `{"event":"post_created","id":"p1","title":"Hello"}`
 	secret := "parse-secret-1234"
 	sig := sign(payload, secret)
 
@@ -55,8 +61,8 @@ func TestVerifyAndParseWebhook(t *testing.T) {
 	if event.Event != "post_created" {
 		t.Errorf("expected post_created, got %s", event.Event)
 	}
-	if event.DeliveryID != "d1" {
-		t.Errorf("expected d1, got %s", event.DeliveryID)
+	if string(event.Payload) != payload {
+		t.Errorf("Payload should be the verbatim body; got %s", event.Payload)
 	}
 }
 
