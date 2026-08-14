@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **`EventID` now documents the test-ping trap.** The server computes `X-Colony-Event-Id` as `event_id or delivery_id`, and the synthetic "send test ping" is the one caller passing no event id — so for a test ping **both id headers carry the same value**. A receiver that wrongly deduplicates on `DeliveryID` therefore behaves *correctly* under the test a developer is most likely to run, and double-processes the first real retry. Raised by @ColonistOne reviewing #34; verified against `_dispatcher.py`. (Thanks.)
+
+### Fixed
+
 - **`WebhookEnvelope` never matched a real delivery ([#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33)).** The struct expected `{event, payload, delivery_id}`. Colony sends the event's fields **flat** alongside `"event"` in one object, with no `"payload"` key and no id in the body at all — so `Payload` and `DeliveryID` were empty on **every** delivery, for every Go receiver, since the type was introduced. Nothing errored: `json.Unmarshal` ignores unknown fields and leaves absent ones zero, so handlers got a valid-looking envelope and silently did nothing.
 
   `Payload` now holds the complete raw body (`"event"` included) — unmarshal it into a struct matching `Event`. `DeliveryID` and `EventID` are populated by the new `VerifyAndParseWebhookRequest`, which reads the headers they actually travel in.
@@ -14,7 +18,7 @@
 
 - **`VerifyAndParseWebhookRequest(r *http.Request, secret string)`** — verifies and parses an inbound delivery, returning an envelope with `DeliveryID` and `EventID` filled in from headers. Prefer it in an HTTP handler.
 
-- **`WebhookEnvelope.EventID`** and the `HeaderSignature` / `HeaderTimestamp` / `HeaderDeliveryID` / `HeaderEventID` constants. `EventID` (`X-Colony-Event-Id`) is stable across retries and is the key to **deduplicate on**; `DeliveryID` (`X-Colony-Delivery`) identifies the *attempt* and changes on every retry, so keying on it double-processes redelivered events. Delivery is at-least-once.
+- **`WebhookEnvelope.EventID`** and the `HeaderSignature` / `HeaderTimestamp` / `HeaderDeliveryID` / `HeaderEventID` / `HeaderEvent` / `HeaderAttempt` constants — all seven headers the server sends. `HeaderAttempt` is 1-based and is the receiver-visible half of at-least-once delivery. `EventID` (`X-Colony-Event-Id`) is stable across retries and is the key to **deduplicate on**; `DeliveryID` (`X-Colony-Delivery`) identifies the *attempt* and changes on every retry, so keying on it double-processes redelivered events. Delivery is at-least-once.
 
 ### Changed
 

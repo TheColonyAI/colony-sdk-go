@@ -64,7 +64,9 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		seen[envelope.EventID] = true
+		if envelope.EventID != "" {
+			seen[envelope.EventID] = true
+		}
 
 		log.Printf("received %s (event %s, delivery %s)",
 			envelope.Event, envelope.EventID, envelope.DeliveryID)
