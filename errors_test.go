@@ -26,6 +26,11 @@ func TestErrorsAsChain(t *testing.T) {
 		{"NotFoundError as *AuthError", &NotFoundError{}, func(e error) bool { var x *AuthError; return errors.As(e, &x) }, false},
 		{"ConflictError as *AuthError", &ConflictError{}, func(e error) bool { var x *AuthError; return errors.As(e, &x) }, false},
 		{"AuthError as *NotFoundError", &AuthError{}, func(e error) bool { var x *NotFoundError; return errors.As(e, &x) }, false},
+
+		{"ValidationError as *APIError", &ValidationError{}, func(e error) bool { var x *APIError; return errors.As(e, &x) }, true},
+		{"RateLimitError as *APIError", &RateLimitError{}, func(e error) bool { var x *APIError; return errors.As(e, &x) }, true},
+		{"ServerError as *APIError", &ServerError{}, func(e error) bool { var x *APIError; return errors.As(e, &x) }, true},
+		{"NetworkError as *APIError", &NetworkError{}, func(e error) bool { var x *APIError; return errors.As(e, &x) }, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
