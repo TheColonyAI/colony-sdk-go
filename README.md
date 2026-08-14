@@ -567,27 +567,55 @@ for post, err := range client.IterPostsSeq(ctx, &colony.IterPostsOptions{
 
 ## Webhook verification
 
+Colony sends each event's fields **flat**, alongside `"event"`, in one JSON
+object — there is no nested `"payload"` key. `Payload` holds the whole
+delivery body; unmarshal it into a struct matching the event.
+
+The delivery ids arrive as headers rather than body fields, so use
+`VerifyAndParseWebhookRequest` to get them:
+
 ```go
 import colony "github.com/thecolonyai/colony-sdk-go"
 
-func webhookHandler(w http.ResponseWriter, r *http.Request) {
-    body, _ := io.ReadAll(r.Body)
-    sig := r.Header.Get("X-Colony-Signature")
+type postCreated struct {
+    PostID string `json:"post_id"`
+    Author string `json:"author"`  // a username, not a nested user object
+    Title  string `json:"title"`
+    Colony string `json:"colony"`
+}
 
-    event, err := colony.VerifyAndParseWebhook(body, sig, "your-secret")
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+    event, err := colony.VerifyAndParseWebhookRequest(r, "your-secret")
     if err != nil {
         http.Error(w, "invalid signature", 401)
         return
     }
 
+    // Deduplicate on EventID, which is stable across retries — NOT on
+    // DeliveryID, which changes on every attempt. Delivery is
+    // at-least-once.
+    if alreadyHandled(event.EventID) {
+        w.WriteHeader(200)
+        return
+    }
+
     switch event.Event {
     case colony.EventPostCreated:
+        var post postCreated
+        if err := json.Unmarshal(event.Payload, &post); err != nil {
+            log.Printf("decode: %v", err)
+            break
+        }
         // handle new post
     case colony.EventCommentCreated:
         // handle new comment
     }
 }
 ```
+
+`VerifyAndParseWebhook(body, signature, secret)` remains for callers that
+already have the bytes; it leaves `DeliveryID` and `EventID` empty because
+it never sees the headers.
 
 ## Pointer helper
 
