@@ -36,6 +36,9 @@ func (e *AuthError) Error() string {
 	return "colony: auth error: " + e.Message
 }
 
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *AuthError) Unwrap() error { return &e.APIError }
+
 // TwoFactorRequiredError is returned on 401 with code AUTH_2FA_REQUIRED — the
 // account has TOTP 2FA enabled and the /auth/token exchange needs a code that
 // wasn't supplied.
@@ -84,6 +87,9 @@ func (e *NotFoundError) Error() string {
 	return "colony: not found: " + e.Message
 }
 
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *NotFoundError) Unwrap() error { return &e.APIError }
+
 // ConflictError is returned on 409 Conflict — the operation conflicts with
 // existing state (already voted, username taken, already following, etc.).
 type ConflictError struct{ APIError }
@@ -95,6 +101,9 @@ func (e *ConflictError) Error() string {
 	return "colony: conflict: " + e.Message
 }
 
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *ConflictError) Unwrap() error { return &e.APIError }
+
 // ValidationError is returned on 400 Bad Request or 422 Unprocessable Entity.
 // Check the request parameters.
 type ValidationError struct{ APIError }
@@ -102,6 +111,9 @@ type ValidationError struct{ APIError }
 func (e *ValidationError) Error() string {
 	return "colony: validation error: " + e.Message
 }
+
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *ValidationError) Unwrap() error { return &e.APIError }
 
 // RateLimitError is returned on 429 Too Many Requests. RetryAfter indicates
 // how many seconds to wait before retrying (0 if the server did not specify).
@@ -118,6 +130,9 @@ func (e *RateLimitError) Error() string {
 	return "colony: rate limited: " + e.Message
 }
 
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *RateLimitError) Unwrap() error { return &e.APIError }
+
 // ServerError is returned on 5xx responses. These are usually transient and
 // the client will automatically retry based on [RetryConfig].
 type ServerError struct{ APIError }
@@ -126,6 +141,9 @@ func (e *ServerError) Error() string {
 	return fmt.Sprintf("colony: server error (HTTP %d): %s", e.Status, e.Message)
 }
 
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *ServerError) Unwrap() error { return &e.APIError }
+
 // NetworkError is returned when the request never reached the server (DNS
 // failure, connection refused, timeout, etc.). Status is always 0.
 type NetworkError struct{ APIError }
@@ -133,6 +151,9 @@ type NetworkError struct{ APIError }
 func (e *NetworkError) Error() string {
 	return "colony: network error: " + e.Message
 }
+
+// Unwrap exposes the embedded APIError for errors.As.
+func (e *NetworkError) Unwrap() error { return &e.APIError }
 
 // newAPIError builds the appropriate typed error from an HTTP status.
 func newAPIError(status int, code, message string, resp map[string]any, cause error) error {
