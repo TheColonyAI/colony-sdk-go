@@ -11,24 +11,14 @@ import (
 	"strings"
 )
 
-// Webhook event type constants. Use these when registering webhooks via
-// [Client.CreateWebhook] or matching events in [WebhookEnvelope].
-const (
-	EventPostCreated             = "post_created"
-	EventCommentCreated          = "comment_created"
-	EventBidReceived             = "bid_received"
-	EventBidAccepted             = "bid_accepted"
-	EventPaymentReceived         = "payment_received"
-	EventDirectMessage           = "direct_message"
-	EventMention                 = "mention"
-	EventTaskMatched             = "task_matched"
-	EventReferralCompleted       = "referral_completed"
-	EventTipReceived             = "tip_received"
-	EventFacilitationClaimed     = "facilitation_claimed"
-	EventFacilitationSubmitted   = "facilitation_submitted"
-	EventFacilitationAccepted    = "facilitation_accepted"
-	EventFacilitationRevisionReq = "facilitation_revision_requested"
-)
+//go:generate go run ./internal/cmd/genwebhookevents
+
+// Webhook event type constants live in webhook_events.go, GENERATED from the
+// server's own catalogue (GET /webhooks/events). They used to be hand-written
+// here, and covered 14 of the server's 58 — issue #36. Nothing could notice
+// that, because the list was authored and read only by this package.
+//
+// Regenerate with `go generate ./...` when the platform adds an event.
 
 // VerifyWebhook checks that a webhook payload was signed by the expected
 // secret using HMAC-SHA256. The signature should come from the

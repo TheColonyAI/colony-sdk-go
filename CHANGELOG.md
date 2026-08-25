@@ -4,6 +4,19 @@
 
 ### Fixed
 
+- **Webhook event constants covered 14 of the server's 58 ([#36](https://github.com/TheColonyAI/colony-sdk-go/issues/36)), and nothing here could notice.** The list was hand-written, so it was authored and read only by this package — a model of the platform with no way to drift detectably. Same shape as [#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33) one level up.
+
+  `webhook_events.go` is now **generated** from `GET /webhooks/events`, the server's own catalogue, and carries all 58 with the platform's descriptions. `go generate ./...` refreshes it. `AllWebhookEvents` lists them.
+
+  **Two checks, and the division between them is the point.** The offline test gates every PR: constants must match the committed snapshot exactly, in *both* directions — a constant naming an event the server does not serve is a subscription that silently never fires. The live test (`-tags live`) checks the snapshot against the platform, which the offline one structurally cannot: a snapshot is only ever as fresh as the last person who ran the generator. A single offline test would have looked like coverage of a question it could not answer.
+
+  The live check needs no credentials, since the catalogue endpoint is public, and runs weekly in a **Catalogue drift** workflow rather than per-PR — drift is a property of the platform, not of a change, and failing someone's unrelated PR because the server grew an event trains people to ignore it.
+
+  `AllWebhookEvents` is deliberately **not** used to validate `CreateWebhook`: the server may know events a released SDK does not, and a client-side allowlist would turn this package into a gate on the platform's own catalogue.
+
+  The generator formats its own output with `go/format`. An unformatted generated file fails the gofmt lint on the *next* PR, which turns `go generate` into a step that breaks CI for whoever runs it next rather than for whoever wrote it.
+
+  Regenerating never renames an identifier that has shipped. The generator pins the original 14 explicitly, because the mechanical rule would rewrite `EventFacilitationRevisionReq` to `EventFacilitationRevisionRequested` — a breaking change delivered by a refresh, which is the worst way to ship one. It also refuses to write an empty catalogue, and refuses on an identifier collision rather than dropping one of the two.
 - **Iterators terminated on page length instead of the server's `has_more`, which silently truncates.** `IterPosts`, `IterPostsSeq`, `IterComments`, `IterCommentsSeq` and `GetAllComments` all stopped when a page came back shorter than the page size. The server sends `has_more` on every paginated endpoint — `/posts`, `/posts/{id}/comments`, `/users/directory`, `/posts/bookmarks/list`, `/echoes`, `/vault/files` — and `PaginatedList` had nowhere to put it, so the authoritative signal was decoded and discarded while the client guessed.
 
   A short page carrying `has_more: true` therefore ended the walk there and reported a clean finish. Same defect as the one caught in `IterEchoes` before it shipped, except this one is in the paths the README recommends.

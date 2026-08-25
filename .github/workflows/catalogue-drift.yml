@@ -1,0 +1,33 @@
+name: Catalogue drift
+
+# The offline suite checks that the webhook event constants match the
+# committed snapshot. It cannot check that the SNAPSHOT still matches the
+# platform — a snapshot is only ever as fresh as the last person who ran the
+# generator, and issue #36 was exactly that gap left open for months.
+#
+# So this job asks the server. GET /webhooks/events is public, so it needs no
+# credentials and cannot leak one.
+#
+# It runs on a schedule rather than per-PR on purpose: drift is a property of
+# the platform, not of a change, and failing someone's unrelated PR because
+# the server grew an event would train people to ignore it.
+'on':
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: Compare the committed catalogue against the live one
+        run: go test -tags live -run TestCatalogueSnapshotIsCurrent -v ./...

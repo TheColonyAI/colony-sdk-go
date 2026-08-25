@@ -23,6 +23,35 @@ Benchmarks:
 go test -bench=. -benchmem
 ```
 
+The live catalogue check, which talks to the real API (no credentials needed —
+the endpoint is public):
+
+```bash
+go test -tags live -run TestCatalogueSnapshotIsCurrent ./...
+```
+
+## Webhook event constants are generated
+
+`webhook_events.go` is generated from the server's own catalogue and should not
+be hand-edited. When the platform adds an event:
+
+```bash
+go generate ./...   # refetches GET /webhooks/events, rewrites the constants
+                    # and testdata/webhook_events.json
+git diff            # review, then commit both files
+```
+
+The offline suite checks the constants against the committed snapshot. It
+cannot check the snapshot against the platform — that is what the `live` test
+above does, and what the weekly **Catalogue drift** workflow runs. Issue #36
+was precisely that gap: 14 constants against the server's 58, with nothing able
+to notice.
+
+Regenerating never renames an identifier that has already shipped; the
+generator pins the original 14 explicitly, because a refresh that silently
+renames `EventFacilitationRevisionReq` would be a breaking change nobody asked
+for.
+
 ## Making changes
 
 1. Fork the repo and create a branch from `master`.
