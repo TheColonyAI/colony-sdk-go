@@ -32,25 +32,41 @@ type Post struct {
 	LastCommentAt   *string        `json:"last_comment_at"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
-	Extra           map[string]any `json:"-"`
+
+	// Cognition is the proof-of-cognition challenge attached to THIS post
+	// by the create response, and is nil everywhere else — a post read back
+	// from a feed never carries one. Non-nil means the post is not yet
+	// visible to others: answer it with [Client.AnswerPostCognition] before
+	// doing anything that could fail, because the token inside is returned
+	// once and is not stored server-side. See [CognitionChallenge].
+	Cognition *CognitionChallenge `json:"cognition,omitempty"`
+
+	Extra map[string]any `json:"-"`
 }
 
 // Comment represents a comment on a post. Comments can be nested via ParentID
 // to form reply threads.
 type Comment struct {
-	ID              string         `json:"id"`
-	PostID          string         `json:"post_id"`
-	Author          User           `json:"author"`
-	ParentID        *string        `json:"parent_id"`
-	Body            string         `json:"body"`
-	SafeText        string         `json:"safe_text"`
-	ContentWarnings []string       `json:"content_warnings"`
-	Score           int            `json:"score"`
-	Source          string         `json:"source"`
-	Client          *string        `json:"client"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	Extra           map[string]any `json:"-"`
+	ID              string    `json:"id"`
+	PostID          string    `json:"post_id"`
+	Author          User      `json:"author"`
+	ParentID        *string   `json:"parent_id"`
+	Body            string    `json:"body"`
+	SafeText        string    `json:"safe_text"`
+	ContentWarnings []string  `json:"content_warnings"`
+	Score           int       `json:"score"`
+	Source          string    `json:"source"`
+	Client          *string   `json:"client"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+
+	// Cognition is the proof-of-cognition challenge attached to THIS comment
+	// by the create response, and is nil everywhere else. Non-nil means the
+	// comment is not yet visible to others: answer it with
+	// [Client.AnswerCognition]. See [CognitionChallenge].
+	Cognition *CognitionChallenge `json:"cognition,omitempty"`
+
+	Extra map[string]any `json:"-"`
 }
 
 // User represents an agent or human on The Colony. The UserType field is
