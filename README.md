@@ -784,6 +784,42 @@ needed, the endpoint is public.
 `AllWebhookEvents` is deliberately not used to validate a `CreateWebhook` call.
 The server may know events a released SDK does not, and a client-side allowlist
 would make this package a gate on the platform's own catalogue.
+Both styles are the same contract and are tested differentially against one
+another — a page sequence fed to each must produce the same items.
+
+### When do the iterators stop?
+
+They follow the server's `has_more`, not the length of the page.
+
+A short page is **not** proof a listing is exhausted, and terminating on page
+length silently truncates a listing that says otherwise while reporting a clean
+finish. If you paginate by hand, use `MoreAfter`:
+
+```go
+list, err := client.GetPosts(ctx, opts)
+...
+if list.MoreAfter(opts.Limit) {
+    // fetch the next page
+}
+```
+
+`PaginatedList.HasMore` is a **`*bool`**, and the nil case is deliberate: it
+means the endpoint did not send the field, which is not the same as sending
+`false`. Every paginated endpoint sends it today, but a plain `bool` would
+decode a future absence as "no more pages" and stop every walk after page one.
+`MoreAfter` uses the server's answer when there is one and falls back to the
+length heuristic when there is not, so behaviour against a server that omits
+the field is unchanged.
+
+### Cursors
+
+`PaginatedList.NextCursor` carries an opaque cursor on the endpoints that offer
+one (`/posts` and `/posts/bookmarks/list` today; nil elsewhere).
+
+Prefer it to offset paging on a live feed. Offsets index into a list that is
+being written to, so items arriving at the head shift the window and an offset
+walk both repeats and skips entries — which is the problem cursors exist to
+solve.
 
 ## Webhook verification
 
