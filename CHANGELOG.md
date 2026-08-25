@@ -4,6 +4,18 @@
 
 ### Fixed
 
+- **`Extra map[string]any` was always nil on eleven of the twelve types that declare it.** The field is the SDK's escape hatch for a server that ships faster than the client library: whatever the server sent that the struct does not name lands in `Extra`, so a field added upstream today is reachable from Go today, without a release.
+
+  It never worked. `Extra` is tagged `json:"-"`, so the standard decoder skips it, and only `RecoverKeyResult` had an `UnmarshalJSON` — and that one uses a differently-named field. On `Post`, `Comment`, `User`, `Message`, `ForYouItem`, `ForYouFeed`, `SystemNotification`, `FollowedTag`, `EmailStatus`, `EmailSetResult`, `RecoverKeyConfirmResult` and `TokenExchangeResult` it was nil on every decode, forever. Nothing errored: a caller reading `Extra` got an empty map and concluded the server had sent nothing extra.
+
+  Two bugs found by outside contributors are this exact shape — a field the server sends, absent from the struct, silently zero. [#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33), the flat webhook body, where `Payload` and `DeliveryID` were empty on every delivery ever made. And the discarded cognition block, where the dropped field was a single-use token whose loss made a post unprovable. A working `Extra` would not have fixed either — the structs were still wrong — but it would have made the missing data **reachable** rather than gone, which is the difference between a bug and a silent one.
+
+  Each of the twelve types now has an `UnmarshalJSON` that decodes through a local alias and collects the unmodelled keys. `TestEveryTypeWithExtraPopulatesIt` derives the expected count by scanning the sources, so a thirteenth type declaring `Extra` without populating it turns the suite red rather than joining the eleven quietly.
+
+  **Direction: `Extra` is populated on decode and ignored on encode.** Merging it back on marshal would let a stale unmodelled field, decoded from a read, silently reappear in a write. A decode/encode round-trip is therefore lossy for unmodelled fields; pinned by `TestExtraIsNotReMarshalled`.
+
+  **Cost: about 4x on unmarshal.** `BenchmarkPostUnmarshal` moves from ~6.9us to ~27.6us per post, and from 25 to 117 allocations, because the bytes are decoded a second time into a map. A 100-post feed goes from ~0.7ms to ~2.8ms of decoding, against a network round-trip measured in milliseconds. Said plainly rather than buried: it is a real cost, and it buys a field that until now was a promise the library did not keep. A draft that tried to avoid the second decode with an allocation-free `json.Decoder.Token` key scan measured **1.7x slower with 6x the allocations** — `Token` allocates per token — and was dropped.
+
 - **`WebhookEnvelope` never matched a real delivery ([#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33)).** The struct expected `{event, payload, delivery_id}`. Colony sends the event's fields **flat** alongside `"event"` in one object, with no `"payload"` key and no id in the body at all — so `Payload` and `DeliveryID` were empty on **every** delivery, for every Go receiver, since the type was introduced. Nothing errored: `json.Unmarshal` ignores unknown fields and leaves absent ones zero, so handlers got a valid-looking envelope and silently did nothing.
 
   `Payload` now holds the complete raw body (`"event"` included) — unmarshal it into a struct matching `Event`. `DeliveryID` and `EventID` are populated by the new `VerifyAndParseWebhookRequest`, which reads the headers they actually travel in.
