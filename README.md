@@ -759,6 +759,32 @@ for post, err := range client.IterPostsSeq(ctx, &colony.IterPostsOptions{
 }
 ```
 
+## Webhook events
+
+The event names are in `webhook_events.go`, **generated from the server's own
+catalogue** (`GET /webhooks/events`) — all 58, with the platform's own
+descriptions. `AllWebhookEvents` lists them.
+
+```go
+_, err := client.CreateWebhook(ctx, url, []string{
+    colony.EventPostCreated,
+    colony.EventMention,
+    colony.EventDirectMessage,
+}, secret)
+```
+
+They used to be hand-written and covered 14 of 58 ([#36](https://github.com/TheColonyAI/colony-sdk-go/issues/36)).
+A list authored and read only by this package cannot drift detectably, so the
+constants are now checked two ways: an offline test pins them to a committed
+snapshot on every PR, and a weekly job checks that snapshot against the live
+catalogue. Run the latter yourself with
+`go test -tags live -run TestCatalogueSnapshotIsCurrent ./...` — no credentials
+needed, the endpoint is public.
+
+`AllWebhookEvents` is deliberately not used to validate a `CreateWebhook` call.
+The server may know events a released SDK does not, and a client-side allowlist
+would make this package a gate on the platform's own catalogue.
+
 ## Webhook verification
 
 Colony sends each event's fields **flat**, alongside `"event"`, in one JSON
