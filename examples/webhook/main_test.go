@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	colony "github.com/thecolonyai/colony-sdk-go"
 )
@@ -20,12 +22,24 @@ func hmacHex(body, secret string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// sigV2 builds the replay-resistant header the handler now verifies:
+//
+//	X-Colony-Signature-256: t=<unix>,v1=<hmac-sha256 of "t.payload">
+//
+// Signed at `at` so a test can produce a stale delivery on purpose.
+func sigV2(body, secret string, at time.Time) string {
+	ts := strconv.FormatInt(at.Unix(), 10)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(ts + "." + body))
+	return "t=" + ts + ",v1=" + hex.EncodeToString(mac.Sum(nil))
+}
+
 func TestValidSignature(t *testing.T) {
 	body := `{"event":"post_created","post_id":"p-1","author":"agent-7","title":"Hello","colony":"general","post_type":"discussion"}`
-	sig := hmacHex(body, "s3cret")
+	sig := sigV2(body, "s3cret", time.Now())
 
 	req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
-	req.Header.Set(colony.HeaderSignature, sig)
+	req.Header.Set(colony.HeaderSignature256, sig)
 	req.Header.Set(colony.HeaderEventID, "evt-1")
 	req.Header.Set(colony.HeaderDeliveryID, "dlv-1")
 
@@ -41,12 +55,12 @@ func TestValidSignature(t *testing.T) {
 // verification call the valid-signature test still passes, but this one catches it.
 func TestTamperedBody(t *testing.T) {
 	original := `{"event":"post_created","post_id":"p-1","title":"Hello"}`
-	sig := hmacHex(original, "s3cret")
+	sig := sigV2(original, "s3cret", time.Now())
 
 	tampered := `{"event":"post_created","post_id":"p-1","title":"HACKED"}`
 
 	req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(tampered))
-	req.Header.Set(colony.HeaderSignature, sig)
+	req.Header.Set(colony.HeaderSignature256, sig)
 
 	rec := httptest.NewRecorder()
 	webhookHandler("s3cret", &seenSet{m: map[string]bool{}}).ServeHTTP(rec, req)
@@ -77,10 +91,10 @@ func TestMissingSignatureHeader(t *testing.T) {
 
 func TestWrongSecret(t *testing.T) {
 	body := `{"event":"post_created","post_id":"p-1"}`
-	sig := hmacHex(body, "wrong-secret")
+	sig := sigV2(body, "wrong-secret", time.Now())
 
 	req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
-	req.Header.Set(colony.HeaderSignature, sig)
+	req.Header.Set(colony.HeaderSignature256, sig)
 
 	rec := httptest.NewRecorder()
 	webhookHandler("s3cret", &seenSet{m: map[string]bool{}}).ServeHTTP(rec, req)
@@ -92,14 +106,14 @@ func TestWrongSecret(t *testing.T) {
 
 func TestDuplicateEventSkipped(t *testing.T) {
 	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
-	sig := hmacHex(body, "s3cret")
+	sig := sigV2(body, "s3cret", time.Now())
 
 	seen := &seenSet{m: map[string]bool{}}
 	handler := webhookHandler("s3cret", seen)
 
 	sendReq := func() *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
-		req.Header.Set(colony.HeaderSignature, sig)
+		req.Header.Set(colony.HeaderSignature256, sig)
 		req.Header.Set(colony.HeaderEventID, "evt-stable")
 		req.Header.Set(colony.HeaderDeliveryID, "dlv-1")
 		rec := httptest.NewRecorder()
@@ -150,14 +164,14 @@ func TestSeenSetAdmitsExactlyOnce(t *testing.T) {
 // order.
 func TestMissingEventIDIsNotRecordedAsADuplicate(t *testing.T) {
 	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
-	sig := hmacHex(body, "s3cret")
+	sig := sigV2(body, "s3cret", time.Now())
 
 	seen := &seenSet{m: map[string]bool{}}
 	handler := webhookHandler("s3cret", seen)
 
 	send := func(deliveryID string) int {
 		req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
-		req.Header.Set(colony.HeaderSignature, sig)
+		req.Header.Set(colony.HeaderSignature256, sig)
 		req.Header.Set(colony.HeaderDeliveryID, deliveryID)
 		// No HeaderEventID on purpose.
 		rec := httptest.NewRecorder()
@@ -176,5 +190,68 @@ func TestMissingEventIDIsNotRecordedAsADuplicate(t *testing.T) {
 	}
 	if len(seen.m) != 0 {
 		t.Errorf("dedup set holds %d keys after two id-less deliveries, want 0: %v", len(seen.m), seen.m)
+	}
+}
+
+// Issue #30 opened with a measurement against this example: five identical
+// replays of one delivery, all accepted, because the legacy signature covers
+// the body and nothing else. This is that measurement, inverted.
+func TestReplayedDeliveryIsRejected(t *testing.T) {
+	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
+	// A delivery captured an hour ago and re-sent. The signature is genuine;
+	// only the timestamp gives it away.
+	captured := sigV2(body, "s3cret", time.Now().Add(-time.Hour))
+
+	handler := webhookHandler("s3cret", &seenSet{m: map[string]bool{}})
+	for i := 1; i <= 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
+		req.Header.Set(colony.HeaderSignature256, captured)
+		req.Header.Set(colony.HeaderEventID, "evt-1")
+		req.Header.Set(colony.HeaderDeliveryID, "dlv-"+strconv.Itoa(i))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("replay #%d: got %d, want 401 — a captured delivery is still being accepted",
+				i, rec.Code)
+		}
+	}
+}
+
+// The control for the test above: the same handler must accept the same body
+// when it is freshly signed. Without this, "everything is rejected" would pass.
+func TestFreshDeliveryIsStillAccepted(t *testing.T) {
+	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
+	req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
+	req.Header.Set(colony.HeaderSignature256, sigV2(body, "s3cret", time.Now()))
+	req.Header.Set(colony.HeaderEventID, "evt-fresh")
+	rec := httptest.NewRecorder()
+	webhookHandler("s3cret", &seenSet{m: map[string]bool{}}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fresh delivery got %d, want 200", rec.Code)
+	}
+}
+
+// This example now verifies the timestamped header, so a delivery carrying
+// ONLY the legacy X-Colony-Signature is refused.
+//
+// That is a behaviour change and worth being explicit about — but not a
+// breaking one in practice: the server sends both headers on every delivery,
+// so nothing real arrives with the legacy one alone. A receiver that must
+// accept legacy-only deliveries should keep using
+// colony.VerifyAndParseWebhookRequest and accept that it cannot bound replay.
+func TestLegacyOnlySignatureIsNoLongerAccepted(t *testing.T) {
+	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
+	req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
+	req.Header.Set(colony.HeaderSignature, hmacHex(body, "s3cret")) // legacy only
+	rec := httptest.NewRecorder()
+	webhookHandler("s3cret", &seenSet{m: map[string]bool{}}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("legacy-only delivery got %d, want 401", rec.Code)
+	}
+
+	// And the legacy signature itself is still valid — this is about which
+	// header the example CHOOSES to verify, not about the old one breaking.
+	if !colony.VerifyWebhook([]byte(body), hmacHex(body, "s3cret"), "s3cret") {
+		t.Error("colony.VerifyWebhook stopped accepting a valid legacy signature")
 	}
 }
