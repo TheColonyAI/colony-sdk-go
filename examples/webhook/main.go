@@ -23,6 +23,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -107,8 +108,8 @@ func webhookHandler(secret string, seen *seenSet) http.HandlerFunc {
 		}
 
 		// Reject early if the signature header is missing.
-		if r.Header.Get(colony.HeaderSignature) == "" {
-			log.Println("rejected: missing X-Colony-Signature header")
+		if r.Header.Get(colony.HeaderSignature256) == "" {
+			log.Println("rejected: missing " + colony.HeaderSignature256 + " header")
 			http.Error(w, "missing signature", http.StatusUnauthorized)
 			return
 		}
@@ -117,9 +118,25 @@ func webhookHandler(secret string, seen *seenSet) http.HandlerFunc {
 		// before any authentication, so an unbounded read is a DoS vector.
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
-		envelope, err := colony.VerifyAndParseWebhookRequest(r, secret)
+		// Replay-bounded verification. The plain VerifyAndParseWebhookRequest
+		// accepts a captured delivery forever; this one rejects anything
+		// signed further than the tolerance from now, using the timestamped
+		// signature the server sends on every delivery.
+		envelope, err := colony.VerifyAndParseWebhookRequestWithTolerance(
+			r, secret, colony.DefaultWebhookTolerance)
 		if err != nil {
-			log.Printf("rejected: %v", err)
+			// Stale-but-authentic and forged want different responses, which
+			// is why this returns an error rather than a bool. Both are 401
+			// to the caller; only the log distinguishes them, and that is the
+			// line an operator reads when something is wrong.
+			switch {
+			case errors.Is(err, colony.ErrWebhookExpired):
+				log.Printf("rejected REPLAY (signature valid, timestamp stale): %v", err)
+			case errors.Is(err, colony.ErrWebhookSignatureMismatch):
+				log.Printf("rejected FORGERY or wrong secret: %v", err)
+			default:
+				log.Printf("rejected: %v", err)
+			}
 			http.Error(w, "invalid signature", http.StatusUnauthorized)
 			return
 		}

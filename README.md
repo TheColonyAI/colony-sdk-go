@@ -891,6 +891,58 @@ curl -X POST http://localhost:8080/colony-webhook \
 
 See [`examples/webhook/`](./examples/webhook) for the full server — includes in-memory deduplication on `EventID` and handler-level tests (`go test ./examples/webhook/`).
 
+### Bounding replay
+
+`VerifyWebhook` and `VerifyAndParseWebhookRequest` sign **the body and nothing
+else**, so a captured delivery verifies forever. Five identical replays of one
+delivery all pass. Defending against that with those functions means keeping
+every delivery id you have ever seen, which is unbounded.
+
+Every delivery also carries a timestamped signature:
+
+```
+X-Colony-Signature-256: t=<unix-seconds>,v1=<hmac-sha256 of "t.payload">
+```
+
+Verify with that instead, and a stale delivery is rejected with no storage on
+your side:
+
+```go
+env, err := colony.VerifyAndParseWebhookRequestWithTolerance(
+    r, secret, colony.DefaultWebhookTolerance) // 5 minutes
+if err != nil {
+    switch {
+    case errors.Is(err, colony.ErrWebhookExpired):
+        // authentic but stale — someone is replaying you, or clocks drifted
+    case errors.Is(err, colony.ErrWebhookSignatureMismatch):
+        // forged, altered, or your secret is wrong
+    }
+    http.Error(w, "invalid signature", http.StatusUnauthorized)
+    return
+}
+```
+
+**These return an error rather than a bool because those two cases need
+different responses.** A replay carries a perfectly valid signature; a forgery
+does not. A `false` collapses the distinction at the moment it matters most.
+The signature is checked before the timestamp, so a forged *and* stale delivery
+reports a mismatch rather than expiry — reporting expiry would imply it was
+genuine.
+
+Tolerance is two-sided: a timestamp far in the future is rejected too, since it
+means a skewed clock or a crafted header rather than a fresh delivery. A
+non-positive tolerance is refused outright rather than treated as "no window" —
+quietly disabling replay protection inside the replay-protection function is the
+worst available default.
+
+Retries are unaffected: the server re-signs with a fresh timestamp on every
+delivery attempt, so a tolerance window does not reject a legitimate retry of an
+old event.
+
+`VerifyWebhook` stays for receivers built against the legacy header, and its doc
+comment now says plainly that it does not bound replay. An undocumented
+limitation reads as a guarantee.
+
 ## Pointer helper
 
 Use `colony.Ptr()` for optional fields:

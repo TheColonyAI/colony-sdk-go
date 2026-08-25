@@ -160,6 +160,7 @@ func TestHeaderNamesAreTheWireLiterals(t *testing.T) {
 		{colony.HeaderEventID, "X-Colony-Event-Id"},
 		{colony.HeaderEvent, "X-Colony-Event"},
 		{colony.HeaderAttempt, "X-Colony-Attempt"},
+		{colony.HeaderSignature256, "X-Colony-Signature-256"},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("header constant = %q, want %q", tc.got, tc.want)
