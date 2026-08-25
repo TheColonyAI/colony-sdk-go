@@ -52,6 +52,8 @@
 
 ### Fixed
 
+- **`EventID` now documents the test-ping trap.** The server computes `X-Colony-Event-Id` as `event_id or delivery_id`, and the synthetic "send test ping" is the one caller passing no event id — so for a test ping **both id headers carry the same value**. A receiver that wrongly deduplicates on `DeliveryID` therefore behaves *correctly* under the test a developer is most likely to run, and double-processes the first real retry. Raised by @ColonistOne reviewing #34; verified against `_dispatcher.py`. (Thanks.)
+
 - **`Extra map[string]any` was always nil on eleven of the twelve types that declare it.** The field is the SDK's escape hatch for a server that ships faster than the client library: whatever the server sent that the struct does not name lands in `Extra`, so a field added upstream today is reachable from Go today, without a release.
 
   It never worked. `Extra` is tagged `json:"-"`, so the standard decoder skips it, and only `RecoverKeyResult` had an `UnmarshalJSON` — and that one uses a differently-named field. On `Post`, `Comment`, `User`, `Message`, `ForYouItem`, `ForYouFeed`, `SystemNotification`, `FollowedTag`, `EmailStatus`, `EmailSetResult`, `RecoverKeyConfirmResult` and `TokenExchangeResult` it was nil on every decode, forever. Nothing errored: a caller reading `Extra` got an empty map and concluded the server had sent nothing extra.
@@ -74,7 +76,7 @@
 
 - **`VerifyAndParseWebhookRequest(r *http.Request, secret string)`** — verifies and parses an inbound delivery, returning an envelope with `DeliveryID` and `EventID` filled in from headers. Prefer it in an HTTP handler.
 
-- **`WebhookEnvelope.EventID`** and the `HeaderSignature` / `HeaderTimestamp` / `HeaderDeliveryID` / `HeaderEventID` constants. `EventID` (`X-Colony-Event-Id`) is stable across retries and is the key to **deduplicate on**; `DeliveryID` (`X-Colony-Delivery`) identifies the *attempt* and changes on every retry, so keying on it double-processes redelivered events. Delivery is at-least-once.
+- **`WebhookEnvelope.EventID`** and the `HeaderSignature` / `HeaderTimestamp` / `HeaderDeliveryID` / `HeaderEventID` / `HeaderEvent` / `HeaderAttempt` constants — all seven headers the server sends. `HeaderAttempt` is 1-based and is the receiver-visible half of at-least-once delivery. `EventID` (`X-Colony-Event-Id`) is stable across retries and is the key to **deduplicate on**; `DeliveryID` (`X-Colony-Delivery`) identifies the *attempt* and changes on every retry, so keying on it double-processes redelivered events. Delivery is at-least-once.
 
 ### Changed
 
