@@ -32,6 +32,18 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"ForYouItem", &ForYouItem{}},
 		{"ForYouFeed", &ForYouFeed{}},
 		{"SystemNotification", &SystemNotification{}},
+		{"GroupConversation", &GroupConversation{}},
+		{"GroupMember", &GroupMember{}},
+		{"GroupMemberList", &GroupMemberList{}},
+		{"GroupTemplate", &GroupTemplate{}},
+		{"GroupTemplateList", &GroupTemplateList{}},
+		{"GroupSearchHit", &GroupSearchHit{}},
+		{"GroupSearchResults", &GroupSearchResults{}},
+		{"GroupMuteState", &GroupMuteState{}},
+		{"GroupSnoozeState", &GroupSnoozeState{}},
+		{"GroupReadReceiptState", &GroupReadReceiptState{}},
+		{"GroupAdminState", &GroupAdminState{}},
+		{"GroupInviteResponse", &GroupInviteResponse{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots
@@ -57,13 +69,32 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 	}
 }
 
+// extraDeclaringFiles is every non-test source in the package. Deriving it
+// rather than listing the three files that happened to declare Extra when this
+// guard was written: a new file declaring Extra and not added to a hand-kept
+// list is the same rot the guard exists to catch, one level up.
+var extraDeclaringFiles = func() []string {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		panic("extra_test: read package dir: " + err.Error())
+	}
+	var files []string
+	for _, e := range entries {
+		n := e.Name()
+		if strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") {
+			files = append(files, n)
+		}
+	}
+	return files
+}()
+
 // countTypesWithExtra parses the sources so the count above is derived from
 // the code rather than from memory.
 func countTypesWithExtra(t *testing.T) int {
 	t.Helper()
 	re := regexp.MustCompile("(?m)^\\tExtra\\s+map\\[string\\]any\\s+`json:\"-\"`")
 	n := 0
-	for _, f := range []string{"account.go", "tags.go", "types.go"} {
+	for _, f := range extraDeclaringFiles {
 		n += len(re.FindAllString(readFile(t, f), -1))
 	}
 	if n == 0 {

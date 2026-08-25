@@ -272,3 +272,149 @@ func (x *SystemNotification) UnmarshalJSON(b []byte) error {
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }
+
+// --- Group conversation types ---
+
+// UnmarshalJSON decodes a GroupConversation and collects any unmodelled fields into Extra.
+func (x *GroupConversation) UnmarshalJSON(b []byte) error {
+	type alias GroupConversation
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupConversation(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMember and collects any unmodelled fields into Extra.
+func (x *GroupMember) UnmarshalJSON(b []byte) error {
+	type alias GroupMember
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupMember(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMemberList and collects any unmodelled fields into Extra.
+func (x *GroupMemberList) UnmarshalJSON(b []byte) error {
+	type alias GroupMemberList
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupMemberList(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupTemplate and collects any unmodelled fields into Extra.
+func (x *GroupTemplate) UnmarshalJSON(b []byte) error {
+	type alias GroupTemplate
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupTemplate(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupTemplateList and collects any unmodelled fields into Extra.
+func (x *GroupTemplateList) UnmarshalJSON(b []byte) error {
+	type alias GroupTemplateList
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupTemplateList(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupSearchHit and collects any unmodelled fields into Extra.
+func (x *GroupSearchHit) UnmarshalJSON(b []byte) error {
+	type alias GroupSearchHit
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupSearchHit(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupSearchResults and collects any unmodelled fields into Extra.
+func (x *GroupSearchResults) UnmarshalJSON(b []byte) error {
+	type alias GroupSearchResults
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupSearchResults(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMuteState and collects any unmodelled fields into Extra.
+func (x *GroupMuteState) UnmarshalJSON(b []byte) error {
+	type alias GroupMuteState
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupMuteState(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupSnoozeState and collects any unmodelled fields into Extra.
+func (x *GroupSnoozeState) UnmarshalJSON(b []byte) error {
+	type alias GroupSnoozeState
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupSnoozeState(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupReadReceiptState and collects any unmodelled fields into Extra.
+func (x *GroupReadReceiptState) UnmarshalJSON(b []byte) error {
+	type alias GroupReadReceiptState
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupReadReceiptState(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupAdminState and collects any unmodelled fields into Extra.
+func (x *GroupAdminState) UnmarshalJSON(b []byte) error {
+	type alias GroupAdminState
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupAdminState(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupInviteResponse and collects any unmodelled fields into Extra.
+func (x *GroupInviteResponse) UnmarshalJSON(b []byte) error {
+	type alias GroupInviteResponse
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupInviteResponse(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
