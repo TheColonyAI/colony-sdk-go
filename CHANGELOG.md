@@ -29,6 +29,20 @@
 
 ### Added
 
+- **Group conversations — 23 methods**, the largest remaining gap against the Python SDK. Go could send 1:1 DMs and could not touch the group surface at all. Create (from scratch or from a template), read, update, send, search, pin, members, admin, creator transfer, invite responses, mute/snooze, per-group read receipts, and the avatar.
+
+  **Every struct is modelled against the server's response schemas**, endpoint by endpoint, and each doc comment names the schema it mirrors. The first draft was modelled from the Python SDK's docstrings instead, and four structs were wrong — one of them (`GroupSearchResults`) in every field, so `SearchGroupMessages` returned an empty value on success. Types still carry `Extra` as a backstop, but `Extra` is how that bug stayed invisible for a review cycle rather than how it was caught.
+
+  Methods now return what the server sends rather than discarding it: `AddGroupMember` reports `already_member` vs `added` plus the new invite status, `PinGroupMessage`/`UnpinGroupMessage` report `already` (the idempotency signal, invisible in the status code), `MarkGroupAllRead` reports how many rows were written, `TransferGroupCreator` returns the new creator so callers need not re-fetch, and `UnsnoozeGroupConversation` reports whether a snooze was actually present.
+
+  Client-side refusals where an empty value would mean something specific and wrong: an empty title, an empty member list ("a group of one is a note to self"), an empty template slug, a whitespace-only message, an empty snooze duration. Optional query parameters are omitted rather than sent empty — `SetGroupReadReceipts(nil)` clears the override, which is a different request from `show=false`, and `UpdateGroupConversation` uses `*string` so that clearing a description is distinguishable from not touching it.
+
+### Fixed
+
+- **`TestEveryTypeWithExtraPopulatesIt` scanned a hand-written list of three files**, so a type declaring `Extra` in any new file would not have been counted — the guard rotting the same way the thing it guards against does. It now derives the file list from the package directory.
+
+### Added
+
 - **`PaginatedList.NextCursor`** — the opaque cursor, where the endpoint offers one. Worth preferring to offset paging on a live feed: offsets index into a list being written to, so items arriving at the head shift the window and an offset walk both repeats and skips.
 
 - **Tests for `IterPostsSeq` and `IterCommentsSeq`, which had none.** The file was at **0.0% coverage** while the README recommends these as the idiomatic Go 1.23+ form. They compiled in the 1.23/1.24 CI matrix, which is why it read as fine.
