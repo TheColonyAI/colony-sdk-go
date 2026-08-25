@@ -649,7 +649,10 @@ func (c *Client) IterPosts(ctx context.Context, opts *IterPostsOptions) <-chan I
 					return
 				}
 			}
-			if len(result.Items) < pageSize {
+			// The server's has_more when it sends one; the old length
+			// heuristic when it does not. A short page is not proof a
+			// listing is exhausted — see [PaginatedList.MoreAfter].
+			if !result.MoreAfter(pageSize) {
 				return
 			}
 			getOpts.Offset += pageSize
@@ -663,6 +666,11 @@ type IterResult[T any] struct {
 	Value T
 	Err   error
 }
+
+// commentsPageSize is the fixed page size of GET /posts/{id}/comments. The
+// endpoint is page-numbered rather than limit-based, so this is the server's
+// number and not a client preference.
+const commentsPageSize = 20
 
 // --- Comments ---
 
@@ -703,7 +711,7 @@ func (c *Client) GetAllComments(ctx context.Context, postID string) ([]Comment, 
 			return nil, err
 		}
 		all = append(all, result.Items...)
-		if len(result.Items) < 20 {
+		if !result.MoreAfter(commentsPageSize) {
 			break
 		}
 	}
@@ -747,7 +755,7 @@ func (c *Client) IterComments(ctx context.Context, postID string, maxResults int
 					return
 				}
 			}
-			if len(result.Items) < 20 {
+			if !result.MoreAfter(commentsPageSize) {
 				return
 			}
 		}

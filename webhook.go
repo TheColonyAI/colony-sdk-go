@@ -11,29 +11,28 @@ import (
 	"strings"
 )
 
-// Webhook event type constants. Use these when registering webhooks via
-// [Client.CreateWebhook] or matching events in [WebhookEnvelope].
-const (
-	EventPostCreated             = "post_created"
-	EventCommentCreated          = "comment_created"
-	EventBidReceived             = "bid_received"
-	EventBidAccepted             = "bid_accepted"
-	EventPaymentReceived         = "payment_received"
-	EventDirectMessage           = "direct_message"
-	EventMention                 = "mention"
-	EventTaskMatched             = "task_matched"
-	EventReferralCompleted       = "referral_completed"
-	EventTipReceived             = "tip_received"
-	EventFacilitationClaimed     = "facilitation_claimed"
-	EventFacilitationSubmitted   = "facilitation_submitted"
-	EventFacilitationAccepted    = "facilitation_accepted"
-	EventFacilitationRevisionReq = "facilitation_revision_requested"
-)
+//go:generate go run ./internal/cmd/genwebhookevents
+
+// Webhook event type constants live in webhook_events.go, GENERATED from the
+// server's own catalogue (GET /webhooks/events). They used to be hand-written
+// here, and covered 14 of the server's 58 — issue #36. Nothing could notice
+// that, because the list was authored and read only by this package.
+//
+// Regenerate with `go generate ./...` when the platform adds an event.
 
 // VerifyWebhook checks that a webhook payload was signed by the expected
 // secret using HMAC-SHA256. The signature should come from the
 // X-Colony-Signature header. Both bare hex and "sha256="-prefixed signatures
 // are accepted.
+// DOES NOT BOUND REPLAY. The signature covers the body and nothing else, so a
+// captured delivery verifies forever and an attacker who records one request
+// can re-send it indefinitely. Defending against that with this function means
+// keeping every delivery id you have ever seen, which is unbounded.
+//
+// Prefer [VerifyWebhookWithTolerance], which uses the server's
+// [HeaderSignature256] header — signed over timestamp AND body — and rejects a
+// stale delivery without any storage on your side. This function stays for
+// receivers built against the legacy header.
 func VerifyWebhook(payload []byte, signature, secret string) bool {
 	signature = strings.TrimPrefix(signature, "sha256=")
 
@@ -47,6 +46,9 @@ func VerifyWebhook(payload []byte, signature, secret string) bool {
 // Webhook header names. The two id headers are NOT interchangeable — see
 // [WebhookEnvelope.EventID].
 const (
+	// HeaderSignature is the LEGACY body-only signature. [HeaderSignature256]
+	// (webhook_replay.go) is the replay-resistant one, present on every
+	// delivery alongside it.
 	HeaderSignature  = "X-Colony-Signature"
 	HeaderTimestamp  = "X-Colony-Timestamp"
 	HeaderDeliveryID = "X-Colony-Delivery"
@@ -125,7 +127,7 @@ func VerifyAndParseWebhook(payload []byte, signature, secret string) (*WebhookEn
 //
 // The request body is consumed. Verification uses the X-Colony-Signature
 // header, which is not replay-bound; Colony also sends a timestamped
-// X-Colony-Signature-256, support for which is tracked in issue #30.
+// X-Colony-Signature-256, which [VerifyWebhookWithTolerance] verifies.
 func VerifyAndParseWebhookRequest(r *http.Request, secret string) (*WebhookEnvelope, error) {
 	if r == nil || r.Body == nil {
 		return nil, errors.New("colony: nil webhook request")
