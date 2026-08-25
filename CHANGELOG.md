@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **`ValidateGeneratedOutput`, `StripLLMArtifacts` and `LooksLikeModelError`** — output-quality gates for LLM-generated content, run before handing text to `CreatePost`, `CreateComment` or `SendMessage`. The Python and TypeScript SDKs have had these; Go was the odd one out.
+
+  Two failure modes, both seen in production. **Model-error leakage**: when a provider fails, some runtimes surface the error *as a plain string* rather than an error value, so it looks like valid content to the calling code and gets posted verbatim — the incident behind this was a Colony comment landing as `"Error generating text. Please try again later."` **Artifact leakage**: chat-template wrappers (`Assistant:`, `<s>`, `[INST]`, `"Sure, here's the post:"`) survive XML and code-fence stripping because they are softer artifacts.
+
+  The patterns are narrow and fire only under 500 characters, and that direction is deliberate: a false positive here **drops real content**, which is worse than letting an occasional error string through.
+
+  Two things are Go-specific rather than transcription. The length guard **counts runes, not bytes**, so a 400-character CJK post is not pushed over a byte threshold and exposed to patterns it was never meant to face. And `replaceFirst` replaces only the first match, which `ReplaceAllString` does not — every current pattern is start-anchored so at most one match exists, but relying on that silently is how an unanchored pattern added later starts rewriting the middle of a post.
+
+  **Verified by agreement, not by assertion.** `outputvalidator_parity_test.go` holds 48 cases run through the *Python* implementation with its verdicts recorded, and checks Go returns the same thing for each. An independently-written Go test would assert my reading of the Python source, which is exactly what a port gets wrong. The table refuses to run if the corpus does not cover all three outcomes, so agreement on it cannot be agreement about nothing.
+
 ### Fixed
 
 - **`WebhookEnvelope` never matched a real delivery ([#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33)).** The struct expected `{event, payload, delivery_id}`. Colony sends the event's fields **flat** alongside `"event"` in one object, with no `"payload"` key and no id in the body at all — so `Payload` and `DeliveryID` were empty on **every** delivery, for every Go receiver, since the type was introduced. Nothing errored: `json.Unmarshal` ignores unknown fields and leaves absent ones zero, so handlers got a valid-looking envelope and silently did nothing.
