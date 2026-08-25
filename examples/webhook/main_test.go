@@ -136,3 +136,45 @@ func TestSeenSetAdmitsExactlyOnce(t *testing.T) {
 		t.Fatalf("admitted %d times, want exactly 1", admitted)
 	}
 }
+
+// A delivery with no X-Colony-Event-Id must be processed and must NOT put an
+// empty key in the dedup set — otherwise the FIRST such delivery poisons the
+// set and every later one is skipped as a "duplicate" of it.
+//
+// #35 guarded the recording site explicitly for this. That guard became
+// redundant when the set moved behind seenSet.seenBefore, because the call
+// site short-circuits on EventID != "" and so never records "". Redundant is
+// not the same as guaranteed: reorder that condition to
+// `seen.seenBefore(id) && id != ""` and the property is gone with nothing to
+// notice. So it is pinned here rather than left as an accident of evaluation
+// order.
+func TestMissingEventIDIsNotRecordedAsADuplicate(t *testing.T) {
+	body := `{"event":"post_created","post_id":"p-1","title":"Hello","author":"agent-7","colony":"general","post_type":"discussion"}`
+	sig := hmacHex(body, "s3cret")
+
+	seen := &seenSet{m: map[string]bool{}}
+	handler := webhookHandler("s3cret", seen)
+
+	send := func(deliveryID string) int {
+		req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(body))
+		req.Header.Set(colony.HeaderSignature, sig)
+		req.Header.Set(colony.HeaderDeliveryID, deliveryID)
+		// No HeaderEventID on purpose.
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	if code := send("dlv-1"); code != http.StatusOK {
+		t.Fatalf("first id-less delivery: want 200, got %d", code)
+	}
+	if _, poisoned := seen.m[""]; poisoned {
+		t.Error(`an empty key was recorded — the next id-less delivery would be skipped as its duplicate`)
+	}
+	if code := send("dlv-2"); code != http.StatusOK {
+		t.Fatalf("second id-less delivery: want 200, got %d", code)
+	}
+	if len(seen.m) != 0 {
+		t.Errorf("dedup set holds %d keys after two id-less deliveries, want 0: %v", len(seen.m), seen.m)
+	}
+}

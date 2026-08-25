@@ -158,9 +158,37 @@ func TestHeaderNamesAreTheWireLiterals(t *testing.T) {
 		{colony.HeaderTimestamp, "X-Colony-Timestamp"},
 		{colony.HeaderDeliveryID, "X-Colony-Delivery"},
 		{colony.HeaderEventID, "X-Colony-Event-Id"},
+		{colony.HeaderEvent, "X-Colony-Event"},
+		{colony.HeaderAttempt, "X-Colony-Attempt"},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("header constant = %q, want %q", tc.got, tc.want)
 		}
+	}
+}
+
+// A test ping carries the SAME value in both id headers, because the server
+// computes X-Colony-Event-Id as `event_id or delivery_id` and the synthetic
+// ping is the one caller that passes no event id.
+//
+// This is here as executable documentation of a trap rather than as a check
+// on the SDK: it means the test a developer actually runs — click "send test
+// ping" — cannot tell a receiver that deduplicates on EventID from one that
+// deduplicates on DeliveryID. The wrong one passes, then double-processes
+// the first real retry. See the CAVEAT on WebhookEnvelope.EventID.
+func TestTestPingCarriesTheSameValueInBothIDHeaders(t *testing.T) {
+	const pingID = "0f8a-ping"
+	env, err := colony.VerifyAndParseWebhookRequest(
+		newDelivery(realBody, pingID, pingID), testSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.EventID != env.DeliveryID {
+		t.Fatalf("test-ping fixture is wrong: EventID %q != DeliveryID %q",
+			env.EventID, env.DeliveryID)
+	}
+	// Both dedup strategies agree here — which is exactly the problem.
+	if env.EventID != pingID {
+		t.Errorf("EventID = %q, want %q", env.EventID, pingID)
 	}
 }

@@ -1729,7 +1729,14 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	fullURL := c.baseURL + path
 
 	var bodyReader io.Reader
-	if reqBody != nil {
+	contentType := "application/json"
+	if rb, ok := reqBody.(*preEncodedBody); ok {
+		// Already-encoded payload (multipart form). Sent verbatim with the
+		// content type the encoder chose, since a multipart boundary only
+		// exists in the body it was generated for.
+		bodyReader = bytes.NewReader(rb.data)
+		contentType = rb.contentType
+	} else if reqBody != nil {
 		b, err := json.Marshal(reqBody)
 		if err != nil {
 			return fmt.Errorf("colony: marshal request: %w", err)
@@ -1741,8 +1748,8 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	if err != nil {
 		return &NetworkError{APIError{Message: err.Error(), Cause: err}}
 	}
-	if reqBody != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if bodyReader != nil {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	if auth {
@@ -1783,6 +1790,12 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	c.logDebug("response", "status", resp.StatusCode, "bytes", len(respBody))
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		// A *[]byte out means the caller wants the body verbatim — image
+		// bytes, not JSON. Unmarshalling those would fail on the first byte.
+		if bp, ok := out.(*[]byte); ok {
+			*bp = respBody
+			return nil
+		}
 		if out != nil && len(respBody) > 0 {
 			if err := json.Unmarshal(respBody, out); err != nil {
 				return fmt.Errorf("colony: decode response: %w", err)

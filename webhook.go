@@ -51,6 +51,11 @@ const (
 	HeaderTimestamp  = "X-Colony-Timestamp"
 	HeaderDeliveryID = "X-Colony-Delivery"
 	HeaderEventID    = "X-Colony-Event-Id"
+	// HeaderEvent duplicates the body's "event" field.
+	HeaderEvent = "X-Colony-Event"
+	// HeaderAttempt is 1-based, so a receiver can log "3rd try" without
+	// keeping its own counter. The receiver-visible half of at-least-once.
+	HeaderAttempt = "X-Colony-Attempt"
 )
 
 // WebhookEnvelope represents a parsed, verified webhook delivery.
@@ -79,6 +84,15 @@ type WebhookEnvelope struct {
 	// documented key to deduplicate on — Colony delivers at-least-once.
 	// Read from X-Colony-Event-Id, so it is only set by
 	// [VerifyAndParseWebhookRequest].
+	//
+	// CAVEAT, and it bites exactly the test you are most likely to run:
+	// the server computes the header as `event_id or delivery_id`, and the
+	// synthetic "send test ping" is the one caller that passes no event id.
+	// So for a test ping EventID and DeliveryID hold the SAME value, and a
+	// receiver that wrongly deduplicates on DeliveryID looks correct —
+	// right up until the first real retry, which it double-processes. A
+	// test ping cannot demonstrate that your deduplication is keyed
+	// correctly; only a real redelivery can.
 	EventID string `json:"-"`
 }
 
