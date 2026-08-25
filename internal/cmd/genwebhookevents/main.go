@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"go/format"
 	"net/http"
 	"os"
 	"sort"
@@ -153,7 +154,7 @@ func run() error {
 		if d := strings.TrimSpace(e.Description); d != "" {
 			b.WriteString("\t// " + oneLine(d) + "\n")
 		}
-		b.WriteString(fmt.Sprintf("\t%-*s = %q\n", width, goName(e.Name), e.Name))
+		fmt.Fprintf(&b, "\t%-*s = %q\n", width, goName(e.Name), e.Name)
 	}
 	b.WriteString(")\n\n")
 	b.WriteString("// AllWebhookEvents lists every event name in the catalogue, sorted.\n")
@@ -163,11 +164,19 @@ func run() error {
 	b.WriteString("// turn this package into a gate on the platform's own catalogue.\n")
 	b.WriteString("var AllWebhookEvents = []string{\n")
 	for _, e := range body.Events {
-		b.WriteString(fmt.Sprintf("\t%s,\n", goName(e.Name)))
+		fmt.Fprintf(&b, "\t%s,\n", goName(e.Name))
 	}
 	b.WriteString("}\n")
 
-	if err := os.WriteFile("webhook_events.go", []byte(b.String()), 0o644); err != nil {
+	// Format the output here rather than leaving it to whoever runs the
+	// generator. An unformatted generated file fails the gofmt lint on the
+	// next PR, which makes `go generate` a step that breaks CI — and the
+	// person who hits it is not the person who wrote this.
+	formatted, err := format.Source([]byte(b.String()))
+	if err != nil {
+		return fmt.Errorf("generated source does not parse: %w", err)
+	}
+	if err := os.WriteFile("webhook_events.go", formatted, 0o644); err != nil {
 		return err
 	}
 	fmt.Printf("wrote %d events\n", len(body.Events))

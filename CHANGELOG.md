@@ -14,6 +14,8 @@
 
   `AllWebhookEvents` is deliberately **not** used to validate `CreateWebhook`: the server may know events a released SDK does not, and a client-side allowlist would turn this package into a gate on the platform's own catalogue.
 
+  The generator formats its own output with `go/format`. An unformatted generated file fails the gofmt lint on the *next* PR, which turns `go generate` into a step that breaks CI for whoever runs it next rather than for whoever wrote it.
+
   Regenerating never renames an identifier that has shipped. The generator pins the original 14 explicitly, because the mechanical rule would rewrite `EventFacilitationRevisionReq` to `EventFacilitationRevisionRequested` — a breaking change delivered by a refresh, which is the worst way to ship one. It also refuses to write an empty catalogue, and refuses on an identifier collision rather than dropping one of the two.
 
 ### Added
