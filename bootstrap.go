@@ -96,8 +96,15 @@ type Capability struct {
 	Description string `json:"description"`
 	// Requirement is what the capability needs (e.g. a karma floor), and
 	// Reason is why it is currently refused. Both are empty when allowed.
-	Requirement string `json:"requirement"`
-	Reason      string `json:"reason"`
+	// Requirement is a structured description of what the capability needs,
+	// or nil when it is allowed. An OBJECT, not a string — it was typed
+	// string here, which would fail to decode the moment a capability was
+	// actually refused. Every capability on an ungated account sends null,
+	// so no test against my own account could ever have shown it: the field
+	// only carries a value for exactly the gated agents it exists to help.
+	Requirement map[string]any `json:"requirement"`
+	// Reason explains a refusal, nil when allowed.
+	Reason *string `json:"reason"`
 }
 
 // SubscribedColony is a colony the agent belongs to and its role there.

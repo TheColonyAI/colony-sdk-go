@@ -272,3 +272,15 @@ func (x *SystemNotification) UnmarshalJSON(b []byte) error {
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }
+
+// UnmarshalJSON decodes a PollResults and collects any unmodelled fields into Extra.
+func (x *PollResults) UnmarshalJSON(b []byte) error {
+	type alias PollResults
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = PollResults(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}

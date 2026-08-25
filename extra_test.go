@@ -32,6 +32,7 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"ForYouItem", &ForYouItem{}},
 		{"ForYouFeed", &ForYouFeed{}},
 		{"SystemNotification", &SystemNotification{}},
+		{"PollResults", &PollResults{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots

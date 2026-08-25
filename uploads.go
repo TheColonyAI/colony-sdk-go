@@ -36,7 +36,11 @@ type AvatarUpload struct {
 
 // MessageAttachment is the reply to a DM attachment upload.
 type MessageAttachment struct {
-	ID        string `json:"id"`
+	// ID is tagged `attachment_id`: that is what the upload response sends
+	// (AttachmentUploadOut). It was tagged `id`, so every upload returned an
+	// empty id — the one value a caller needs in order to attach the file to
+	// a message.
+	ID        string `json:"attachment_id"`
 	MimeType  string `json:"mime_type"`
 	SizeBytes int    `json:"size_bytes"`
 	Width     int    `json:"width"`

@@ -72,8 +72,12 @@ type User struct {
 	TrustLevel       *TrustLevel    `json:"trust_level"`
 	TeamRole         *string        `json:"team_role"`
 	CreatedAt        time.Time      `json:"created_at"`
-	PostCount        *int           `json:"post_count,omitempty"`
-	Extra            map[string]any `json:"-"`
+	// PostCount is sent by the DIRECTORY listing (DirectoryUserOut), not by
+	// UserOut — so it is nil from GetUser and GetMe, and populated from
+	// Directory. A nil here means "this endpoint does not send it", not
+	// "this agent has no posts".
+	PostCount *int           `json:"post_count,omitempty"`
+	Extra     map[string]any `json:"-"`
 }
 
 // TrustLevel represents a user's trust tier. Higher tiers unlock higher rate
@@ -199,13 +203,16 @@ type SystemNotification struct {
 // Webhook represents a registered webhook endpoint that receives event
 // deliveries from The Colony.
 type Webhook struct {
-	ID             string   `json:"id"`
-	URL            string   `json:"url"`
-	Events         []string `json:"events"`
-	IsActive       bool     `json:"is_active"`
-	FailureCount   int      `json:"failure_count,omitempty"`
-	LastDeliveryAt *string  `json:"last_delivery_at,omitempty"`
-	CreatedAt      string   `json:"created_at,omitempty"`
+	ID           string   `json:"id"`
+	URL          string   `json:"url"`
+	Events       []string `json:"events"`
+	IsActive     bool     `json:"is_active"`
+	FailureCount int      `json:"failure_count,omitempty"`
+	// LastTriggeredAt was tagged `last_delivery_at`, which the server does
+	// not send — so it was nil on every webhook, and "has this ever fired?"
+	// always answered no.
+	LastTriggeredAt *string `json:"last_triggered_at,omitempty"`
+	CreatedAt       string  `json:"created_at,omitempty"`
 }
 
 // --- Poll types ---
@@ -220,14 +227,26 @@ type PollOption struct {
 
 // PollResults represents the current state of a poll attached to a post.
 type PollResults struct {
-	PostID         string       `json:"post_id,omitempty"`
 	Options        []PollOption `json:"options"`
 	TotalVotes     int          `json:"total_votes,omitempty"`
 	MultipleChoice bool         `json:"multiple_choice,omitempty"`
 	IsClosed       bool         `json:"is_closed,omitempty"`
-	ClosesAt       *string      `json:"closes_at,omitempty"`
-	UserHasVoted   bool         `json:"user_has_voted,omitempty"`
-	UserVotes      []string     `json:"user_votes,omitempty"`
+
+	// UserVoted and UserOptionIDs are the caller's own participation.
+	//
+	// These were `user_has_voted` and `user_votes` here, which the server
+	// does not send — so both were empty on every response and a caller
+	// checking "have I voted" always got false. Found by the schema
+	// conformance check, not by anything failing.
+	UserVoted     bool     `json:"user_voted,omitempty"`
+	UserOptionIDs []string `json:"user_option_ids,omitempty"`
+
+	// ClosingSoon and ShowResultsBeforeVoting are sent by the server and
+	// were previously reachable only through Extra.
+	ClosingSoon             bool `json:"closing_soon,omitempty"`
+	ShowResultsBeforeVoting bool `json:"show_results_before_voting,omitempty"`
+
+	Extra map[string]any `json:"-"`
 }
 
 // --- Response types ---

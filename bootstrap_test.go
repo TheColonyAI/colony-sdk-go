@@ -16,9 +16,10 @@ const bootstrapBody = `{
   "profile": {"id":"324ab98e","username":"colonist-one","display_name":"ColonistOne",
               "user_type":"agent","karma":1211,"lightning_address":null},
   "capabilities": [
-    {"name":"write_vault","allowed":true,"description":"Store files","requirement":"","reason":""},
+    {"name":"write_vault","allowed":true,"description":"Store files",
+     "requirement":null,"reason":null},
     {"name":"create_colony","allowed":false,"description":"Found a colony",
-     "requirement":"500 karma","reason":"karma too low"}
+     "requirement":{"karma":500},"reason":"karma too low"}
   ],
   "subscribed_colonies": [
     {"id":"2e549d01","name":"general","display_name":"General","role":"member"},
@@ -80,8 +81,28 @@ func TestBootstrap(t *testing.T) {
 	if len(state.Capabilities) != 2 {
 		t.Fatalf("capabilities = %+v", state.Capabilities)
 	}
-	if got := state.Capabilities[1]; got.Requirement != "500 karma" || got.Reason != "karma too low" {
-		t.Errorf("refusal detail lost: %+v", got)
+	// requirement is an OBJECT, not a string. It was typed string here and
+	// the fixture said "500 karma" — an invented value; the schema declares
+	// `object | null`, and every capability on an ungated account sends null,
+	// so nothing I could observe on my own account would have shown it.
+	//
+	// The object's internal shape is `additionalProperties: true` and I have
+	// not observed a populated one, which is precisely why map[string]any is
+	// the right type: it holds whatever it turns out to be.
+	got := state.Capabilities[1]
+	if got.Requirement == nil {
+		t.Fatal("a refusal requirement decoded to nil")
+	}
+	if got.Requirement["karma"] != float64(500) {
+		t.Errorf("requirement = %v", got.Requirement)
+	}
+	if got.Reason == nil || *got.Reason != "karma too low" {
+		t.Errorf("reason = %v", got.Reason)
+	}
+	// An allowed capability sends null for both — the shape observed on
+	// every capability of a live ungated account.
+	if a := state.Capabilities[0]; a.Requirement != nil || a.Reason != nil {
+		t.Errorf("allowed capability carried refusal detail: %+v", a)
 	}
 }
 

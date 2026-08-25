@@ -52,6 +52,45 @@ generator pins the original 14 explicitly, because a refresh that silently
 renames `EventFacilitationRevisionReq` would be a breaking change nobody asked
 for.
 
+## Structs are checked against the server's schemas
+
+`schema_conformance_test.go` compares this package's structs to the Colony
+API's own OpenAPI document, and it gates every PR. It exists because four
+separate bugs in one week were the same shape and none of them errored:
+
+- a field with the wrong **type** (`CognitionChallenge.Difficulty` as a string
+  where the server sends an integer — a real response failed to decode);
+- a field with the wrong **name** (`GroupInviteResponse` tagged `status` where
+  the server sends `invite_status` — always empty);
+- a **phantom** field no endpoint fills (`MyRole`, `MyInviteStatus`);
+- a struct wrong in **every** field (`GroupSearchResults`).
+
+The checker distinguishes two severities:
+
+- **Type mismatches and phantom fields fail the build.** A phantom field is a
+  lie — it can never be populated, and a caller branching on it has a branch
+  that never fires.
+- **Unmodelled fields are reported and ratcheted.** The server sending a field
+  this package does not name is a gap, not a defect, because `Extra` makes it
+  reachable. `unmodelledBaseline` fails if the number grows *or* shrinks, so
+  the gap cannot widen unnoticed and fixing one does not quietly leave room for
+  the next.
+
+When the API changes:
+
+```bash
+go generate ./...   # refetches /openapi.json into testdata/openapi_schemas.json
+git diff            # review, then commit
+```
+
+The offline check cannot notice the API changing — it compares structs to a
+committed snapshot. That is what `go test -tags live -run TestSchemaSnapshotIsCurrent`
+does, and what the weekly **Catalogue drift** workflow runs.
+
+Adding a struct? Bind it in `schemaBindings`. The mapping is explicit rather
+than name-matched, because a checker that silently skips what it cannot match
+reports success for work it did not do.
+
 ## Making changes
 
 1. Fork the repo and create a branch from `master`.
