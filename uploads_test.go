@@ -192,7 +192,10 @@ func TestZeroByteUploadIsRefusedBeforeSending(t *testing.T) {
 }
 
 func TestUploadMessageAttachment(t *testing.T) {
-	c, got := uploadServer(t, `{"id":"at1","mime_type":"image/png","size_bytes":72,
+	// AttachmentUploadOut sends `attachment_id`, not `id`. The first version
+	// of this fixture said `id` — taken from a docstring, not the wire — so
+	// the test passed while every real upload returned an empty ID.
+	c, got := uploadServer(t, `{"attachment_id":"at1","mime_type":"image/png","size_bytes":72,
 	  "width":10,"height":10,"thumb_url":"/t","full_url":"/f","deduped":true}`)
 
 	res, err := c.UploadMessageAttachment(context.Background(), "shot.png", "image/png", pngBytes)
