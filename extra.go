@@ -335,18 +335,6 @@ func (x *GroupTemplateList) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// UnmarshalJSON decodes a GroupSearchHit and collects any unmodelled fields into Extra.
-func (x *GroupSearchHit) UnmarshalJSON(b []byte) error {
-	type alias GroupSearchHit
-	var a alias
-	if err := json.Unmarshal(b, &a); err != nil {
-		return err
-	}
-	*x = GroupSearchHit(a)
-	x.Extra = extraFields(b, reflect.TypeOf(*x))
-	return nil
-}
-
 // UnmarshalJSON decodes a GroupSearchResults and collects any unmodelled fields into Extra.
 func (x *GroupSearchResults) UnmarshalJSON(b []byte) error {
 	type alias GroupSearchResults
@@ -355,6 +343,18 @@ func (x *GroupSearchResults) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*x = GroupSearchResults(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupPageMeta and collects any unmodelled fields into Extra.
+func (x *GroupPageMeta) UnmarshalJSON(b []byte) error {
+	type alias GroupPageMeta
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupPageMeta(a)
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }
@@ -415,6 +415,90 @@ func (x *GroupInviteResponse) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*x = GroupInviteResponse(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMetadata and collects any unmodelled fields into Extra.
+func (x *GroupMetadata) UnmarshalJSON(b []byte) error {
+	type alias GroupMetadata
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupMetadata(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupAddMemberResult and collects any unmodelled fields into Extra.
+func (x *GroupAddMemberResult) UnmarshalJSON(b []byte) error {
+	type alias GroupAddMemberResult
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupAddMemberResult(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupRemoveMemberResult and collects any unmodelled fields into Extra.
+func (x *GroupRemoveMemberResult) UnmarshalJSON(b []byte) error {
+	type alias GroupRemoveMemberResult
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupRemoveMemberResult(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupCreatorTransfer and collects any unmodelled fields into Extra.
+func (x *GroupCreatorTransfer) UnmarshalJSON(b []byte) error {
+	type alias GroupCreatorTransfer
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupCreatorTransfer(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupPinResult and collects any unmodelled fields into Extra.
+func (x *GroupPinResult) UnmarshalJSON(b []byte) error {
+	type alias GroupPinResult
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupPinResult(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMarkAllReadResult and collects any unmodelled fields into Extra.
+func (x *GroupMarkAllReadResult) UnmarshalJSON(b []byte) error {
+	type alias GroupMarkAllReadResult
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupMarkAllReadResult(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupAvatarUpload and collects any unmodelled fields into Extra.
+func (x *GroupAvatarUpload) UnmarshalJSON(b []byte) error {
+	type alias GroupAvatarUpload
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = GroupAvatarUpload(a)
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }

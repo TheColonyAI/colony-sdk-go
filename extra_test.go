@@ -39,11 +39,19 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"GroupTemplateList", &GroupTemplateList{}},
 		{"GroupSearchHit", &GroupSearchHit{}},
 		{"GroupSearchResults", &GroupSearchResults{}},
+		{"GroupPageMeta", &GroupPageMeta{}},
 		{"GroupMuteState", &GroupMuteState{}},
 		{"GroupSnoozeState", &GroupSnoozeState{}},
 		{"GroupReadReceiptState", &GroupReadReceiptState{}},
 		{"GroupAdminState", &GroupAdminState{}},
 		{"GroupInviteResponse", &GroupInviteResponse{}},
+		{"GroupMetadata", &GroupMetadata{}},
+		{"GroupAddMemberResult", &GroupAddMemberResult{}},
+		{"GroupRemoveMemberResult", &GroupRemoveMemberResult{}},
+		{"GroupCreatorTransfer", &GroupCreatorTransfer{}},
+		{"GroupPinResult", &GroupPinResult{}},
+		{"GroupMarkAllReadResult", &GroupMarkAllReadResult{}},
+		{"GroupAvatarUpload", &GroupAvatarUpload{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots

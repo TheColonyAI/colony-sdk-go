@@ -295,30 +295,36 @@ func TestGroupRoutes(t *testing.T) {
 			return err
 		}, http.MethodGet, "/messages/groups/g1/members"},
 		{"AddGroupMember", func(c *Client) error {
-			return c.AddGroupMember(ctx, "g1", "bob")
+			_, err := c.AddGroupMember(ctx, "g1", "bob")
+			return err
 		}, http.MethodPost, "/messages/groups/g1/members"},
 		{"RemoveGroupMember", func(c *Client) error {
-			return c.RemoveGroupMember(ctx, "g1", "u2")
+			_, err := c.RemoveGroupMember(ctx, "g1", "u2")
+			return err
 		}, http.MethodDelete, "/messages/groups/g1/members/u2"},
 		{"SetGroupAdmin", func(c *Client) error {
 			_, err := c.SetGroupAdmin(ctx, "g1", "u2", true)
 			return err
 		}, http.MethodPut, "/messages/groups/g1/members/u2/admin"},
 		{"TransferGroupCreator", func(c *Client) error {
-			return c.TransferGroupCreator(ctx, "g1", "bob")
+			_, err := c.TransferGroupCreator(ctx, "g1", "bob")
+			return err
 		}, http.MethodPost, "/messages/groups/g1/transfer-creator"},
 		{"RespondToGroupInvite", func(c *Client) error {
 			_, err := c.RespondToGroupInvite(ctx, "g1", true)
 			return err
 		}, http.MethodPost, "/messages/groups/g1/invite/respond"},
 		{"PinGroupMessage", func(c *Client) error {
-			return c.PinGroupMessage(ctx, "g1", "m1")
+			_, err := c.PinGroupMessage(ctx, "g1", "m1")
+			return err
 		}, http.MethodPost, "/messages/groups/g1/messages/m1/pin"},
 		{"UnpinGroupMessage", func(c *Client) error {
-			return c.UnpinGroupMessage(ctx, "g1", "m1")
+			_, err := c.UnpinGroupMessage(ctx, "g1", "m1")
+			return err
 		}, http.MethodDelete, "/messages/groups/g1/messages/m1/pin"},
 		{"MarkGroupAllRead", func(c *Client) error {
-			return c.MarkGroupAllRead(ctx, "g1")
+			_, err := c.MarkGroupAllRead(ctx, "g1")
+			return err
 		}, http.MethodPost, "/messages/groups/g1/read-all"},
 		{"UnmuteGroupConversation", func(c *Client) error {
 			_, err := c.UnmuteGroupConversation(ctx, "g1")
@@ -329,7 +335,8 @@ func TestGroupRoutes(t *testing.T) {
 			return err
 		}, http.MethodPost, "/messages/groups/g1/snooze"},
 		{"UnsnoozeGroupConversation", func(c *Client) error {
-			return c.UnsnoozeGroupConversation(ctx, "g1")
+			_, err := c.UnsnoozeGroupConversation(ctx, "g1")
+			return err
 		}, http.MethodPost, "/messages/groups/g1/unsnooze"},
 		{"SearchGroupMessages", func(c *Client) error {
 			_, err := c.SearchGroupMessages(ctx, "g1", "term", nil)
@@ -346,7 +353,7 @@ func TestGroupRoutes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, got := groupServer(t, `{"id":"g1","status":"accepted","snoozed_until":"x"}`)
+			c, got := groupServer(t, `{"id":"g1","invite_status":"accepted","snoozed_until":"x"}`)
 			if err := tc.call(c); err != nil {
 				t.Fatalf("call: %v", err)
 			}
@@ -361,8 +368,15 @@ func TestGroupRoutes(t *testing.T) {
 }
 
 func TestSearchGroupMessagesResults(t *testing.T) {
-	c, got := groupServer(t, `{"hits":[{"message":{"id":"m1","body":"a b c"},
-	  "highlight":"a <mark>b</mark> c"}],"total":1,"has_more":false}`)
+	// The body GroupSearchOut actually produces: q / count / results /
+	// pagination, with each hit a FLAT MessageOut carrying body_highlight.
+	// An earlier version of this file modelled {hits, total, has_more} with a
+	// nested {message, highlight} — every field wrong, so the method returned
+	// an empty struct on success and the tests passed because the fixture was
+	// wrong in the same direction.
+	c, got := groupServer(t, `{"q":"b","count":1,
+	  "results":[{"id":"m1","body":"a b c","body_highlight":"a <mark>b</mark> c"}],
+	  "pagination":{"has_more":false,"total":1}}`)
 	res, err := c.SearchGroupMessages(context.Background(), "g1", "b",
 		&SearchGroupMessagesOptions{Limit: 5, Offset: 10})
 	if err != nil {
@@ -371,26 +385,68 @@ func TestSearchGroupMessagesResults(t *testing.T) {
 	if got.query.Get("q") != "b" || got.query.Get("limit") != "5" || got.query.Get("offset") != "10" {
 		t.Errorf("query = %v", got.query)
 	}
-	if len(res.Hits) != 1 || res.Hits[0].Message.ID != "m1" {
-		t.Fatalf("hits = %+v", res.Hits)
+	if res.Query != "b" || res.Count != 1 {
+		t.Errorf("envelope: q=%q count=%d", res.Query, res.Count)
 	}
-	if !strings.Contains(res.Hits[0].Highlight, "<mark>") {
-		t.Errorf("highlight = %q", res.Hits[0].Highlight)
+	if len(res.Results) != 1 {
+		t.Fatalf("results = %+v", res.Results)
+	}
+	hit := res.Results[0]
+	// The hit embeds Message, so the message fields are flat on the wire.
+	if hit.ID != "m1" || hit.Body != "a b c" {
+		t.Errorf("hit message not decoded: %+v", hit.Message)
+	}
+	if !strings.Contains(hit.BodyHighlight, "<mark>") {
+		t.Errorf("body_highlight = %q", hit.BodyHighlight)
+	}
+	if res.Pagination.HasMore == nil || *res.Pagination.HasMore {
+		t.Errorf("pagination = %+v", res.Pagination)
 	}
 	if res.MoreAfter(5) {
 		t.Error("MoreAfter true for has_more:false")
 	}
 	// Same tri-state as PaginatedList: absent is not false.
-	res.HasMore = nil
-	res.Hits = make([]GroupSearchHit, 5)
+	res.Pagination.HasMore = nil
+	res.Results = make([]GroupSearchHit, 5)
 	if !res.MoreAfter(5) {
-		t.Error("with has_more absent and a full page, MoreAfter should fall back to the heuristic")
+		t.Error("with has_more absent and a full page, MoreAfter should fall back")
+	}
+}
+
+// The regression guard for the shape that shipped: the real body must not
+// decode into the imagined one, and the imagined body must not decode into the
+// real struct. Without both, "it decodes" is true of a struct that accepts
+// anything.
+func TestSearchResultsRejectTheImaginedShape(t *testing.T) {
+	real := []byte(`{"q":"b","count":1,
+	  "results":[{"id":"m1","body_highlight":"x"}],"pagination":{"has_more":false}}`)
+	var res GroupSearchResults
+	if err := json.Unmarshal(real, &res); err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Results) != 1 || res.Count != 1 {
+		t.Fatalf("the real body did not populate the struct: %+v", res)
+	}
+
+	imagined := []byte(`{"hits":[{"message":{"id":"m1"},"highlight":"x"}],
+	  "total":1,"has_more":false}`)
+	var bad GroupSearchResults
+	if err := json.Unmarshal(imagined, &bad); err != nil {
+		t.Fatal(err)
+	}
+	if len(bad.Results) != 0 || bad.Count != 0 {
+		t.Error("the imagined shape populated the struct — the tags are not what the server sends")
+	}
+	// And it is REACHABLE rather than lost, which is what Extra is for.
+	if _, ok := bad.Extra["hits"]; !ok {
+		t.Errorf("unmodelled keys did not land in Extra: %v", bad.Extra)
 	}
 }
 
 func TestGroupAvatarRoundTrip(t *testing.T) {
 	png := []byte("\x89PNG\r\n\x1a\nxxxx")
-	c, got := groupServer(t, `{"avatar_path":"/a.webp","urls":{"sm":"/s.webp"}}`)
+	// GroupAvatarUploadOut is {avatar_url}, not the profile-avatar shape.
+	c, got := groupServer(t, `{"avatar_url":"/messages/groups/g1/avatar"}`)
 	up, err := c.UploadGroupAvatar(context.Background(), "g1", "a.png", "image/png", png)
 	if err != nil {
 		t.Fatal(err)
@@ -398,7 +454,7 @@ func TestGroupAvatarRoundTrip(t *testing.T) {
 	if got.path != "/messages/groups/g1/avatar" || got.method != http.MethodPost {
 		t.Errorf("%s %s", got.method, got.path)
 	}
-	if up.URLs["sm"] != "/s.webp" {
+	if up.AvatarURL != "/messages/groups/g1/avatar" {
 		t.Errorf("upload = %+v", up)
 	}
 
@@ -436,7 +492,7 @@ func TestGroupErrorsPropagate(t *testing.T) {
 	if _, err := c.GetGroupConversation(context.Background(), "g1", nil); err == nil {
 		t.Error("GetGroupConversation swallowed a 403")
 	}
-	if err := c.MarkGroupAllRead(context.Background(), "g1"); err == nil {
+	if _, err := c.MarkGroupAllRead(context.Background(), "g1"); err == nil {
 		t.Error("MarkGroupAllRead swallowed a 403")
 	}
 }
@@ -470,7 +526,7 @@ func TestGroupIDsAreNotDoubleEscaped(t *testing.T) {
 	// different route, not an escaped segment — pinned so a later "fix" that
 	// adds PathEscape has to justify itself against the rest of the package.
 	c, got := groupServer(t, `{"id":"g1"}`)
-	if err := c.PinGroupMessage(context.Background(),
+	if _, err := c.PinGroupMessage(context.Background(),
 		"11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"); err != nil {
 		t.Fatal(err)
 	}
@@ -478,5 +534,38 @@ func TestGroupIDsAreNotDoubleEscaped(t *testing.T) {
 		"22222222-2222-4222-8222-222222222222/pin"
 	if got.path != want {
 		t.Errorf("path = %s\nwant %s", got.path, want)
+	}
+}
+
+// The promoted-method trap, pinned. A type that embeds one with its own
+// UnmarshalJSON gets that method PROMOTED, so the default decode runs the
+// embedded type's unmarshaller over the whole object and every field declared
+// on the outer struct is silently skipped.
+//
+// This is not hypothetical here: it is why GroupSearchHit.BodyHighlight came
+// back empty from a body that carried it, and it would recur for any future
+// type embedding Message. Both halves must decode.
+func TestEmbeddedMessageDoesNotSwallowOuterFields(t *testing.T) {
+	var hit GroupSearchHit
+	if err := json.Unmarshal([]byte(
+		`{"id":"m1","body":"a b c","body_highlight":"a <mark>b</mark> c"}`), &hit); err != nil {
+		t.Fatal(err)
+	}
+	if hit.ID != "m1" || hit.Body != "a b c" {
+		t.Errorf("embedded Message half lost: %+v", hit.Message)
+	}
+	if hit.BodyHighlight == "" {
+		t.Error("outer field swallowed by the promoted Message.UnmarshalJSON")
+	}
+
+	var msg GroupMessage
+	if err := json.Unmarshal([]byte(`{"id":"m2","body":"hi","read_count":4}`), &msg); err != nil {
+		t.Fatal(err)
+	}
+	if msg.ID != "m2" {
+		t.Errorf("embedded half lost: %+v", msg.Message)
+	}
+	if msg.ReadCount != 4 {
+		t.Errorf("ReadCount = %d, want 4 — outer field swallowed", msg.ReadCount)
 	}
 }

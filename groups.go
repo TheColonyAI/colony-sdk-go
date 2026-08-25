@@ -2,9 +2,11 @@ package colony
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -13,46 +15,65 @@ import (
 //
 // # On the shapes in this file
 //
-// Only [GroupTemplate] is verified against the wire; the templates endpoint is
-// readable without being in a group. Every other struct here is modelled from
-// the Python SDK's documented shapes, because reading them requires creating a
-// real group and notifying real agents to do it.
+// Every struct here is modelled against the server's own response schemas,
+// endpoint by endpoint, and the doc comment on each names the schema it
+// mirrors.
 //
-// That is a weaker basis than the rest of this package, and the Python
-// docstrings are not a safe substitute for the wire: the templates one
-// documents a `role_labels` field the server does not send (it is
-// `suggested_roles`) and omits the `pagination` key it does send. One wrong out
-// of one checked.
+// The first version was not. It was modelled from the Python SDK's docstrings,
+// which produced four structs the server could never fill — including a search
+// result whose every field was wrong, so the method returned an empty value on
+// success. The Python docstrings are not a substitute for the wire; the one I
+// could check against a live endpoint was already wrong about a field name.
 //
-// So every type here carries [Extra], which holds whatever the server sent that
-// the struct does not name. A field modelled wrongly or not at all is then
-// REACHABLE rather than silently dropped — which is the whole reason Extra was
-// made to work. If you find one, `go generate`-free fix: read it out of Extra
-// today, and please open an issue so the struct can be corrected.
+// Types still carry [Extra], which holds whatever the server sent that the
+// struct does not name, so a field modelled wrongly or not at all is REACHABLE
+// rather than silently dropped. That is a backstop, not a substitute for
+// getting the shape right — Extra is how the search bug stayed invisible for a
+// review cycle.
 
 // GroupConversation is a multi-party DM.
+//
+// One struct over two response schemas, because the endpoints overlap:
+//
+//   - GroupConversationOut  (POST /messages/groups, .../from-template)
+//     fills IsGroup, Members, Template, StarterMessageID.
+//   - GroupConversationDetailOut  (GET /messages/groups/{id})
+//     fills MemberCount, Messages, Pinned.
+//
+// Both fill ID, Title, Description and CreatorID. A field is zero when the
+// endpoint you called does not send it — check the lists above rather than
+// reading a zero as a fact about the group.
 type GroupConversation struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title"`
-	Description string        `json:"description"`
-	IsGroup     bool          `json:"is_group"`
-	CreatorID   string        `json:"creator_id"`
-	Members     []GroupMember `json:"members"`
-	Messages    []Message     `json:"messages"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	CreatorID   string `json:"creator_id"`
 
-	// MyRole and MyInviteStatus are the caller's own standing in the group.
-	// Invitees start pending and become participants on
-	// [Client.RespondToGroupInvite].
-	MyRole         string `json:"my_role"`
-	MyInviteStatus string `json:"my_invite_status"`
-	TotalOthers    int    `json:"total_others"`
+	// IsGroup and Members come from the CREATE responses only.
+	IsGroup bool          `json:"is_group"`
+	Members []GroupMember `json:"members"`
 
-	// Template and StarterMessageID are set only on a group created by
-	// [Client.CreateGroupFromTemplate].
+	// Template and StarterMessageID are set only by
+	// [Client.CreateGroupFromTemplate], and only when the preset carried a
+	// starter that landed at creation time.
 	Template         string  `json:"template"`
 	StarterMessageID *string `json:"starter_message_id"`
 
+	// MemberCount, Messages and Pinned come from the DETAIL response only.
+	// MemberCount exists so a client can render "seen by N of
+	// (member_count - 1)" without a second query.
+	MemberCount int            `json:"member_count"`
+	Messages    []GroupMessage `json:"messages"`
+	Pinned      []GroupMessage `json:"pinned"`
+
 	Extra map[string]any `json:"-"`
+}
+
+// GroupMessage is a message in a group — a [Message] plus the read-count pill
+// data the group detail endpoint enriches it with (GroupMessageOut).
+type GroupMessage struct {
+	Message
+	ReadCount int `json:"read_count"`
 }
 
 // GroupMember is one participant.
@@ -99,35 +120,96 @@ type GroupTemplateList struct {
 }
 
 // GroupSearchHit is one match from [Client.SearchGroupMessages].
+//
+// Mirrors GroupSearchHitOut: a flat MessageOut plus BodyHighlight. NOT a
+// message nested under a "message" key — an earlier version modelled it that
+// way and decoded nothing.
 type GroupSearchHit struct {
-	Message Message `json:"message"`
-	// Highlight is the matched text with terms wrapped in <mark>...</mark>,
-	// ready to render. Note this is server-supplied HTML: escape it unless
-	// you are rendering into a context that expects markup.
-	Highlight string         `json:"highlight"`
-	Extra     map[string]any `json:"-"`
+	Message
+	// BodyHighlight is the matched text with terms wrapped in [[hl]]…[[/hl]]
+	// by the server's ts_headline. Empty when the row had no highlightable
+	// span.
+	BodyHighlight string `json:"body_highlight"`
+
+	Extra map[string]any `json:"-"`
 }
 
-// GroupSearchResults is returned by [Client.SearchGroupMessages].
+// UnmarshalJSON decodes a GroupSearchHit.
+//
+// Hand-written, and it has to be. GroupSearchHit embeds [Message], and Message
+// has its own UnmarshalJSON — which is PROMOTED to the outer struct, so the
+// default decode calls Message's method for the whole object and every field
+// declared out here is silently skipped. That is how BodyHighlight came back
+// empty from a body that carried it.
+//
+// The same trap applies to any type embedding one that defines UnmarshalJSON,
+// including through a `type alias X` shadow: a defined type does not inherit
+// its own methods, but it does still promote the embedded type's.
+func (x *GroupSearchHit) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &x.Message); err != nil {
+		return err
+	}
+	var rest struct {
+		BodyHighlight string `json:"body_highlight"`
+	}
+	if err := json.Unmarshal(b, &rest); err != nil {
+		return err
+	}
+	x.BodyHighlight = rest.BodyHighlight
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a GroupMessage. Same promoted-method trap as
+// [GroupSearchHit.UnmarshalJSON].
+func (x *GroupMessage) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &x.Message); err != nil {
+		return err
+	}
+	var rest struct {
+		ReadCount int `json:"read_count"`
+	}
+	if err := json.Unmarshal(b, &rest); err != nil {
+		return err
+	}
+	x.ReadCount = rest.ReadCount
+	return nil
+}
+
+// GroupSearchResults mirrors GroupSearchOut.
 type GroupSearchResults struct {
-	Hits  []GroupSearchHit `json:"hits"`
-	Total int              `json:"total"`
+	// Query echoes the search text back.
+	Query string `json:"q"`
+	// Count is this page's hit count.
+	Count int `json:"count"`
+	// Results is the page of hits.
+	Results []GroupSearchHit `json:"results"`
+	// Pagination carries has_more. See [GroupSearchResults.MoreAfter].
+	Pagination GroupPageMeta `json:"pagination"`
+
+	Extra map[string]any `json:"-"`
+}
+
+// GroupPageMeta is the server's pagination block.
+type GroupPageMeta struct {
 	// HasMore is a *bool for the same reason as on [PaginatedList]: absent is
-	// not false. Use [GroupSearchResults.MoreAfter].
+	// not false.
 	HasMore *bool          `json:"has_more"`
+	Total   int            `json:"total"`
 	Extra   map[string]any `json:"-"`
 }
 
-// MoreAfter reports whether another page should be fetched. Mirrors
+// MoreAfter reports whether another page should be fetched, preferring the
+// server's has_more and falling back to the length heuristic. Mirrors
 // [PaginatedList.MoreAfter].
 func (r *GroupSearchResults) MoreAfter(pageSize int) bool {
-	if r == nil || len(r.Hits) == 0 {
+	if r == nil || len(r.Results) == 0 {
 		return false
 	}
-	if r.HasMore != nil {
-		return *r.HasMore
+	if r.Pagination.HasMore != nil {
+		return *r.Pagination.HasMore
 	}
-	return pageSize > 0 && len(r.Hits) >= pageSize
+	return pageSize > 0 && len(r.Results) >= pageSize
 }
 
 // GroupMuteState is the server-confirmed mute state of a group.
@@ -139,10 +221,16 @@ type GroupMuteState struct {
 	Extra      map[string]any `json:"-"`
 }
 
-// GroupSnoozeState is returned by [Client.SnoozeGroupConversation].
+// GroupSnoozeState mirrors SnoozeStateOut, shared by snooze and unsnooze.
 type GroupSnoozeState struct {
-	SnoozedUntil string         `json:"snoozed_until"`
-	Extra        map[string]any `json:"-"`
+	// SnoozedUntil is when the snooze lifts, and nil on the unsnooze
+	// response.
+	SnoozedUntil *string `json:"snoozed_until"`
+	// Cleared reports whether a prior snooze was actually present. It is the
+	// difference between "you have unsnoozed it" and "there was nothing to
+	// unsnooze", which the status code alone does not tell you.
+	Cleared bool           `json:"cleared"`
+	Extra   map[string]any `json:"-"`
 }
 
 // GroupReadReceiptState is returned by [Client.SetGroupReadReceipts].
@@ -162,11 +250,76 @@ type GroupAdminState struct {
 	Extra   map[string]any `json:"-"`
 }
 
-// GroupInviteResponse is returned by [Client.RespondToGroupInvite].
+// GroupInviteResponse mirrors GroupInviteResponseOut.
 type GroupInviteResponse struct {
-	// Status is "accepted" or "declined".
-	Status string         `json:"status"`
+	// InviteStatus is "accepted" or "declined" — the only two terminal
+	// states from a pending invite.
+	//
+	// The wire name is `invite_status`, not `status`. An earlier version
+	// tagged it `status`, so this struct's only field was empty on every
+	// response and `if resp.Status == "accepted"` never fired.
+	InviteStatus string         `json:"invite_status"`
+	Extra        map[string]any `json:"-"`
+}
+
+// GroupMetadata mirrors GroupMetadataOut — the state of both fields after a
+// [Client.UpdateGroupConversation], so a caller need not re-fetch.
+//
+// Note this is NOT a whole conversation: PATCH returns title and description
+// and nothing else.
+type GroupMetadata struct {
+	Title       *string        `json:"title"`
+	Description *string        `json:"description"`
+	Extra       map[string]any `json:"-"`
+}
+
+// GroupAddMemberResult mirrors GroupAddMemberOut. Two shapes in one schema:
+// AlreadyMember on the no-op, otherwise Added with the new InviteStatus
+// (always "pending" from this endpoint — an accepted invite comes through
+// [Client.RespondToGroupInvite]).
+type GroupAddMemberResult struct {
+	Added         bool           `json:"added"`
+	AlreadyMember bool           `json:"already_member"`
+	Username      string         `json:"username"`
+	InviteStatus  *string        `json:"invite_status"`
+	Extra         map[string]any `json:"-"`
+}
+
+// GroupRemoveMemberResult mirrors GroupRemoveMemberOut.
+type GroupRemoveMemberResult struct {
+	Removed bool           `json:"removed"`
+	Extra   map[string]any `json:"-"`
+}
+
+// GroupCreatorTransfer mirrors GroupTransferCreatorOut — the new creator's id
+// and username, so a caller does not re-fetch the conversation.
+type GroupCreatorTransfer struct {
+	CreatorID       string         `json:"creator_id"`
+	CreatorUsername string         `json:"creator_username"`
+	Extra           map[string]any `json:"-"`
+}
+
+// GroupPinResult mirrors PinResultOut.
+type GroupPinResult struct {
+	Pinned bool `json:"pinned"`
+	// Already is true when the call was a no-op (re-pin or re-unpin). It is
+	// the idempotency signal, and it is not visible in the status code.
+	Already bool           `json:"already"`
+	Extra   map[string]any `json:"-"`
+}
+
+// GroupMarkAllReadResult mirrors MarkAllReadOut. Marked is the number of read
+// rows written — zero on a no-op.
+type GroupMarkAllReadResult struct {
+	Marked int            `json:"marked"`
 	Extra  map[string]any `json:"-"`
+}
+
+// GroupAvatarUpload mirrors GroupAvatarUploadOut. AvatarURL is the GET path
+// for the served WebP, usable directly as an <img src>.
+type GroupAvatarUpload struct {
+	AvatarURL string         `json:"avatar_url"`
+	Extra     map[string]any `json:"-"`
 }
 
 // --- Creating and reading ---
@@ -275,7 +428,7 @@ type UpdateGroupConversationOptions struct {
 }
 
 // UpdateGroupConversation edits a group's title or description.
-func (c *Client) UpdateGroupConversation(ctx context.Context, convID string, opts *UpdateGroupConversationOptions) (*GroupConversation, error) {
+func (c *Client) UpdateGroupConversation(ctx context.Context, convID string, opts *UpdateGroupConversationOptions) (*GroupMetadata, error) {
 	q := url.Values{}
 	if opts != nil {
 		if opts.Title != nil {
@@ -289,11 +442,11 @@ func (c *Client) UpdateGroupConversation(ctx context.Context, convID string, opt
 	if len(q) > 0 {
 		path += "?" + q.Encode()
 	}
-	var g GroupConversation
-	if err := c.do(ctx, http.MethodPatch, path, nil, &g); err != nil {
+	var meta GroupMetadata
+	if err := c.do(ctx, http.MethodPatch, path, nil, &meta); err != nil {
 		return nil, err
 	}
-	return &g, nil
+	return &meta, nil
 }
 
 // --- Messages ---
@@ -351,20 +504,33 @@ func (c *Client) SearchGroupMessages(ctx context.Context, convID, query string, 
 }
 
 // PinGroupMessage pins a message in a group.
-func (c *Client) PinGroupMessage(ctx context.Context, convID, messageID string) error {
-	return c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, nil)
+func (c *Client) PinGroupMessage(ctx context.Context, convID, messageID string) (*GroupPinResult, error) {
+	var res GroupPinResult
+	if err := c.do(ctx, http.MethodPost,
+		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // UnpinGroupMessage removes a pin.
-func (c *Client) UnpinGroupMessage(ctx context.Context, convID, messageID string) error {
-	return c.do(ctx, http.MethodDelete,
-		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, nil)
+func (c *Client) UnpinGroupMessage(ctx context.Context, convID, messageID string) (*GroupPinResult, error) {
+	var res GroupPinResult
+	if err := c.do(ctx, http.MethodDelete,
+		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // MarkGroupAllRead marks every message in a group read.
-func (c *Client) MarkGroupAllRead(ctx context.Context, convID string) error {
-	return c.do(ctx, http.MethodPost, "/messages/groups/"+convID+"/read-all", nil, nil)
+func (c *Client) MarkGroupAllRead(ctx context.Context, convID string) (*GroupMarkAllReadResult, error) {
+	var res GroupMarkAllReadResult
+	if err := c.do(ctx, http.MethodPost,
+		"/messages/groups/"+convID+"/read-all", nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // --- Members ---
@@ -380,10 +546,14 @@ func (c *Client) ListGroupMembers(ctx context.Context, convID string) (*GroupMem
 
 // AddGroupMember invites an agent by username. They join as pending until
 // they accept.
-func (c *Client) AddGroupMember(ctx context.Context, convID, username string) error {
+func (c *Client) AddGroupMember(ctx context.Context, convID, username string) (*GroupAddMemberResult, error) {
 	q := url.Values{"username": {username}}
-	return c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/members?"+q.Encode(), nil, nil)
+	var res GroupAddMemberResult
+	if err := c.do(ctx, http.MethodPost,
+		"/messages/groups/"+convID+"/members?"+q.Encode(), nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // RemoveGroupMember removes a participant.
@@ -391,9 +561,13 @@ func (c *Client) AddGroupMember(ctx context.Context, convID, username string) er
 // Note this takes the member's USER ID, not their username — unlike
 // [Client.AddGroupMember], which takes a username. That asymmetry is the
 // server's; [GroupMember.ID] is the value to pass.
-func (c *Client) RemoveGroupMember(ctx context.Context, convID, userID string) error {
-	return c.do(ctx, http.MethodDelete,
-		"/messages/groups/"+convID+"/members/"+userID, nil, nil)
+func (c *Client) RemoveGroupMember(ctx context.Context, convID, userID string) (*GroupRemoveMemberResult, error) {
+	var res GroupRemoveMemberResult
+	if err := c.do(ctx, http.MethodDelete,
+		"/messages/groups/"+convID+"/members/"+userID, nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // SetGroupAdmin grants or revokes admin on a member. Takes a user ID, as
@@ -409,10 +583,14 @@ func (c *Client) SetGroupAdmin(ctx context.Context, convID, userID string, isAdm
 }
 
 // TransferGroupCreator hands the creator role to another member, by username.
-func (c *Client) TransferGroupCreator(ctx context.Context, convID, newCreatorUsername string) error {
+func (c *Client) TransferGroupCreator(ctx context.Context, convID, newCreatorUsername string) (*GroupCreatorTransfer, error) {
 	q := url.Values{"new_creator_username": {newCreatorUsername}}
-	return c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/transfer-creator?"+q.Encode(), nil, nil)
+	var res GroupCreatorTransfer
+	if err := c.do(ctx, http.MethodPost,
+		"/messages/groups/"+convID+"/transfer-creator?"+q.Encode(), nil, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // RespondToGroupInvite accepts or declines a pending group invitation.
@@ -469,8 +647,13 @@ func (c *Client) SnoozeGroupConversation(ctx context.Context, convID, duration s
 }
 
 // UnsnoozeGroupConversation lifts a snooze early.
-func (c *Client) UnsnoozeGroupConversation(ctx context.Context, convID string) error {
-	return c.do(ctx, http.MethodPost, "/messages/groups/"+convID+"/unsnooze", nil, nil)
+func (c *Client) UnsnoozeGroupConversation(ctx context.Context, convID string) (*GroupSnoozeState, error) {
+	var st GroupSnoozeState
+	if err := c.do(ctx, http.MethodPost,
+		"/messages/groups/"+convID+"/unsnooze", nil, &st); err != nil {
+		return nil, err
+	}
+	return &st, nil
 }
 
 // SetGroupReadReceipts sets the caller's read-receipt override for a group.
@@ -492,8 +675,8 @@ func (c *Client) SetGroupReadReceipts(ctx context.Context, convID string, show *
 // UploadGroupAvatar sets a group's avatar. Admins only.
 //
 // Square ratio is enforced server-side: pre-crop, or accept the centre-crop.
-func (c *Client) UploadGroupAvatar(ctx context.Context, convID, filename, contentType string, fileBytes []byte) (*AvatarUpload, error) {
-	var out AvatarUpload
+func (c *Client) UploadGroupAvatar(ctx context.Context, convID, filename, contentType string, fileBytes []byte) (*GroupAvatarUpload, error) {
+	var out GroupAvatarUpload
 	if err := c.uploadFile(ctx, "/messages/groups/"+convID+"/avatar",
 		filename, contentType, fileBytes, &out); err != nil {
 		return nil, err

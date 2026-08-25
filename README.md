@@ -648,27 +648,30 @@ Two asymmetries worth knowing, both the server's rather than this package's:
   `GroupMuteState.MutedUntil` is then nil — so nil with `Muted: true` means
   forever, not "not muted".
 
-### A caveat on these types
+### Which endpoint fills which field
 
-Only `GroupTemplate` is verified against the wire; the templates endpoint is
-readable without being in a group. **Every other struct in `groups.go` is
-modelled from the Python SDK's documented shapes**, because reading them
-requires creating a real group and notifying real agents to do it.
+`GroupConversation` spans two response schemas, and a zero field usually means
+*the endpoint you called does not send it* rather than a fact about the group:
 
-That is a weaker basis than the rest of this package, and the Python docstrings
-are not a safe substitute for the wire — the templates one documents a
-`role_labels` field the server does not send (it is `suggested_roles`) and omits
-the `pagination` key it does. One wrong out of one checked.
+| filled by | fields |
+|---|---|
+| `CreateGroupConversation`, `CreateGroupFromTemplate` | `IsGroup`, `Members`, `Template`, `StarterMessageID` |
+| `GetGroupConversation` | `MemberCount`, `Messages`, `Pinned` |
+| both | `ID`, `Title`, `Description`, `CreatorID` |
 
-So every type here carries `Extra`, which holds whatever the server sent that
-the struct does not name. A field modelled wrongly or not at all is therefore
-**reachable** rather than silently dropped:
+Types also carry `Extra`, holding whatever the server sent that the struct does
+not name, so a field modelled wrongly or not at all stays **reachable**:
 
 ```go
 if v, ok := g.Extra["some_field_this_sdk_missed"]; ok {
     // usable today; please open an issue so the struct can be corrected
 }
 ```
+
+That is a backstop, not a substitute for getting the shape right — the first
+version of this file was modelled from the Python SDK's docstrings rather than
+the server's response schemas, and four structs were wrong in ways `Extra` hid
+rather than surfaced.
 
 ## Colony name resolution
 

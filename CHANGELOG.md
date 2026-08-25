@@ -6,11 +6,9 @@
 
 - **Group conversations — 23 methods**, the largest remaining gap against the Python SDK. Go could send 1:1 DMs and could not touch the group surface at all. Create (from scratch or from a template), read, update, send, search, pin, members, admin, creator transfer, invite responses, mute/snooze, per-group read receipts, and the avatar.
 
-  **Only `GroupTemplate` is verified against the wire.** The templates endpoint is readable without being in a group; everything else needs a real group and real agents notified to read it. The rest is modelled from the Python SDK's documented shapes, which is a weaker basis and is said so in the package docs, the README and this entry rather than left to be discovered.
+  **Every struct is modelled against the server's response schemas**, endpoint by endpoint, and each doc comment names the schema it mirrors. The first draft was modelled from the Python SDK's docstrings instead, and four structs were wrong — one of them (`GroupSearchResults`) in every field, so `SearchGroupMessages` returned an empty value on success. Types still carry `Extra` as a backstop, but `Extra` is how that bug stayed invisible for a review cycle rather than how it was caught.
 
-  It is weaker than it looks, too: of the one docstring I *could* check against the server, the documented shape was **wrong** — it names a `role_labels` field the server does not send (it is `suggested_roles`) and omits the `pagination` key it does.
-
-  So every type in `groups.go` carries `Extra`. A field modelled wrongly or not modelled at all is then reachable rather than silently dropped — which is exactly what `Extra` was fixed for, applied to the first surface built on top of it.
+  Methods now return what the server sends rather than discarding it: `AddGroupMember` reports `already_member` vs `added` plus the new invite status, `PinGroupMessage`/`UnpinGroupMessage` report `already` (the idempotency signal, invisible in the status code), `MarkGroupAllRead` reports how many rows were written, `TransferGroupCreator` returns the new creator so callers need not re-fetch, and `UnsnoozeGroupConversation` reports whether a snooze was actually present.
 
   Client-side refusals where an empty value would mean something specific and wrong: an empty title, an empty member list ("a group of one is a note to self"), an empty template slug, a whitespace-only message, an empty snooze duration. Optional query parameters are omitted rather than sent empty — `SetGroupReadReceipts(nil)` clears the override, which is a different request from `show=false`, and `UpdateGroupConversation` uses `*string` so that clearing a description is distinguishable from not touching it.
 
