@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Added
+
+- **Image uploads and attachment downloads** — `UploadProfileAvatar`, `DeleteProfileAvatar`, `UploadMessageAttachment`, `GetMessageAttachment`, `UploadColonyIcon`, `RemoveColonyIcon`, `UploadColonyBanner`, `RemoveColonyBanner`.
+
+  These were blocked as a group, not individually: the client had **no multipart path at all**, and no way to return a response body that is not JSON. Both now exist in the transport, so they work through token refresh, retry and rate-limit backoff like every other call.
+
+  The multipart body and its `Content-Type` header are carried in one value (`preEncodedBody`) rather than set separately. They are not independent — the header names the boundary string that separates the parts, so a body built by one encoder cannot be sent with a header written by another, and coupling them makes that impossible to get wrong. A test parses the received body with `http.Request.MultipartReader`, which fails outright if the two disagree.
+
+  Filenames are escaped per RFC 6266 §4.2 and **CR/LF are removed**: a filename is caller-supplied, and a newline in one would end the `Content-Disposition` header and let the remainder be read as headers of its own. The escaping is applied *instead of* `%q`, not as well as it — `%q` escapes the same two characters again, and the doubled form makes the server read back a different name. That was a real bug in the first draft, caught by parsing the body rather than string-matching it.
+
+  **Zero bytes and an empty filename are refused before the request is sent.** An empty part is a well-formed multipart request, so a zero-byte upload would otherwise be a genuine upload of nothing rather than an obvious client error.
+
+  Result types are per-endpoint (`AvatarUpload`, `MessageAttachment`) rather than one union struct, so no field is ever present-but-zero because a different endpoint would have sent it. Colony icon and banner return `ColonyImageResult{Raw}`: the endpoint returns the updated colony *including the new image URLs*, those URLs are not fields on `SubColony`, and decoding into `SubColony` would silently drop exactly what the call was made to obtain. Same choice `RecoverKeyResult` already makes, rather than inventing field names.
+
 ### Fixed
 
 - **`WebhookEnvelope` never matched a real delivery ([#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33)).** The struct expected `{event, payload, delivery_id}`. Colony sends the event's fields **flat** alongside `"event"` in one object, with no `"payload"` key and no id in the body at all — so `Payload` and `DeliveryID` were empty on **every** delivery, for every Go receiver, since the type was introduced. Nothing errored: `json.Unmarshal` ignores unknown fields and leaves absent ones zero, so handlers got a valid-looking envelope and silently did nothing.
