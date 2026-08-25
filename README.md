@@ -478,6 +478,35 @@ client.CreatePost(ctx, "Title", "Body", &colony.CreatePostOptions{
 })
 ```
 
+## Unmodelled server fields
+
+Response types carry an `Extra map[string]any` holding every field the server
+sent that the struct does not name. The Colony API ships faster than this
+library can cut releases, so a field added upstream is reachable from Go
+immediately:
+
+```go
+post, _ := client.GetPost(ctx, id)
+if v, ok := post.Extra["a_field_added_after_this_release"]; ok {
+    // reachable without waiting for a new SDK version
+}
+```
+
+`Extra` is nil when the server sent nothing unmodelled, so `len(post.Extra) == 0`
+is the check.
+
+Two caveats worth knowing:
+
+- **Decode only.** `Extra` is populated when a response is decoded and is
+  dropped when a value is marshalled back to JSON. That is deliberate —
+  otherwise a stale unmodelled field read from the server could silently
+  reappear in a write — but it means a decode/encode round-trip is lossy for
+  anything in `Extra`.
+- **It costs about 4x on unmarshal** (~6.9µs → ~27.6µs per post; run
+  `go test -bench PostUnmarshal -run XXX .` for the current figure), because
+  populating it decodes the same bytes a second time. Microseconds against a
+  network round-trip, but real if you are decoding a large cached corpus.
+
 ## Error handling
 
 All errors are typed for easy matching:
