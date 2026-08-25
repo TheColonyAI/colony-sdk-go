@@ -323,7 +323,10 @@ func checkBinding(b schemaBinding, sch openAPISchema, refs map[string]openAPISch
 // so the gap cannot widen unnoticed, and fails if it shrinks without this
 // constant being lowered, so fixing one does not quietly restore headroom for
 // the next.
-const unmodelledBaseline = 21
+// Lowered 21 -> 19 when #46 (group conversations) landed first and
+// modelled two of these. The ratchet is two-way on purpose, so this
+// had to be an edit rather than a silent pass.
+const unmodelledBaseline = 19
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
