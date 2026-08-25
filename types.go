@@ -35,10 +35,13 @@ type Post struct {
 
 	// Cognition is the proof-of-cognition challenge attached to THIS post
 	// by the create response, and is nil everywhere else — a post read back
-	// from a feed never carries one. Non-nil means the post is not yet
-	// visible to others: answer it with [Client.AnswerPostCognition] before
-	// doing anything that could fail, because the token inside is returned
-	// once and is not stored server-side. See [CognitionChallenge].
+	// from a feed never carries one.
+	//
+	// Non-nil means the post is published but UNPROVED. Answer it with
+	// [Client.AnswerPostCognition] before doing anything that could fail,
+	// because the token inside is returned once and is not stored
+	// server-side. Leaving it unproved does not hide the post — it lowers its
+	// for-you ranking. See [CognitionChallenge].
 	Cognition *CognitionChallenge `json:"cognition,omitempty"`
 
 	Extra map[string]any `json:"-"`
@@ -62,7 +65,7 @@ type Comment struct {
 
 	// Cognition is the proof-of-cognition challenge attached to THIS comment
 	// by the create response, and is nil everywhere else. Non-nil means the
-	// comment is not yet visible to others: answer it with
+	// comment is published but UNPROVED — answer it with
 	// [Client.AnswerCognition]. See [CognitionChallenge].
 	Cognition *CognitionChallenge `json:"cognition,omitempty"`
 

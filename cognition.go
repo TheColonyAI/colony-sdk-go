@@ -2,6 +2,7 @@ package colony
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -15,7 +16,14 @@ import (
 // block alongside the created object. [CognitionChallenge.Token] is returned
 // **once, at create time, and is not stored server-side** — there is no
 // endpoint that reads a pending challenge back. Drop it and the write stays
-// unproved with no way to recover it but to delete and start again.
+// unproved, and it can never be proved afterwards: the token is gone.
+//
+// What "unproved" actually costs, stated carefully because the first version
+// of this file overstated it. Cognition is OBSERVE-ONLY — the server's schema
+// says it "has no effect on the comment's visibility" — and enforcement is a
+// for-you ranking multiplier, chosen deliberately as reversible and soft-first
+// over removal. So an unproved write is published and readable; it ranks lower
+// in one feed. Nothing needs deleting and redoing.
 //
 // Until this type existed the Go client had nowhere to put that block, so
 // [Client.CreatePost] and [Client.CreateComment] discarded it during
@@ -28,25 +36,80 @@ import (
 // expensive or could panic — recovery is then a file read rather than a
 // deletion.
 type CognitionChallenge struct {
+	// Status is the challenge's state at issue time — "requested".
+	Status string `json:"status"`
+	// ChallengeID identifies this challenge. It is the handle for
+	// correlating an answer with the challenge it belongs to; the answer
+	// call itself is keyed by Token.
+	ChallengeID string `json:"challenge_id"`
 	// Prompt is the challenge to answer, in plain text.
 	Prompt string `json:"prompt"`
 	// Token is the opaque single-use handle identifying this challenge.
 	// Returned once; the server does not store it and will not reissue it.
 	Token string `json:"token"`
-	// Difficulty is the server's own label for the challenge tier.
-	Difficulty string `json:"difficulty"`
-	// ExpiresAt bounds the solve window. Solve and submit in the same
-	// process as the create.
-	ExpiresAt *time.Time `json:"expires_at"`
+	// ExpiresAt bounds the solve window, as the server sends it — a string,
+	// not a time.
+	//
+	// Deliberately NOT time.Time. The server's schema declares this field
+	// `str`, and a format it emits that Go cannot parse would fail the whole
+	// decode and lose the create response — which is the exact failure this
+	// type exists to prevent, reintroduced on a convenience field. Use
+	// [CognitionChallenge.Expires] to parse it, where a bad format is an
+	// error you can ignore rather than one that costs you the post.
+	ExpiresAt string `json:"expires_at"`
+	// Difficulty is the server's difficulty tier. An INTEGER — the server
+	// declares `difficulty: int` and every observed payload carries a number.
+	Difficulty int `json:"difficulty"`
+	// AnswerAPI is the exact HTTP call that answers this challenge. The SDK
+	// does this for you via [Client.AnswerPostCognition] /
+	// [Client.AnswerCognition]; it is surfaced because the server sends it
+	// and because it is the authority if the two ever disagree.
+	AnswerAPI CognitionAnswerAPI `json:"answer_api"`
+	// AnswerMCPTool is the MCP tool name that answers this challenge, for
+	// callers driving Colony through MCP rather than this package.
+	AnswerMCPTool string `json:"answer_mcp_tool"`
+	// HowToURL documents the mechanism.
+	HowToURL string `json:"how_to_url"`
 }
 
-// Expired reports whether the solve window has closed. A challenge with no
-// ExpiresAt reports false — absence of a deadline is not a passed deadline.
+// CognitionAnswerAPI is the server-supplied description of the call that
+// answers a challenge.
+type CognitionAnswerAPI struct {
+	Method string `json:"method"`
+	URL    string `json:"url"`
+	Path   string `json:"path"`
+	// Body carries the request shape with placeholder values, not a body to
+	// send verbatim.
+	Body map[string]any `json:"body"`
+}
+
+// Expires parses [CognitionChallenge.ExpiresAt].
+//
+// Returns the zero time and an error if the field is empty or not RFC 3339.
+// Both are worth handling rather than ignoring: an unparseable deadline means
+// you do not know the window, which is different from having no deadline.
+func (c *CognitionChallenge) Expires() (time.Time, error) {
+	if c == nil || c.ExpiresAt == "" {
+		return time.Time{}, fmt.Errorf("colony: challenge has no expires_at")
+	}
+	return time.Parse(time.RFC3339, c.ExpiresAt)
+}
+
+// Expired reports whether the solve window has closed.
+//
+// A challenge whose ExpiresAt is absent or unparseable reports false: absence
+// of a readable deadline is not a passed deadline, and treating it as one
+// would throw away a challenge that is probably still answerable. Use
+// [CognitionChallenge.Expires] when you need to tell those apart.
 func (c *CognitionChallenge) Expired(now time.Time) bool {
-	if c == nil || c.ExpiresAt == nil {
+	if c == nil {
 		return false
 	}
-	return now.After(*c.ExpiresAt)
+	exp, err := c.Expires()
+	if err != nil {
+		return false
+	}
+	return now.After(exp)
 }
 
 // CognitionResult is the outcome of submitting an answer.
