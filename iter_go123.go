@@ -59,7 +59,9 @@ func (c *Client) IterPostsSeq(ctx context.Context, opts *IterPostsOptions) iter.
 				}
 				yielded++
 			}
-			if len(result.Items) < pageSize {
+			// The server's has_more when it sends one; the old length
+			// heuristic when it does not. See [PaginatedList.MoreAfter].
+			if !result.MoreAfter(pageSize) {
 				return
 			}
 			getOpts.Offset += pageSize
@@ -96,7 +98,7 @@ func (c *Client) IterCommentsSeq(ctx context.Context, postID string, maxResults 
 				}
 				yielded++
 			}
-			if len(result.Items) < 20 {
+			if !result.MoreAfter(commentsPageSize) {
 				return
 			}
 		}
