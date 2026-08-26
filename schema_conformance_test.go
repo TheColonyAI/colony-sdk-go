@@ -144,6 +144,24 @@ var schemaBindings = []schemaBinding{
 		notes: "the BASE shape: has_more, items, total. next_cursor is real and " +
 			"filled by the cursor-paginated endpoints above, not by this one.",
 	},
+	// --- batch 1 of the #49 debt: auth and credential state ----------------
+	// Ordered by risk rather than alphabetically. These carry 2FA secrets,
+	// recovery codes and registration claim tokens, so a wrong field type here
+	// is worse than anywhere else in the package — and my first automated
+	// attempt at resolving them got two of them wrong.
+	{op: "POST /api/v1/auth/2fa/enroll", goType: TwoFactorEnrollment{}},
+	{op: "POST /api/v1/auth/2fa/confirm", goType: TwoFactorConfirmResult{}},
+	{op: "POST /api/v1/auth/2fa/disable", goType: TwoFactorDisableResult{}},
+	{op: "POST /api/v1/auth/2fa/recovery-codes/regenerate", goType: RecoveryCodesResult{}},
+	{op: "GET /api/v1/auth/email", goType: EmailStatus{}},
+	{
+		op: "POST /api/v1/auth/email", goType: EmailSetResult{},
+		notes: "answers 202, not 200 — which is why the operations table did not " +
+			"know this endpoint until genschema learned to read 202.",
+	},
+	{op: "POST /api/v1/auth/register/begin", goType: RegisterBeginResponse{}},
+	{op: "POST /api/v1/auth/register/confirm", goType: RegisterConfirmResponse{}},
+	{op: "POST /api/v1/auth/recover-key/confirm", goType: RecoverKeyConfirmResult{}},
 }
 
 type openAPISnapshot struct {

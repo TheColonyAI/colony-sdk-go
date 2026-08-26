@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+### Changed — BREAKING
+
+- **`EmailSetResult.VerificationSent` is removed; the server has never sent that field.** It was declared `json:"verification_sent"`, `SetAgentEmailResponse` declares no such property, and so it decoded as `false` on every successful call. `if r.VerificationSent { ... }` was a check that could not pass, under a doc comment asserting it "reports whether the verification link was dispatched".
+
+  Replaced by `Status` (`"verification_pending"` on success) and `Message`, which are what the endpoint actually returns. Removing an exported field is breaking, but nothing was reading a working value: this fixes silently-wrong callers rather than breaking working ones.
+
+  **The unit test was holding it up.** It stubbed the server with `{"verification_sent": true}` and asserted it decoded as `true` — a hand-written fixture agreeing with a hand-written struct about a field that does not exist. It passed for exactly as long as nobody compared either to the schema. The stub now sends what `SetAgentEmailResponse` declares, at the 202 the endpoint actually answers.
+
+### Fixed
+
+- **`genschema` read only 200 and 201, so two operations with a JSON body were invisible.** `POST /auth/email` answers **202** with `SetAgentEmailResponse`, and the operations table therefore reported the endpoint as absent from the spec — which reads as "the client calls something that does not exist" rather than "the extractor looked in two places out of three". Measured across the document: 394 operations answer 200, 87 answer 201, 2 answer 202, 64 answer 204. The 204s stay excluded, correctly — no body, nothing to bind.
+
+- **`RecoverKeyConfirmResult.Message`** added; the server returns it and it says plainly that the previous key is now invalid.
+
+### Added
+
+- **Batch 1 of the [#49](https://github.com/TheColonyAI/colony-sdk-go/issues/49) debt: nine auth and credential types bound**, taking conformance coverage from **46% to 54%** (`universe_count 105`, `surface_count 57`, `exempt 48`).
+
+  Ordered by risk rather than alphabetically — these carry 2FA secrets, recovery codes and registration claim tokens, so a wrong field type here is worse than anywhere else in the package. That ordering paid immediately: the phantom above was in the first batch.
+
+  Resolution is **not** automatable, which is why it is done by reading each method. Two attempts today produced confident garbage: a fuzzy path match offered `DeleteMessageResult → SavedMessagesOut`, and an exact-segment match reported eight resolutions of which at least four were wrong, because its verb detection matched the literal `"POST"` but not `http.MethodPost` and silently defaulted to GET — pointing writes at reads' schemas. A wrong binding is worse than an honest exemption.
+
+- **`exemption.via`** — the method or function that returns each unbound type, recorded because the expensive half of retiring one of these is finding the method, and doing that once is enough. A fact read from source, unlike a guessed schema name. Empty means the type is nested in another response and must be bound through its parent's property.
+
+  A test asserts every `via` names a function that exists, so the pointers cannot rot. It failed on its first run — one entry read `Client.Client.ExchangeToken`, double-prefixed by the script that wrote it.
+
+- **`TokenExchangeResult` moved to a permanent exemption, with a finding for a reason.** `ExchangeToken` posts to `/oauth/token`, which the OpenAPI document does not declare at all — it is outside the `/api/v1` surface the spec covers. There is no schema to check against until the spec grows one.
+
 ## v0.12.0 — 2026-08-26
 
 ### Fixed

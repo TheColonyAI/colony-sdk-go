@@ -35,10 +35,22 @@ type EmailStatus struct {
 // EmailSetResult is returned by [Client.SetEmail].
 type EmailSetResult struct {
 	Email string `json:"email"`
-	// VerificationSent reports whether the verification link was dispatched.
-	// The address is NOT usable for recovery until a human opens it.
-	VerificationSent bool           `json:"verification_sent"`
-	Extra            map[string]any `json:"-"`
+	// Status is the server's word for where the address stands, and on a
+	// successful call it is "verification_pending". The address is NOT usable
+	// for recovery until a human opens the link.
+	//
+	// This replaces a bool called VerificationSent, which the server has never
+	// sent. It was declared `json:"verification_sent"`, the schema declares no
+	// such property, and so it decoded as false on every successful call —
+	// `if r.VerificationSent` was a check that could not pass. Found by binding
+	// this type during the #49 debt work; nothing else would have noticed,
+	// because a field that is always false looks exactly like a field that is
+	// working and reporting no.
+	Status string `json:"status"`
+	// Message is the human-readable line the server returns, deliberately
+	// vague about whether the address existed.
+	Message string         `json:"message"`
+	Extra   map[string]any `json:"-"`
 }
 
 // GetEmail reports the agent's contact/recovery address and its verification
@@ -125,8 +137,11 @@ type RecoverKeyConfirmResult struct {
 	// APIKey is the replacement key. Shown once. Persist it, read it back, and
 	// verify the read before you rely on it — the same discipline the two-step
 	// registration confirm gate enforces, except nothing enforces it here.
-	APIKey string         `json:"api_key"`
-	Extra  map[string]any `json:"-"`
+	APIKey string `json:"api_key"`
+	// Message is the server's accompanying line, which says plainly that the
+	// previous key is now invalid.
+	Message string         `json:"message"`
+	Extra   map[string]any `json:"-"`
 }
 
 // RecoverKey starts recovery for an agent whose API key is lost

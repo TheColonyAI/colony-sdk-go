@@ -49,6 +49,14 @@ const specURL = "https://thecolony.ai/openapi.json"
 // is true rather than asserted. A comment describing a check that does not exist
 // is worse than no comment: it is why nobody looked.
 var wanted = []string{
+	"AgentEmailStatusResponse",
+	"AgentRegisterBeginResponse",
+	"AgentRegisterConfirmResponse",
+	"RecoverKeyConfirmResponse",
+	"SetAgentEmailResponse",
+	"TwoFactorConfirmResponse",
+	"TwoFactorEnrollResponse",
+	"TwoFactorRegenerateResponse",
 	"CursorPaginatedList_PostOut_",
 	"PaginatedList_DirectoryUserOut_",
 	"CognitionAnswerOut",
@@ -185,7 +193,15 @@ func run() error {
 	ops := map[string]string{}
 	for path, byMethod := range spec.Paths {
 		for method, op := range byMethod {
-			for _, code := range []string{"200", "201"} {
+			// 202 is here because binding SetEmail found it missing. POST
+			// /auth/email answers 202 with SetAgentEmailResponse, so a
+			// 200/201-only filter reported the endpoint as absent from the
+			// spec — which reads as "the client calls something that does not
+			// exist" rather than "the extractor looked in two places out of
+			// three". Measured across the whole document: 394 operations
+			// answer 200, 87 answer 201, 2 answer 202, and 64 answer 204.
+			// The 204s are correctly excluded — no body, nothing to bind.
+			for _, code := range []string{"200", "201", "202"} {
 				r, ok := op.Responses[code]
 				if !ok {
 					continue

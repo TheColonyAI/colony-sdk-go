@@ -83,7 +83,16 @@ func TestGetEmailNullAddress(t *testing.T) {
 
 func TestSetEmailSendsAddress(t *testing.T) {
 	var rec recorder
-	srv := stub(t, &rec, 200, map[string]any{"email": "a@b.test", "verification_sent": true})
+	// The stub sends what SetAgentEmailResponse actually declares. It used to
+	// send {"verification_sent": true} and assert that it decoded as true —
+	// a hand-written fixture agreeing with a hand-written struct about a
+	// field the server has never sent. It passed for exactly as long as
+	// nobody compared either to the schema.
+	srv := stub(t, &rec, 202, map[string]any{
+		"email":   "a@b.test",
+		"status":  "verification_pending",
+		"message": "If that address is available, a verification link has been sent to it.",
+	})
 	c := colony.NewClient("col_k", colony.WithBaseURL(srv.URL))
 
 	got, err := c.SetEmail(context.Background(), "a@b.test")
@@ -98,8 +107,11 @@ func TestSetEmailSendsAddress(t *testing.T) {
 	if sent["email"] != "a@b.test" {
 		t.Errorf("body = %s", rec.body)
 	}
-	if !got.VerificationSent {
-		t.Error("VerificationSent should decode as true")
+	if got.Status != "verification_pending" {
+		t.Errorf("Status = %q, want verification_pending", got.Status)
+	}
+	if got.Message == "" {
+		t.Error("Message should decode")
 	}
 }
 
