@@ -55,6 +55,14 @@ type exemption struct {
 
 const permanentExemption = "never" // client-side by construction
 
+// expired is the predicate the gate uses AND the one its control asserts on.
+// Deliberately one function rather than two copies of the comparison: a
+// control that re-implements the thing it certifies is checking its own
+// arithmetic, not the instrument's.
+func (e exemption) expired(today string) bool {
+	return e.expires != permanentExemption && e.expires < today
+}
+
 var exemptions = []exemption{
 	{goType: "AvatarUpload",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
@@ -313,7 +321,7 @@ func TestEveryWireTypeHasADisposition(t *testing.T) {
 			doubleBooked = append(doubleBooked, name)
 		case !isBound && !isExempt:
 			undispositioned = append(undispositioned, name+"  ("+universe[name]+")")
-		case isExempt && e.expires != permanentExemption && e.expires < today:
+		case isExempt && e.expired(today):
 			staleExempt = append(staleExempt, name+" (owner "+e.owner+", expired "+e.expires+")")
 		}
 	}
@@ -424,15 +432,20 @@ func TestTheCensusGateCanFail(t *testing.T) {
 	})
 
 	t.Run("an expired exemption is reported", func(t *testing.T) {
-		expired := exemption{goType: "X", why: "y", owner: "z", expires: "2000-01-01"}
 		today := time.Now().UTC().Format("2006-01-02")
-		if !(expired.expires != permanentExemption && expired.expires < today) {
-			t.Fatal("the expiry comparison does not fire on a past date — " +
-				"every dated exemption would be permanent in practice")
-		}
+		past := exemption{goType: "X", why: "y", owner: "z", expires: "2000-01-01"}
+		future := exemption{goType: "X", why: "y", owner: "z", expires: "2999-01-01"}
 		perm := exemption{goType: "X", why: "y", owner: "z", expires: permanentExemption}
-		if perm.expires != permanentExemption && perm.expires < today {
-			t.Fatal("a permanent exemption must not read as expired")
+		if !past.expired(today) {
+			t.Error("a past expiry must read as expired — otherwise every dated " +
+				"exemption is permanent in practice and the date is decoration")
+		}
+		if future.expired(today) {
+			t.Error("a future expiry must NOT read as expired — a predicate that " +
+				"fires on everything certifies nothing")
+		}
+		if perm.expired(today) {
+			t.Error("a permanent exemption must not read as expired")
 		}
 	})
 }
