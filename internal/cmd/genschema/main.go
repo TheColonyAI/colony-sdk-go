@@ -35,10 +35,22 @@ import (
 
 const specURL = "https://thecolony.ai/openapi.json"
 
-// wanted is the set of schema names extracted into testdata. It mirrors the
-// mapping in schema_conformance_test.go; the test fails if the two drift, so
-// this list cannot quietly shrink.
+// wanted is the set of schema names extracted into testdata.
+//
+// This comment used to say "it mirrors the mapping in schema_conformance_test.go;
+// the test fails if the two drift". That was FALSE — no test referenced this
+// variable at all. What actually happened was one-directional: a binding naming
+// a schema absent from the snapshot errored, so a MISSING entry was caught and
+// an ORPHAN was not. There was one: MessageAttachmentOut, extracted on every
+// regeneration and bound by nothing, left behind when that binding was corrected
+// to AttachmentUploadOut. Removed here.
+//
+// TestWantedMatchesTheBindings now asserts both directions, so the claim below
+// is true rather than asserted. A comment describing a check that does not exist
+// is worse than no comment: it is why nobody looked.
 var wanted = []string{
+	"CursorPaginatedList_PostOut_",
+	"PaginatedList_DirectoryUserOut_",
 	"CognitionAnswerOut",
 	"CognitionChallengeOut",
 	"GroupAddMemberOut",
@@ -67,7 +79,6 @@ var wanted = []string{
 	"ForYouFeedOut",
 	"ForYouItemOut",
 	"AttachmentUploadOut",
-	"MessageAttachmentOut",
 	"MessageEditVersion",
 	"MessageOut",
 	"MessageReactionOut",
