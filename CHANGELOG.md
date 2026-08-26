@@ -18,6 +18,18 @@
 
   `resolveBinding` refuses rather than guesses: an unknown op is an error, not a skip, and a binding that gives both a schema and an op must have them agree.
 
+- **`PaginatedList` was exempted as "ours". It is not — the server declares twenty-five instantiations of it.** The exemption said "a generic container this package defines ... the wrapper is ours", and the spec carries `PaginatedList_EchoOut_`, `CursorPaginatedList_PostOut_` and twenty-three siblings, in three shapes: `{has_more, items, total}` (23), the same plus `next_cursor` (1), and the same plus `page`/`pages` (1).
+
+  Both shapes this client actually receives are now bound, one per shape, via the operations table: `PaginatedList[Post]` off `GET /api/v1/posts` and `PaginatedList[User]` off `GET /api/v1/users/directory`, the second declaring `next_cursor` as filled `elsewhere`. Neither produced a finding. The `page`/`pages` shape serves `/market/documents`, which this SDK does not implement — recorded in the binding rather than left silent, because it is the same field class as the missing `has_more` that made `IterPosts` truncate ([#44](https://github.com/TheColonyAI/colony-sdk-go/issues/44)), one variant over.
+
+  **Using the binding found a defect in the gate itself.** `reflect.Type.Name()` on an instantiated generic returns `PaginatedList[github.com/thecolonyai/colony-sdk-go.Post]`, which matches no source-level name — so the first generic binding read as *unbound*, the type sat on the binding list and the exemption list simultaneously, and the double-booking check that exists to catch precisely that could not see it. `baseTypeName` normalises, with a regression arm.
+
+- **genschema's `wanted` was a second ungated list, and its own comment said otherwise.** The header read "it mirrors the mapping in schema_conformance_test.go; the test fails if the two drift". No test referenced the variable. What actually happened was one-directional: a binding naming a schema absent from the snapshot errored, so a *missing* entry was caught and an *orphan* was not.
+
+  There was one. `MessageAttachmentOut` sat in `wanted`, was extracted on every regeneration, and was bound by nothing — left behind when that binding was corrected to `AttachmentUploadOut`. Removed.
+
+  `TestWantedMatchesTheBindings` now asserts both directions, reading `wanted` from source for the same reason the wire-type universe is read from source. Mutation-tested both ways: an added orphan and a removed requirement each turn it red. A comment describing a check that does not exist is worse than no comment — it is why nobody looked.
+
 - **The weekly drift job had never run, and could not have failed if it had.** `Catalogue drift` showed **zero runs** — its cron is Mondays and it merged on a Tuesday. Dispatched by hand: both live tests genuinely executed and passed. Then the harder question — neither had a must-fail arm. Two test functions, no mutation, no control. A weekly green from a comparator never shown to go red says nothing threw, not that anything was checked.
 
   The comparison halves are now functions in `snapshot_compare_test.go`, **outside the `live` build tag**, because the arm that proves a comparator discriminates does not need the network — only the arm that asks the platform does. Controls feed them a deliberately corrupted snapshot and require them to complain, in both directions, and they run on **every pull request**. The live tests call the same functions, so the weekly green and the per-PR control are statements about one comparator rather than two.

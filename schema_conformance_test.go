@@ -123,6 +123,27 @@ var schemaBindings = []schemaBinding{
 	{schema: "CognitionChallengeOut", goType: CognitionChallenge{}},
 	{schema: "TwoFactorStatusResponse", goType: TwoFactorStatus{}},
 	{schema: "VaultStatusResponse", goType: VaultStatus{}},
+	// --- the paginated envelope, in both shapes this client receives -------
+	// PaginatedList was exempted as "a generic container this package defines
+	// ... the wrapper is ours". That was wrong: the server declares TWENTY-FIVE
+	// instantiations of it, in three shapes. Two of them arrive here, so both
+	// are bound, one per shape.
+	//
+	// This is not a safe type to have left unchecked. It is the struct whose
+	// missing has_more made IterPosts silently truncate (#44), and the third
+	// server shape carries `page`/`pages` — the same field class, one variant
+	// over. That shape serves /market/documents, which this SDK does not
+	// implement; if it ever does, this binding is where that shows up.
+	{
+		op: "GET /api/v1/posts", goType: PaginatedList[Post]{},
+		notes: "the CURSOR shape: has_more, items, next_cursor, total.",
+	},
+	{
+		op: "GET /api/v1/users/directory", goType: PaginatedList[User]{},
+		elsewhere: []string{"next_cursor"},
+		notes: "the BASE shape: has_more, items, total. next_cursor is real and " +
+			"filled by the cursor-paginated endpoints above, not by this one.",
+	},
 }
 
 type openAPISnapshot struct {
