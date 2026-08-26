@@ -5,7 +5,9 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -166,9 +168,6 @@ var exemptions = []exemption{
 	{goType: "MyStatus",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
 		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "PaginatedList",
-		why:   "a generic container this package defines to wrap any paginated payload. The ITEMS have schemas and are bound; the wrapper is ours.",
-		owner: "colonist-one", expires: permanentExemption},
 	{goType: "PollOption",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
 		owner: "colonist-one", expires: "2026-09-30"},
@@ -282,9 +281,27 @@ func wireTypes(t *testing.T) map[string]string {
 func boundTypeNames() map[string]bool {
 	out := map[string]bool{}
 	for _, b := range schemaBindings {
-		out[reflect.TypeOf(b.goType).Name()] = true
+		out[baseTypeName(reflect.TypeOf(b.goType).Name())] = true
 	}
 	return out
+}
+
+// baseTypeName strips a generic instantiation's type arguments, so a binding
+// on PaginatedList[Post] registers as "PaginatedList" — the name the source
+// enumeration produces.
+//
+// Found by using the gate rather than by reading it. reflect.Type.Name() on an
+// instantiated generic returns "PaginatedList[github.com/thecolonyai/
+// colony-sdk-go.Post]", which matches no source-level name, so the first
+// generic binding read as unbound: the type stayed on the exemption list AND
+// on the binding list, and the double-booking check that exists precisely to
+// catch that could not see it. A census whose universe and whose bindings
+// spell names differently silently under-reports coverage.
+func baseTypeName(n string) string {
+	if i := strings.IndexByte(n, '['); i >= 0 {
+		return n[:i]
+	}
+	return n
 }
 
 // TestEveryWireTypeHasADisposition is the gate.
@@ -431,6 +448,25 @@ func TestTheCensusGateCanFail(t *testing.T) {
 		}
 	})
 
+	t.Run("a generic binding registers under its base name", func(t *testing.T) {
+		// Regression. The first generic binding (PaginatedList[Post]) read as
+		// UNBOUND, because reflect.Type.Name() returns
+		// "PaginatedList[github.com/thecolonyai/colony-sdk-go.Post]" and the
+		// source enumeration returns "PaginatedList". The type sat on the
+		// binding list and the exemption list at once, and the double-booking
+		// check that exists to catch exactly that could not see it.
+		if got := baseTypeName("PaginatedList[github.com/thecolonyai/colony-sdk-go.Post]"); got != "PaginatedList" {
+			t.Errorf("generic instantiation must normalise to its base name, got %q", got)
+		}
+		if got := baseTypeName("Post"); got != "Post" {
+			t.Errorf("a non-generic name must pass through unchanged, got %q", got)
+		}
+		if !bound["PaginatedList"] {
+			t.Error("PaginatedList is bound by two operations but does not appear " +
+				"in the bound set — the name normalisation has regressed")
+		}
+	})
+
 	t.Run("an expired exemption is reported", func(t *testing.T) {
 		today := time.Now().UTC().Format("2006-01-02")
 		past := exemption{goType: "X", why: "y", owner: "z", expires: "2000-01-01"}
@@ -448,4 +484,78 @@ func TestTheCensusGateCanFail(t *testing.T) {
 			t.Error("a permanent exemption must not read as expired")
 		}
 	})
+}
+
+// TestWantedMatchesTheBindings closes the second ungated list.
+//
+// genschema's `wanted` decides which schemas are extracted into testdata, and
+// its header claimed "the test fails if the two drift". No test referenced the
+// variable at all. What actually happened was one-directional — a binding
+// naming a schema absent from the snapshot errored, so a MISSING entry was
+// caught and an ORPHAN was not — and there was one: MessageAttachmentOut,
+// extracted on every regeneration and bound by nothing, left over from
+// correcting that binding to AttachmentUploadOut.
+//
+// So the gate over the binding list had a second hand-maintained list behind
+// it, which is #49's own shape one layer down. Both directions are asserted
+// here, and `wanted` is read FROM SOURCE for the same reason the wire-type
+// universe is: a list that must be kept in step by hand is the thing being
+// checked, not the checker.
+func TestWantedMatchesTheBindings(t *testing.T) {
+	src, err := os.ReadFile("internal/cmd/genschema/main.go")
+	if err != nil {
+		t.Fatalf("read genschema: %v", err)
+	}
+	m := regexp.MustCompile(`(?s)var wanted = \[\]string\{(.*?)\n\}`).FindSubmatch(src)
+	if m == nil {
+		t.Fatal("INDETERMINATE: could not find `var wanted` in genschema — the " +
+			"generator was restructured and this check now certifies nothing")
+	}
+	wanted := map[string]bool{}
+	for _, q := range regexp.MustCompile(`"([^"]+)"`).FindAllSubmatch(m[1], -1) {
+		wanted[string(q[1])] = true
+	}
+	if len(wanted) == 0 {
+		t.Fatal("INDETERMINATE: parsed 0 entries from `wanted`")
+	}
+
+	snap := loadSchemas(t)
+	need := map[string]string{} // schema -> what needs it
+	for _, b := range schemaBindings {
+		name := b.schema
+		if b.op != "" {
+			resolved, ok := snap.Operations[b.op]
+			if !ok {
+				continue // resolveBinding reports this in the main test
+			}
+			name = resolved
+		}
+		if name != "" {
+			need[name] = reflect.TypeOf(b.goType).Name()
+		}
+	}
+
+	var missing, orphaned []string
+	for name, by := range need {
+		if !wanted[name] {
+			missing = append(missing, name+" (needed by "+by+")")
+		}
+	}
+	for name := range wanted {
+		if _, ok := need[name]; !ok {
+			orphaned = append(orphaned, name)
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(orphaned)
+
+	if len(missing) > 0 {
+		t.Errorf("%d schema(s) a binding needs are not in genschema's `wanted`, so "+
+			"regenerating would drop them:\n  %s", len(missing), strings.Join(missing, "\n  "))
+	}
+	if len(orphaned) > 0 {
+		t.Errorf("%d schema(s) in `wanted` are bound by nothing — extracted on every "+
+			"regeneration and checked by no one:\n  %s",
+			len(orphaned), strings.Join(orphaned, "\n  "))
+	}
 }
