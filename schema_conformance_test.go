@@ -33,7 +33,20 @@ import (
 // every type whose name does not happen to line up, and a checker that skips
 // what it cannot match reports success for work it did not do.
 type schemaBinding struct {
+	// schema names the server schema directly. Leave it empty and set op
+	// instead when the schema's NAME does not line up with the Go type.
 	schema string
+	// op names the endpoint this type comes off, as "METHOD /path", and the
+	// schema is resolved from the snapshot's operations table.
+	//
+	// This exists because name matching reached only 14 of the 69 types that
+	// were unbound when #49 was filed. The other 55 have schemas whose names
+	// no heuristic finds: GroupSearchResults is served by GroupSearchOut,
+	// GroupMemberList by GroupMembersListOut, CognitionResult by
+	// CognitionAnswerOut. An endpoint is a fact about where this client
+	// actually goes; a schema name is a fact about what the server team
+	// called something, and only the first is ours to be sure of.
+	op     string
 	goType any
 	// optional names schema properties this package deliberately does not
 	// model. Each entry is a decision on record rather than an omission.
@@ -93,6 +106,23 @@ var schemaBindings = []schemaBinding{
 	},
 	{schema: "VaultSearchResult", goType: VaultSearchResult{}},
 	{schema: "WebhookOut", goType: Webhook{}},
+	// --- bound by OPERATION, because the schema name does not line up ------
+	// Every one of these was in the unchecked 66% when #49 was filed, and the
+	// first three are the structs the issue names as having carried this
+	// week's wire bugs.
+	{op: "GET /api/v1/messages/groups/{conv_id}/search", goType: GroupSearchResults{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/invite/respond", goType: GroupInviteResponse{}},
+	{op: "POST /api/v1/comments/{comment_id}/cognition", goType: CognitionResult{}},
+	{op: "GET /api/v1/messages/groups/{conv_id}/members", goType: GroupMemberList{}},
+	{op: "GET /api/v1/messages/groups/templates", goType: GroupTemplateList{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/members", goType: GroupAddMemberResult{}},
+	{op: "DELETE /api/v1/messages/groups/{conv_id}/members/{user_id}", goType: GroupRemoveMemberResult{}},
+	{op: "PUT /api/v1/messages/groups/{conv_id}/members/{user_id}/admin", goType: GroupAdminState{}},
+	{op: "PUT /api/v1/vault/files/{filename}", goType: VaultFileMeta{}},
+	// --- bound by name, verified against the snapshot ----------------------
+	{schema: "CognitionChallengeOut", goType: CognitionChallenge{}},
+	{schema: "TwoFactorStatusResponse", goType: TwoFactorStatus{}},
+	{schema: "VaultStatusResponse", goType: VaultStatus{}},
 }
 
 type openAPISnapshot struct {
@@ -100,6 +130,9 @@ type openAPISnapshot struct {
 	Source    string                   `json:"source"`
 	Count     int                      `json:"count"`
 	Schemas   map[string]openAPISchema `json:"schemas"`
+	// Operations maps "METHOD /path" to the schema its success response
+	// declares, so a binding can be stated as the endpoint it came from.
+	Operations map[string]string `json:"operations"`
 	// Refs holds the schemas a bound schema's $ref points at — enum aliases,
 	// mostly. Without them a $ref has to be guessed at, and guessing
 	// "object" reports every enum-typed string as a type error.
@@ -318,6 +351,36 @@ func checkBinding(b schemaBinding, sch openAPISchema, refs map[string]openAPISch
 	return out
 }
 
+// resolveBinding turns an op-stated binding into a schema-stated one.
+//
+// It refuses rather than guesses in every direction it can: an op the snapshot
+// does not know is an error, not a skip, because skipping is how a binding
+// list quietly shrinks. And if BOTH schema and op are given they must agree —
+// otherwise the pair records two different beliefs and the checker silently
+// picks one.
+func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaBinding {
+	t.Helper()
+	if b.op == "" {
+		if b.schema == "" {
+			t.Errorf("%T: binding names neither a schema nor an op", b.goType)
+		}
+		return b
+	}
+	name, ok := snap.Operations[b.op]
+	if !ok {
+		t.Errorf("%T: op %q is not in the snapshot's operations table — the endpoint "+
+			"moved, or the snapshot is stale; run `go generate ./...`", b.goType, b.op)
+		return schemaBinding{}
+	}
+	if b.schema != "" && b.schema != name {
+		t.Errorf("%T: binding says schema %q but op %q resolves to %q — one of the two "+
+			"is wrong and the checker must not choose", b.goType, b.schema, b.op, name)
+		return schemaBinding{}
+	}
+	b.schema = name
+	return b
+}
+
 // unmodelledBaseline is how many server fields this package does not name
 // today. It is a RATCHET, not a target: the test fails if the number grows,
 // so the gap cannot widen unnoticed, and fails if it shrinks without this
@@ -342,6 +405,10 @@ func TestStructsMatchTheServerSchemas(t *testing.T) {
 
 	var blocking, gaps []finding
 	for _, b := range schemaBindings {
+		b := resolveBinding(t, b, snap)
+		if b.schema == "" {
+			continue // resolveBinding has already reported why
+		}
 		sch, ok := snap.Schemas[b.schema]
 		if !ok {
 			t.Errorf("%s: bound here but not in the snapshot — run `go generate ./...`", b.schema)

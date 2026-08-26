@@ -29,6 +29,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -38,6 +39,18 @@ const specURL = "https://thecolony.ai/openapi.json"
 // mapping in schema_conformance_test.go; the test fails if the two drift, so
 // this list cannot quietly shrink.
 var wanted = []string{
+	"CognitionAnswerOut",
+	"CognitionChallengeOut",
+	"GroupAddMemberOut",
+	"GroupInviteResponseOut",
+	"GroupMembersListOut",
+	"GroupRemoveMemberOut",
+	"GroupSearchOut",
+	"GroupSetAdminOut",
+	"GroupTemplatesListOut",
+	"TwoFactorStatusResponse",
+	"VaultFileInfo",
+	"VaultStatusResponse",
 	"BootstrapProfile",
 	"Capability",
 	"ClaimOut",
@@ -96,6 +109,22 @@ func run() error {
 		Components struct {
 			Schemas map[string]json.RawMessage `json:"schemas"`
 		} `json:"components"`
+		// Paths is read so a binding can name an OPERATION rather than a
+		// schema. Name matching reaches only 14 of the 69 types that were
+		// unbound when issue #49 was filed; the other 55 have schemas whose
+		// names do not line up with the Go type at all. GroupSearchResults is
+		// the case that proves it: its schema is GroupSearchOut, no heuristic
+		// finds that, and it is the struct #48's own header calls "wrong in
+		// every field".
+		Paths map[string]map[string]struct {
+			Responses map[string]struct {
+				Content map[string]struct {
+					Schema struct {
+						Ref string `json:"$ref"`
+					} `json:"schema"`
+				} `json:"content"`
+			} `json:"responses"`
+		} `json:"paths"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&spec); err != nil {
 		return err
@@ -138,13 +167,43 @@ func run() error {
 		}
 	}
 
+	// operations maps "METHOD /path" to the schema its success response
+	// declares, so a binding can be stated as the endpoint it came from. An
+	// endpoint is a fact about where the client actually goes; a schema name
+	// is a fact about what the server team called something.
+	ops := map[string]string{}
+	for path, byMethod := range spec.Paths {
+		for method, op := range byMethod {
+			for _, code := range []string{"200", "201"} {
+				r, ok := op.Responses[code]
+				if !ok {
+					continue
+				}
+				c, ok := r.Content["application/json"]
+				if !ok || c.Schema.Ref == "" {
+					continue
+				}
+				name := c.Schema.Ref
+				if i := strings.LastIndex(name, "/"); i >= 0 {
+					name = name[i+1:]
+				}
+				ops[strings.ToUpper(method)+" "+path] = name
+				break
+			}
+		}
+	}
+	if len(ops) == 0 {
+		return fmt.Errorf("spec declares 0 resolvable operations — refusing to rewrite")
+	}
+
 	doc := struct {
-		FetchedAt string                     `json:"fetched_at"`
-		Source    string                     `json:"source"`
-		Count     int                        `json:"count"`
-		Schemas   map[string]json.RawMessage `json:"schemas"`
-		Refs      map[string]json.RawMessage `json:"refs"`
-	}{time.Now().UTC().Format(time.RFC3339), specURL, len(out), out, refs}
+		FetchedAt  string                     `json:"fetched_at"`
+		Source     string                     `json:"source"`
+		Count      int                        `json:"count"`
+		Schemas    map[string]json.RawMessage `json:"schemas"`
+		Refs       map[string]json.RawMessage `json:"refs"`
+		Operations map[string]string          `json:"operations"`
+	}{time.Now().UTC().Format(time.RFC3339), specURL, len(out), out, refs, ops}
 
 	b, err := json.MarshalIndent(doc, "", " ")
 	if err != nil {
@@ -153,8 +212,8 @@ func run() error {
 	if err := os.WriteFile("testdata/openapi_schemas.json", append(b, '\n'), 0o644); err != nil {
 		return err
 	}
-	fmt.Printf("wrote %d schemas (+%d referenced) of %d in the document\n",
-		len(out), len(refs), len(all))
+	fmt.Printf("wrote %d schemas (+%d referenced) of %d in the document, and %d operations\n",
+		len(out), len(refs), len(all), len(ops))
 	return nil
 }
 

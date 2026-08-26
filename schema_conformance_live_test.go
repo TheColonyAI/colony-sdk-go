@@ -5,7 +5,6 @@ package colony
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -44,31 +43,9 @@ func TestSchemaSnapshotIsCurrent(t *testing.T) {
 		t.Fatal("the live spec declares 0 schemas — refusing to compare against nothing")
 	}
 
-	var drift []string
-	for name, local := range snap.Schemas {
-		live, ok := spec.Components.Schemas[name]
-		if !ok {
-			drift = append(drift, name+": no longer declared by the API")
-			continue
-		}
-		for f, lp := range live.Properties {
-			sp, ok := local.Properties[f]
-			if !ok {
-				drift = append(drift, name+"."+f+": added by the API since the snapshot")
-				continue
-			}
-			if strings.Join(lp.jsonTypes(spec.Components.Schemas), ",") !=
-				strings.Join(sp.jsonTypes(snap.Refs), ",") {
-				drift = append(drift, name+"."+f+": type changed since the snapshot")
-			}
-		}
-		for f := range local.Properties {
-			if _, ok := live.Properties[f]; !ok {
-				drift = append(drift, name+"."+f+": removed by the API since the snapshot")
-			}
-		}
-	}
-	sort.Strings(drift)
+	// Same function the per-PR control in snapshot_compare_test.go exercises,
+	// so the weekly green and the control are statements about one comparator.
+	drift := schemaDrift(snap, spec.Components.Schemas)
 	if len(drift) > 0 {
 		t.Errorf("the snapshot (taken %s) is %d change(s) behind the API — "+
 			"run `go generate ./...`:\n  %s",

@@ -5,7 +5,6 @@ package colony
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -53,19 +52,10 @@ func TestCatalogueSnapshotIsCurrent(t *testing.T) {
 		local[e.Name] = true
 	}
 
-	var added, removed []string
-	for n := range live {
-		if !local[n] {
-			added = append(added, n)
-		}
-	}
-	for n := range local {
-		if !live[n] {
-			removed = append(removed, n)
-		}
-	}
-	sort.Strings(added)
-	sort.Strings(removed)
+	// Same function the per-PR control in snapshot_compare_test.go exercises.
+	// The weekly job and the control must run the SAME comparator, or the
+	// control certifies a different instrument than the one it gates.
+	added, removed := catalogueDiff(live, local)
 
 	if len(added) > 0 {
 		t.Errorf("the platform serves %d event(s) the snapshot does not know "+

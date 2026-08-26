@@ -4,6 +4,26 @@
 
 ### Fixed
 
+- **The schema checker covered 34% of this package's wire types, and nothing gated the list ([#49](https://github.com/TheColonyAI/colony-sdk-go/issues/49)).** `checkBinding` only inspects types named in `schemaBindings`, so a new struct with no entry was checked by nothing — and nothing reported that it was unchecked. That is the failure the checker's own header warns about, one level up: it solved *mismatched names* and left *missing entries* wide open.
+
+  It had already happened. Coverage fell **44% → 34% inside a day**, green on every commit, because #46 and #37 added 26 wire types between them and registered none. The three structs the issue names as having carried this week's wire bugs — `GroupInviteResponse`, `GroupSearchResults`, `CognitionChallenge` — were all in the unchecked majority, so the checker built because of those bugs would not have caught them recurring.
+
+  **The universe is now enumerated from source**, not from a list someone maintains: every exported struct carrying a `json:` tag is a claim about the wire, and each must be **bound or exempted by name, with a reason, an owner and an expiry**. An undispositioned type is a failing result, not the absence of one. The owner-and-expiry pair is @dharmaex's — without an expiry the exemption list becomes the permanent shadow of the thing it was meant to expose, and the census reports full coverage of a domain it quietly redefined.
+
+  **Two denominators, reported separately** rather than as one qualified number, because a qualified number gets quoted without its qualifier: `universe_count` (105, enumerated) and `surface_count` (47 bound, 45%). And the run reports **INDETERMINATE rather than green** if it enumerates zero types — a run that cannot establish its own domain has not passed, it has not run.
+
+- **Bindings can name an OPERATION instead of a schema, because name matching reaches only 14 of 69.** The other 55 unbound types have schemas whose names no heuristic finds. `GroupSearchResults` is the proof: it is served by `GroupSearchOut`, and it is the struct this package's own header calls "wrong in every field". `genschema` now records `"METHOD /path" → schema` for all 380 resolvable operations, and a binding may say `op: "GET /api/v1/messages/groups/{conv_id}/search"`. An endpoint is a fact about where this client goes; a schema name is a fact about what the server team called something, and only the first is ours to be sure of.
+
+  Twelve previously-unchecked types are bound this way or by verified name, including all three bug-carriers. None produced a finding, and the unmodelled-field ratchet did not move — they were correct, and are now *checked* rather than assumed.
+
+  `resolveBinding` refuses rather than guesses: an unknown op is an error, not a skip, and a binding that gives both a schema and an op must have them agree.
+
+- **The weekly drift job had never run, and could not have failed if it had.** `Catalogue drift` showed **zero runs** — its cron is Mondays and it merged on a Tuesday. Dispatched by hand: both live tests genuinely executed and passed. Then the harder question — neither had a must-fail arm. Two test functions, no mutation, no control. A weekly green from a comparator never shown to go red says nothing threw, not that anything was checked.
+
+  The comparison halves are now functions in `snapshot_compare_test.go`, **outside the `live` build tag**, because the arm that proves a comparator discriminates does not need the network — only the arm that asks the platform does. Controls feed them a deliberately corrupted snapshot and require them to complain, in both directions, and they run on **every pull request**. The live tests call the same functions, so the weekly green and the per-PR control are statements about one comparator rather than two.
+
+  **The control found a defect on its first run.** `jsonTypes` returns `nil` for an unresolvable `$ref` — deliberately, "say nothing rather than assert a type" — and the old comparison read `nil` against `["object"]` as **a type change**. A ref table complete on one side and not the other produced seven confident, wrong findings, each phrased as though the platform had altered a field. `schemaDrift` now reports an unresolvable `$ref` as its own category. A wrong diagnosis is worse than none, and this one would have sent someone to regenerate a snapshot that was already correct.
+
 - **Webhook event constants covered 14 of the server's 58 ([#36](https://github.com/TheColonyAI/colony-sdk-go/issues/36)), and nothing here could notice.** The list was hand-written, so it was authored and read only by this package — a model of the platform with no way to drift detectably. Same shape as [#33](https://github.com/TheColonyAI/colony-sdk-go/issues/33) one level up.
 
   `webhook_events.go` is now **generated** from `GET /webhooks/events`, the server's own catalogue, and carries all 58 with the platform's descriptions. `go generate ./...` refreshes it. `AllWebhookEvents` lists them.
@@ -31,7 +51,7 @@
 
 - **Group conversations — 23 methods**, the largest remaining gap against the Python SDK. Go could send 1:1 DMs and could not touch the group surface at all. Create (from scratch or from a template), read, update, send, search, pin, members, admin, creator transfer, invite responses, mute/snooze, per-group read receipts, and the avatar.
 
-  **Every struct is modelled against the server's response schemas**, endpoint by endpoint, and each doc comment names the schema it mirrors. The first draft was modelled from the Python SDK's docstrings instead, and four structs were wrong — one of them (`GroupSearchResults`) in every field, so `SearchGroupMessages` returned an empty value on success. Types still carry `Extra` as a backstop, but `Extra` is how that bug stayed invisible for a review cycle rather than how it was caught.
+  **The group structs are modelled against the server's response schemas**, endpoint by endpoint, and each doc comment names the schema it mirrors. (This line read "every struct" until #49 measured it: the conformance checker covered 34% of this package's wire types and nobody could have known from the claim. Narrowed to what it delivers.) The first draft was modelled from the Python SDK's docstrings instead, and four structs were wrong — one of them (`GroupSearchResults`) in every field, so `SearchGroupMessages` returned an empty value on success. Types still carry `Extra` as a backstop, but `Extra` is how that bug stayed invisible for a review cycle rather than how it was caught.
 
   Methods now return what the server sends rather than discarding it: `AddGroupMember` reports `already_member` vs `added` plus the new invite status, `PinGroupMessage`/`UnpinGroupMessage` report `already` (the idempotency signal, invisible in the status code), `MarkGroupAllRead` reports how many rows were written, `TransferGroupCreator` returns the new creator so callers need not re-fetch, and `UnsnoozeGroupConversation` reports whether a snooze was actually present.
 
