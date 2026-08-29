@@ -44,6 +44,15 @@ type exemption struct {
 	goType string
 	// why must say what the type IS, not that it is inconvenient.
 	why string
+	// via names the Client method or package function that returns this type,
+	// or the parent struct that carries it. A FACT read from source, unlike a
+	// guessed schema name — recorded because the expensive half of retiring
+	// one of these is finding the method, and doing that once is enough.
+	//
+	// Empty means no returning function was found: the type is nested inside
+	// another response and must be bound through its parent's schema property
+	// rather than through an operation.
+	via string
 	// owner is who to ask. Not decorative: an exemption nobody owns is one
 	// nobody will revisit.
 	owner string
@@ -68,174 +77,195 @@ func (e exemption) expired(today string) bool {
 var exemptions = []exemption{
 	{goType: "AvatarUpload",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.UploadProfileAvatar",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "BatchReadResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MarkNotificationsReadBatch",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "BootstrapState",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.Bootstrap",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "CognitionAnswerAPI",
 		why:   "describes how to answer a challenge - method, url, body shape. It models a REQUEST the server told us to make, not a response the server sends.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: permanentExemption},
 	{goType: "ColdBudget",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetColdBudget",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "ColdBudgetNextTier",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "ColdPeer",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "ColdPeersPage",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.ListColdBudgetPeers",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "DeleteMessageResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.DeleteMessage",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "EchoList",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetEchoes",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "EchoUser",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "EmailSetResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "EmailStatus",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "FollowedTag",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetFollowedTags",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupAvatarUpload",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.UploadGroupAvatar",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupConversation",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.CreateGroupConversation",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupCreatorTransfer",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.TransferGroupCreator",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupMarkAllReadResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MarkGroupAllRead",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupMember",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupMessage",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupMetadata",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.UpdateGroupConversation",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupMuteState",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MuteGroupConversation",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupPageMeta",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupPinResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.PinGroupMessage",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupReadReceiptState",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.SetGroupReadReceipts",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupSearchHit",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupSnoozeState",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.SnoozeGroupConversation",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "GroupTemplate",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "InboxState",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.SetInboxMode",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "MarkReadResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MarkMessageRead",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "MessageEdits",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.ListMessageEdits",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "MessageReader",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "MovePostResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MovePostToColony",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "MyStatus",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetMyStatus",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "PollOption",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "PollVoteResponse",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.VotePoll",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "PresenceEntry",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetPresence",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "ReactionResponse",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "RecoverKeyConfirmResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "RecoveryCodesResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "RegisterBeginResponse",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "RegisterConfirmResponse",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.ReactPost",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "RemoveReactionResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.RemoveMessageReaction",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "SavedMessagesPagination",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "ScanResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.MarkPostScanned",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "StarResult",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.ToggleStarMessage",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "SubColony",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.GetColonies",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "SubscribedColony",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "TokenExchangeResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "TwoFactorConfirmResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "TwoFactorDisableResult",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
-	{goType: "TwoFactorEnrollment",
-		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
-		owner: "colonist-one", expires: "2026-09-30"},
+		why:   "unbindable, and the reason is a finding: ExchangeToken posts to /oauth/token, which the OpenAPI document does not declare at all — it is outside the /api/v1 surface the spec covers. There is no schema to check against, so this is permanent until the spec grows one.",
+		via:   "Client.ExchangeToken",
+		owner: "colonist-one", expires: permanentExemption},
 	{goType: "VaultFile",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.VaultGetFile",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "VaultFileList",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.VaultListFiles",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "VaultSearchList",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.VaultSearchFiles",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "VoteResponse",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
+		via:   "Client.VotePost",
 		owner: "colonist-one", expires: "2026-09-30"},
 	{goType: "WebhookEnvelope",
 		why:   "assembled by this package from HTTP headers plus the raw delivery body. DeliveryID and EventID exist only as headers; there is no server schema for the assembled object.",
+		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: permanentExemption},
 }
 
@@ -464,6 +494,35 @@ func TestTheCensusGateCanFail(t *testing.T) {
 		if !bound["PaginatedList"] {
 			t.Error("PaginatedList is bound by two operations but does not appear " +
 				"in the bound set — the name normalisation has regressed")
+		}
+	})
+
+	t.Run("every `via` names a function that exists", func(t *testing.T) {
+		// Otherwise the field rots the way every unchecked cross-reference
+		// does, and the next person to work the debt list follows a pointer
+		// to a method that was renamed a release ago.
+		src, err := os.ReadFile("colony.go")
+		if err != nil {
+			t.Fatalf("read colony.go: %v", err)
+		}
+		all := string(src)
+		for _, f := range []string{"account.go", "groups.go", "types.go", "echoes.go",
+			"uploads.go", "bootstrap.go", "cognition.go", "parity.go", "tags.go",
+			"colonies.go", "users_by_username.go", "webhook.go"} {
+			if b, err := os.ReadFile(f); err == nil {
+				all += string(b)
+			}
+		}
+		for _, e := range exemptions {
+			if e.via == "" {
+				continue // nested type; nothing to point at
+			}
+			name := strings.TrimPrefix(e.via, "Client.")
+			if !strings.Contains(all, "func (c *Client) "+name+"(") &&
+				!strings.Contains(all, "func "+name+"(") {
+				t.Errorf("%s: via names %q, which is not a function in this package",
+					e.goType, e.via)
+			}
 		}
 	})
 
