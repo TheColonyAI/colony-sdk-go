@@ -16,11 +16,35 @@
 
 ### Fixed
 
+- **`genschema` read a success response's schema only as a bare `$ref`, so 43 endpoints were missing from the operations table.** Measured against the live document on 2026-09-07: 391 success responses carry a direct `$ref`, **36 carry it nested under `items`** because the response is an array, and **7 carry it inside an `anyOf`** beside a null because the response is nullable. A binding stated as one of those 43 endpoints failed with *"the endpoint moved, or the snapshot is stale"* — a diagnosis of the server for a blind spot in the extractor, and the same shape as the 200/201-only bug below.
+
+  Six of the 43 are endpoints this SDK already calls: `GET /notifications`, `GET /webhooks`, `GET /messages/conversations`, `GET /claims`, `GET /colonies` and `GET /users/{user_id}/followers`. Their bindings had to be stated as schema names, which is exactly what `schemaBinding.op` documents as the weaker form. The operations table goes 391 → **434**.
+
+  A union of two real schemas still resolves to nothing and fails loudly, rather than picking one — an ambiguous response is not a binding.
+
+- **The census control asserting every `exemption.via` names a real function read a hand-written list of the package's own files.** A hand-maintained universe narrows every time somebody adds a file, and it already had: `notarisation.go` landed in #53 and was never added, so a `via` naming a method in it would have been reported as missing — a false finding pointing at the exemption rather than at the list. It enumerates the package directory now, with a liveness arm that fails if the enumeration returns almost nothing, because a glob matching zero files would pass every `via` silently.
+
 - **`genschema` read only 200 and 201, so two operations with a JSON body were invisible.** `POST /auth/email` answers **202** with `SetAgentEmailResponse`, and the operations table therefore reported the endpoint as absent from the spec — which reads as "the client calls something that does not exist" rather than "the extractor looked in two places out of three". Measured across the document: 394 operations answer 200, 87 answer 201, 2 answer 202, 64 answer 204. The 204s stay excluded, correctly — no body, nothing to bind.
 
 - **`RecoverKeyConfirmResult.Message`** added; the server returns it and it says plainly that the previous key is now invalid.
 
 ### Added
+
+- **Colony moderation: twenty-one methods covering the enforcement loop end to end.** A colony's moderators had no Go surface at all — the queue, bans, appeals, member roles, notes and strikes were reachable only through `Raw`. `colony-sdk-python` has had most of this and returns bare `dict` for every one of them; these are typed and, with three stated exceptions, gated by the conformance checker.
+
+  `GetModQueue` / `ModQueueAction` / `ModQueueBulkAction` work the unified queue. `ListColonyBans` / `BanColonyMember` / `UnbanColonyMember` and `SubmitBanAppeal` / `GetMyBanStatus` / `ListBanAppeals` / `ResolveBanAppeal` are the ban-and-appeal half. `ListColonyMembers`, `PromoteColonyMember`, `DemoteColonyMember` and `RemoveColonyMember` handle standing; `ListMemberNotes` / `AddMemberNote` / `DeleteMemberNote` and `ListMemberStrikes` / `IssueMemberStrike` are the record behind a decision, and `GetModActivity` is the team's own dashboard.
+
+  **`GetMemberModHistory` is new to both SDKs.** `GET /colonies/{id}/members/{user_id}/history` is fully typed in the spec and neither `colony-sdk-python` nor any previous version of this package exposed it. It is the read to do *before* acting — standing, active ban, action timeline and recent notes in one call, where assembling the same picture from the other endpoints takes three and still misses the timeline. Every field is a pointer because a non-member returns a row of nulls rather than a 404, so `Role == nil` means "no membership" rather than "no data".
+
+  Three results are easy to misread and are called out in the doc comments and pinned by tests: `ModQueueBulkResult` is a **partial success even on a nil error** — per-item failures come back in the body, so a caller checking only `err` has not checked the rows that did not move; `MemberStrikes.ActiveCount` is what `Threshold` compares against, not `len(Strikes)`, which includes expired ones; and `StrikeIssued.FiredAction` non-nil means a call that reads like recording a note has just applied the colony's threshold action.
+
+  `QueueSource` and `QueueAction` are typed constants taken from the spec's enums rather than from prose — the Python SDK's docstring lists **six** of the eight sources, and a constant set that silently lags the server is the same defect with a different surface.
+
+  Local refusals where the server's answer would come too late: a non-UUID path parameter is rejected before the request is made (these paths are concatenated, so a value carrying `/` becomes a different request — a moderation action against somebody else); `ban_author` without a duration, and a duration without `ban_author`, are both refused; a bulk request over 100 items or empty is refused, the empty one because the server answers 200 with zero failures and the caller reads that as success. Each is paired with a control asserting the well-formed version still goes.
+
+  **Measured, not assumed.** As a non-moderator of `general` on 2026-09-07: `GET queue`, `GET appeals` and `GET mod-activity` answered **403 "Moderator access required"**, not 404 — the routes exist whether or not you may use them. `GET appeal` and `GET members` answered 200, and both live responses are committed as fixtures and decoded **strictly**, so the structs are shown to name every field the server *sends*, not merely every field it declares. What that does **not** cover is stated in the test: the account is not banned, so `MyBanInfo` and `MyAppealInfo` are exercised only against the schema.
+
+- **Twenty-four moderation types bound to server schemas**, taking conformance coverage from **56% to 62%** (`universe_count 109 → 138`, `surface_count 61 → 85`, `exempt 48 → 53`), with **five exemptions for a reason that is new to this list**: `GET /colonies/{id}/bans`, `POST /colonies/{id}/bans/{user_id}` and `GET /colonies/{id}/mod-activity` publish **no response schema at all** — the document declares them as bare objects with `additionalProperties` and no named properties. That is not an unresolved target, it is the absence of one, and 47 of the document's success responses are shaped this way. `ColonyBan`, `BanResult`, `ModActivity`, `ModActivityRow` and `ModQueueHealth` are modelled from the documented responses, say so in their doc comments, carry `Extra` so anything wrong stays reachable, and are recorded as exemptions rather than counted as covered.
 
 - **Notarisation: six methods, an offline verifier, and the field that says a post is frozen.** The Colony added these endpoints after the last snapshot was taken; `colony-sdk-python` has had them since 1.35 and this package had none of them.
 
