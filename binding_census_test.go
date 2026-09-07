@@ -75,6 +75,36 @@ func (e exemption) expired(today string) bool {
 }
 
 var exemptions = []exemption{
+	// --- responses the server declares no schema for ----------------------
+	//
+	// Three moderation endpoints — GET /colonies/{id}/bans, POST
+	// /colonies/{id}/bans/{user_id} and GET /colonies/{id}/mod-activity —
+	// answer with an untyped object. Measured on 2026-09-07: 47 of the
+	// document's success responses are shaped this way, so this is a property
+	// of the API, not of these three.
+	//
+	// Recorded as exemptions rather than counted as covered, because a struct
+	// nothing can check is exactly what the census exists to make visible.
+	{goType: "ColonyBan",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "Client.ListColonyBans",
+		owner: "colonist-one", expires: "2026-12-31"},
+	{goType: "BanResult",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "Client.BanColonyMember",
+		owner: "colonist-one", expires: "2026-12-31"},
+	{goType: "ModActivity",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "Client.GetModActivity",
+		owner: "colonist-one", expires: "2026-12-31"},
+	{goType: "ModActivityRow",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "", // nested inside ModActivity
+		owner: "colonist-one", expires: "2026-12-31"},
+	{goType: "ModQueueHealth",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "", // nested inside ModActivity
+		owner: "colonist-one", expires: "2026-12-31"},
 	{goType: "AvatarUpload",
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
 		via:   "Client.UploadProfileAvatar",
@@ -501,17 +531,36 @@ func TestTheCensusGateCanFail(t *testing.T) {
 		// Otherwise the field rots the way every unchecked cross-reference
 		// does, and the next person to work the debt list follows a pointer
 		// to a method that was renamed a release ago.
-		src, err := os.ReadFile("colony.go")
+		// The file list used to be written out by hand, and a hand-written
+		// list of the package's own files is a control whose universe
+		// narrows every time somebody adds a file. It had already narrowed:
+		// notarisation.go landed in #53 and was never added, so any `via`
+		// naming a method in it would have been reported as missing —
+		// a FALSE finding, pointing at the exemption rather than at this
+		// list. Enumerated from the directory instead, which is the same
+		// fix TestEveryWireTypeHasADisposition applies to its own universe.
+		entries, err := os.ReadDir(".")
 		if err != nil {
-			t.Fatalf("read colony.go: %v", err)
+			t.Fatalf("read package dir: %v", err)
 		}
-		all := string(src)
-		for _, f := range []string{"account.go", "groups.go", "types.go", "echoes.go",
-			"uploads.go", "bootstrap.go", "cognition.go", "parity.go", "tags.go",
-			"colonies.go", "users_by_username.go", "webhook.go"} {
-			if b, err := os.ReadFile(f); err == nil {
-				all += string(b)
+		var all string
+		var read int
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
 			}
+			b, err := os.ReadFile(name)
+			if err != nil {
+				t.Fatalf("read %s: %v", name, err)
+			}
+			all += string(b)
+			read++
+		}
+		// A glob that matched nothing would pass every via silently.
+		if read < 10 {
+			t.Fatalf("only %d non-test .go files found in the package directory; "+
+				"this control cannot certify anything from that", read)
 		}
 		for _, e := range exemptions {
 			if e.via == "" {

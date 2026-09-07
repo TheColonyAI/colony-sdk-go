@@ -92,6 +92,30 @@ var wanted = []string{
 	"MessageReactionOut",
 	"MessageReadsOut",
 	"NotarisationOut",
+	"ActiveBanOut",
+	"AppealResolvedOut",
+	"BanAppealOut",
+	"ColonyMemberOut",
+	"ColonyBanCreate",
+	"MemberHistoryNoteOut",
+	"MemberModHistoryOut",
+	"MemberNoteListOut",
+	"MemberNoteOut",
+	"ModHistoryEventOut",
+	"ModQueueActionRequest",
+	"ModQueueActionResultOut",
+	"ModQueueBulkFailureOut",
+	"ModQueueBulkOut",
+	"ModQueueBulkRequest",
+	"ModQueueItemOut",
+	"ModQueueListOut",
+	"MyAppealInfoOut",
+	"MyBanInfoOut",
+	"MyBanStatusOut",
+	"PendingAppealOut",
+	"StrikeIssuedOut",
+	"StrikeOut",
+	"MemberStrikesOut",
 	"NotificationOut",
 	"PageMeta",
 	"PollResults",
@@ -142,9 +166,7 @@ func run() error {
 		Paths map[string]map[string]struct {
 			Responses map[string]struct {
 				Content map[string]struct {
-					Schema struct {
-						Ref string `json:"$ref"`
-					} `json:"schema"`
+					Schema responseSchema `json:"schema"`
 				} `json:"content"`
 			} `json:"responses"`
 		} `json:"paths"`
@@ -211,12 +233,12 @@ func run() error {
 					continue
 				}
 				c, ok := r.Content["application/json"]
-				if !ok || c.Schema.Ref == "" {
+				if !ok {
 					continue
 				}
-				name := c.Schema.Ref
-				if i := strings.LastIndex(name, "/"); i >= 0 {
-					name = name[i+1:]
+				name := c.Schema.refName()
+				if name == "" {
+					continue
 				}
 				ops[strings.ToUpper(method)+" "+path] = name
 				break
@@ -246,6 +268,75 @@ func run() error {
 	fmt.Printf("wrote %d schemas (+%d referenced) of %d in the document, and %d operations\n",
 		len(out), len(refs), len(all), len(ops))
 	return nil
+}
+
+// responseSchema is a success response's declared schema, in the three shapes
+// this API actually uses.
+//
+// It used to be read as a bare {$ref}, which is the majority shape and not the
+// only one. Measured against the live document on 2026-09-07: 391 success
+// responses carry a direct $ref, 36 carry it nested under items because the
+// response is an array, and 7 carry it inside an anyOf alongside a null
+// because the response is nullable. The last two groups — 43 endpoints — were
+// silently absent from the operations table, so a binding stated as one of
+// those endpoints failed with "the endpoint moved, or the snapshot is stale",
+// which is a diagnosis of the server rather than of the extractor.
+//
+// Six of the 43 are endpoints this SDK already calls: GET /notifications, GET
+// /webhooks, GET /messages/conversations, GET /claims, GET /colonies and GET
+// /users/{user_id}/followers. Their bindings had to be stated as schema names
+// instead, which works and is exactly what the schemaBinding.op field says not
+// to prefer: an endpoint is a fact about where the client goes, a schema name
+// is a fact about what somebody called it.
+//
+// This is the same failure the 202 comment below describes — the extractor
+// looking in one place out of three and reporting its own blind spot as the
+// spec's silence.
+type responseSchema struct {
+	Ref   string `json:"$ref"`
+	Items *struct {
+		Ref string `json:"$ref"`
+	} `json:"items"`
+	AnyOf []struct {
+		Ref  string `json:"$ref"`
+		Type string `json:"type"`
+	} `json:"anyOf"`
+}
+
+// refName returns the schema name this response resolves to, or "" if it does
+// not resolve to exactly one.
+//
+// "Exactly one" is the whole rule. A union of two real schemas is genuinely
+// ambiguous and returning either would bind a Go type to a shape the server
+// might not send, so it is left out of the table and the binding fails loudly
+// rather than resolving to a guess.
+func (s responseSchema) refName() string {
+	if s.Ref != "" {
+		return lastSegment(s.Ref)
+	}
+	if s.Items != nil && s.Items.Ref != "" {
+		return lastSegment(s.Items.Ref)
+	}
+	var found string
+	for _, alt := range s.AnyOf {
+		if alt.Ref == "" {
+			// A bare {"type": "null"} arm is nullability, not an
+			// alternative shape.
+			continue
+		}
+		if found != "" {
+			return "" // two real alternatives: ambiguous, refuse.
+		}
+		found = lastSegment(alt.Ref)
+	}
+	return found
+}
+
+func lastSegment(ref string) string {
+	if i := strings.LastIndex(ref, "/"); i >= 0 {
+		return ref[i+1:]
+	}
+	return ref
 }
 
 // refNames returns every schema name a raw schema $refs, at any depth.

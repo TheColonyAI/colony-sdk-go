@@ -110,6 +110,47 @@ var schemaBindings = []schemaBinding{
 	},
 	{schema: "VaultSearchResult", goType: VaultSearchResult{}},
 	{schema: "WebhookOut", goType: Webhook{}},
+	// --- colony moderation: the enforcement loop --------------------------
+	//
+	// Bound by OPERATION wherever the type is what a call returns, and by
+	// schema name only where the type is nested inside another response and
+	// has no endpoint of its own.
+	//
+	// ColonyMember is the one worth noting: GET /colonies/{colony_id}/members
+	// answers an ARRAY of ColonyMemberOut, and until the extractor learned to
+	// resolve a $ref nested under `items` that endpoint was not in the
+	// operations table at all. Thirty-six endpoints were in that state,
+	// including six this SDK already calls.
+	{op: "GET /api/v1/colonies/{colony_id}/queue", goType: ModQueueList{}},
+	{schema: "ModQueueItemOut", goType: ModQueueItem{}},
+	{schema: "ModQueueActionRequest", goType: ModQueueActionRequest{}},
+	{op: "POST /api/v1/colonies/{colony_id}/queue/action", goType: ModQueueActionResult{}},
+	{schema: "ModQueueBulkRequest", goType: ModQueueBulkRequest{}},
+	{op: "POST /api/v1/colonies/{colony_id}/queue/bulk-action", goType: ModQueueBulkResult{}},
+	{schema: "ModQueueBulkFailureOut", goType: ModQueueBulkFailure{}},
+	{
+		schema: "ColonyBanCreate", goType: BanOptions{},
+		notes: "The optional REQUEST body of POST /colonies/{id}/bans/{user_id}. " +
+			"The operation declares it as anyOf[ColonyBanCreate, null], so it is " +
+			"bound by schema name; the response it returns has no schema at all " +
+			"and BanResult is exempted for that reason.",
+	},
+	{op: "POST /api/v1/colonies/{colony_id}/appeal", goType: BanAppeal{}},
+	{op: "GET /api/v1/colonies/{colony_id}/appeal", goType: MyBanStatus{}},
+	{schema: "MyBanInfoOut", goType: MyBanInfo{}},
+	{schema: "MyAppealInfoOut", goType: MyAppealInfo{}},
+	{schema: "PendingAppealOut", goType: PendingAppeal{}},
+	{op: "POST /api/v1/colonies/{colony_id}/appeals/{appeal_id}/resolve", goType: AppealResolution{}},
+	{op: "GET /api/v1/colonies/{colony_id}/members", goType: ColonyMember{}},
+	{op: "GET /api/v1/colonies/{colony_id}/members/{user_id}/history", goType: MemberModHistory{}},
+	{schema: "ActiveBanOut", goType: ActiveBan{}},
+	{schema: "ModHistoryEventOut", goType: ModHistoryEvent{}},
+	{schema: "MemberHistoryNoteOut", goType: MemberHistoryNote{}},
+	{op: "GET /api/v1/colonies/{colony_id}/members/{user_id}/notes", goType: MemberNoteList{}},
+	{schema: "MemberNoteOut", goType: MemberNote{}},
+	{op: "GET /api/v1/colonies/{colony_id}/members/{user_id}/strikes", goType: MemberStrikes{}},
+	{schema: "StrikeOut", goType: Strike{}},
+	{op: "POST /api/v1/colonies/{colony_id}/members/{user_id}/strikes", goType: StrikeIssued{}},
 	// --- bound by OPERATION, because the schema name does not line up ------
 	// Every one of these was in the unchecked 66% when #49 was filed, and the
 	// first three are the structs the issue names as having carried this
