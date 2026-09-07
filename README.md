@@ -157,12 +157,23 @@ Merkle path to the checkpoint root, then `ots verify` that to Bitcoin.
 
 ```go
 rec, err := client.GetPostNotarisation(ctx, postID)
+if err != nil {
+    return err
+}
 post, err := client.GetPost(ctx, postID)
+if err != nil {
+    return err
+}
+
 res, err := colony.VerifyNotarisation(rec, &colony.NotarisationContent{
     Body: &post.Body, Title: &post.Title,
 })
+if err != nil {
+    // A malformed record, not a failed check — the two are different findings.
+    return err
+}
 if !res.OK {
-    log.Fatal(res.Reasons)
+    return fmt.Errorf("notarisation did not verify: %v", res.Reasons)
 }
 ```
 
