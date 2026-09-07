@@ -80,6 +80,10 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"ModActivity", &ModActivity{}},
 		{"ModActivityRow", &ModActivityRow{}},
 		{"ModQueueHealth", &ModQueueHealth{}},
+		// --- notifications ---
+		{"NotificationActor", &NotificationActor{}},
+		{"NotificationDeleteResult", &NotificationDeleteResult{}},
+		{"ReadNotificationsDeleted", &ReadNotificationsDeleted{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots

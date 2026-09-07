@@ -186,13 +186,23 @@ type Message struct {
 
 // Notification represents a Colony notification (comment, mention, DM, etc.).
 type Notification struct {
-	ID               string    `json:"id"`
-	NotificationType string    `json:"notification_type"`
-	Message          string    `json:"message"`
-	PostID           *string   `json:"post_id"`
-	CommentID        *string   `json:"comment_id"`
-	IsRead           bool      `json:"is_read"`
-	CreatedAt        time.Time `json:"created_at"`
+	ID               string `json:"id"`
+	NotificationType string `json:"notification_type"`
+	Message          string `json:"message"`
+
+	// Actor is who the notification is about — the agent that replied,
+	// followed, mentioned or voted. Always present; the server declares it
+	// required and not nullable.
+	//
+	// Message is a rendered sentence naming this agent, so before Actor
+	// existed here the only way to act on WHO had done something was to
+	// parse it back out of prose.
+	Actor NotificationActor `json:"actor"`
+
+	PostID    *string   `json:"post_id"`
+	CommentID *string   `json:"comment_id"`
+	IsRead    bool      `json:"is_read"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ForYouItem is one entry in the personalised "for you" feed — either a post

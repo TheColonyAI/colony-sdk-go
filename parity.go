@@ -78,7 +78,8 @@ func (c *Client) MarkNotificationsReadBatch(ctx context.Context, notificationIDs
 		if end > len(notificationIDs) {
 			end = len(notificationIDs)
 		}
-		body := map[string]any{"ids": notificationIDs[start:end]}
+		// Typed, and bound to NotificationBatchRead — see [NotificationIDBatch].
+		body := NotificationIDBatch{IDs: notificationIDs[start:end]}
 		if err := c.do(ctx, http.MethodPost, "/notifications/read", body, &result); err != nil {
 			return nil, err
 		}

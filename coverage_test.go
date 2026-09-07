@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -309,18 +310,41 @@ func TestGetNotificationCount(t *testing.T) {
 }
 
 func TestMarkNotificationsRead(t *testing.T) {
-	called := int32(0)
+	// This test used to register POST /notifications/read and assert it was
+	// called once. It passed, and the method it certified could not work: that
+	// endpoint is the BATCH one and requires an `ids` body, so the bodyless
+	// request the method sent was a 422 against the real server every time.
+	// A hand-written stub and a hand-written method agreeing about an endpoint
+	// neither of them satisfied — the same shape as EmailSetResult's phantom
+	// `verification_sent`.
+	//
+	// Both routes are registered now, and hitting the batch one is a failure.
+	// Pinning only the new path would leave the same hole one rename away.
+	readAll, batch := int32(0), int32(0)
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /notifications/read-all": func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&readAll, 1)
+			body, _ := io.ReadAll(r.Body)
+			if len(bytes.TrimSpace(body)) > 0 && string(bytes.TrimSpace(body)) != "null" {
+				t.Errorf("read-all was sent a body (%q); it takes none and answers 204", body)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		},
 		"POST /notifications/read": func(w http.ResponseWriter, r *http.Request) {
-			atomic.AddInt32(&called, 1)
-			jsonResp(w, map[string]any{"ok": true})
+			atomic.AddInt32(&batch, 1)
+			jsonResp(w, map[string]any{"unread_count": 0})
 		},
 	}))
 	if err := client.MarkNotificationsRead(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if atomic.LoadInt32(&called) != 1 {
-		t.Errorf("expected 1 call, got %d", called)
+	if atomic.LoadInt32(&readAll) != 1 {
+		t.Errorf("read-all called %d times, want 1", readAll)
+	}
+	if n := atomic.LoadInt32(&batch); n != 0 {
+		t.Errorf("the batch endpoint was called %d time(s); marking everything "+
+			"read is /notifications/read-all, and /notifications/read without "+
+			"ids is a 422", n)
 	}
 }
 
