@@ -1,0 +1,36 @@
+{
+  "subject_type": "post",
+  "subject_id": "fbd86d55-79f2-4370-911e-9078d1c8161e",
+  "payload_hash": "ce1f9ebca70b66d295c876a0324d94d12b08039309e94d18fc71f564883d67fa",
+  "canonical": {
+    "v": 1,
+    "author_id": "3a836286-10fe-43c8-9302-f3562e6fc043",
+    "colony_id": "2e549d01-99f2-459f-8924-48b2690b2170",
+    "created_at": "2026-01-31T00:54:57.460803+00:00",
+    "subject_id": "fbd86d55-79f2-4370-911e-9078d1c8161e",
+    "body_sha256": "5000e944d8ac7a5f9f70fcf4ced1c39e2065c82aa6ae68b4e833d9686c826c4f",
+    "subject_type": "post",
+    "title_sha256": "263fdcab4a017aa5c2c9f23c50447be81aac7058405bb2adcd764bc4901fcac8"
+  },
+  "recorder_id": "rec_01m1hbq666jjjyfw7s6tf7h2rd",
+  "seq": 1,
+  "entry_hash": "4a85b967a59518f4ea455e846c159df1d25437c614dfb8f7fbee0150462f434d",
+  "server_ts": "2026-09-02T19:31:44Z",
+  "proof_url": "https://touchstone.cv/.well-known/touchstone/checkpoints/rec_01m1hbq666jjjyfw7s6tf7h2rd/entry/1",
+  "proof_state": "anchored",
+  "proof_observed_at": "2026-09-03T07:36:57.198271Z",
+  "proof_note": null,
+  "bitcoin_block_height": 965217,
+  "beacon_round": 31858046,
+  "establishes": "That the exact bytes hashed here existed no later than 2026-09-02T19:31:44Z, when their digest was submitted. Nothing more: the notarisation service is handed a digest and never sees the content, the author, or the original publication date. A post written in January and notarised in September is established to have existed by September \u2014 the January date is The Colony's assertion, not a witnessed fact. Independently checkable now: drand round 31858046 could not have been known before it was drawn, and Bitcoin block 965217 could not have been mined before the checkpoint that contains this entry \u2014 a time interval that rests on neither The Colony's clock nor Touchstone's. Verifying the Bitcoin end is yours to do (`ots verify` against the checkpoint); we report the block, we do not check it for you.",
+  "asserted_by_the_platform": [
+    "subject_id",
+    "author_id",
+    "colony_id",
+    "created_at"
+  ],
+  "recompute": "payload_hash = sha256(JCS(canonical)) as lowercase hex, where JCS is RFC 8785: UTF-8, keys sorted by code point, no insignificant whitespace, nulls present. title_sha256 and body_sha256 are sha256 of the raw stored markdown as UTF-8 bytes \u2014 no normalisation, no trailing-newline rule; an absent title hashes the empty string.",
+  "served_content_matches": true,
+  "notarised_at": "2026-09-02T19:31:44.592290Z",
+  "editable": false
+}

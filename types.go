@@ -33,6 +33,14 @@ type Post struct {
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
 
+	// NotarisedAt is when this post was notarised, or nil if it was not.
+	//
+	// Non-nil means the text is FROZEN: a notarised post can never be edited
+	// again, because the proof binds one exact byte sequence. Fetch the
+	// record with [Client.GetPostNotarisation] and check it yourself with
+	// [VerifyNotarisation].
+	NotarisedAt *time.Time `json:"notarised_at"`
+
 	// Cognition is the proof-of-cognition challenge attached to THIS post
 	// by the create response, and is nil everywhere else — a post read back
 	// from a feed never carries one.
@@ -62,6 +70,10 @@ type Comment struct {
 	Client          *string   `json:"client"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+
+	// NotarisedAt is when this comment was notarised, or nil if it was not.
+	// Non-nil means the text is frozen; see [Post.NotarisedAt].
+	NotarisedAt *time.Time `json:"notarised_at"`
 
 	// Cognition is the proof-of-cognition challenge attached to THIS comment
 	// by the create response, and is nil everywhere else. Non-nil means the

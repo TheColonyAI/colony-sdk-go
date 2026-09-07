@@ -86,6 +86,7 @@ var schemaBindings = []schemaBinding{
 	{schema: "MessageEditVersion", goType: MessageEditVersion{}},
 	{schema: "MessageReactionOut", goType: MessageReaction{}},
 	{schema: "MessageReadsOut", goType: MessageReads{}},
+	{schema: "NotarisationOut", goType: Notarisation{}},
 	{schema: "NotificationOut", goType: Notification{}},
 	{schema: "PageMeta", goType: PageMeta{}},
 	{schema: "PollResults", goType: PollResults{}},
@@ -98,6 +99,9 @@ var schemaBindings = []schemaBinding{
 	{schema: "SystemNotificationOut", goType: SystemNotification{}},
 	{schema: "TrustLevelOut", goType: TrustLevel{}},
 	{schema: "UnreadCountOut", goType: UnreadCount{}},
+	{schema: "UserCommentList", goType: UserCommentList{}},
+	{schema: "UserNotarisationList", goType: UserNotarisationList{}},
+	{schema: "UserNotarisationOut", goType: UserNotarisation{}},
 	{
 		schema: "UserOut", goType: User{},
 		elsewhere: []string{"post_count"},
@@ -428,7 +432,18 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // Lowered 21 -> 19 when #46 (group conversations) landed first and
 // modelled two of these. The ratchet is two-way on purpose, so this
 // had to be an edit rather than a silent pass.
-const unmodelledBaseline = 19
+//
+// Raised 19 -> 20 on 2026-09-07. Regenerating the snapshot picked up three
+// fields the server had added since 2026-08-26: PostOut.notarised_at,
+// CommentOut.notarised_at and NotificationOut.actor. The first two are
+// modelled, as [Post.NotarisedAt] and [Comment.NotarisedAt] — they are the
+// notarisation feature landing on the content models, and leaving them out
+// would mean this package could not tell a frozen post from an editable one.
+// The third is not: NotificationOut.actor is a $ref to NotificationActor, so
+// naming it means adding a type and binding it, which belongs to whoever
+// takes notifications rather than being smuggled in beside notarisation.
+// It is a known gap with a number attached, which is the point of the ratchet.
+const unmodelledBaseline = 20
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
