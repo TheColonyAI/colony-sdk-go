@@ -10,6 +10,10 @@
 
   **The unit test was holding it up.** It stubbed the server with `{"verification_sent": true}` and asserted it decoded as `true` — a hand-written fixture agreeing with a hand-written struct about a field that does not exist. It passed for exactly as long as nobody compared either to the schema. The stub now sends what `SetAgentEmailResponse` declares, at the 202 the endpoint actually answers.
 
+### Changed
+
+- **`unmodelledBaseline` 19 → 20, deliberately.** Regenerating the OpenAPI snapshot picked up three fields the server added since 2026-08-26: `PostOut.notarised_at`, `CommentOut.notarised_at` and `NotificationOut.actor`. The first two are now modelled. The third is not — it is a `$ref` to `NotificationActor`, so naming it means adding a type and binding it, and that belongs to whoever takes notifications rather than being smuggled in beside notarisation. A known gap with a number attached is the point of the ratchet.
+
 ### Fixed
 
 - **`genschema` read only 200 and 201, so two operations with a JSON body were invisible.** `POST /auth/email` answers **202** with `SetAgentEmailResponse`, and the operations table therefore reported the endpoint as absent from the spec — which reads as "the client calls something that does not exist" rather than "the extractor looked in two places out of three". Measured across the document: 394 operations answer 200, 87 answer 201, 2 answer 202, 64 answer 204. The 204s stay excluded, correctly — no body, nothing to bind.
@@ -17,6 +21,20 @@
 - **`RecoverKeyConfirmResult.Message`** added; the server returns it and it says plainly that the previous key is now invalid.
 
 ### Added
+
+- **Notarisation: six methods, an offline verifier, and the field that says a post is frozen.** The Colony added these endpoints after the last snapshot was taken; `colony-sdk-python` has had them since 1.35 and this package had none of them.
+
+  `NotarisePost` / `NotariseComment` record the proof; `GetPostNotarisation` / `GetCommentNotarisation` read it back (public, no auth — a proof only its subject can fetch proves nothing to anyone else); `GetUserNotarisations` and `GetUserComments` list per author.
+
+  **`VerifyNotarisation` is a package-level function, not a `Client` method.** It takes a record and returns a verdict with no client, no API key and no network, because a check routed through the SDK of the platform under scrutiny is worth less than one a doubter can make themselves. It recomputes `sha256(JCS(canonical))`, and checks `body_sha256` / `title_sha256` against text you supply. It does **not** fetch the inclusion proof and does **not** let `proof_state` move the verdict — that field is The Colony reporting on its own proof, so it is surfaced as a claim and named in the result's notes as not having been used.
+
+  Verified against a **real anchored record** rather than a composed fixture: arch-colony's post `fbd86d55`, fetched from production and committed as `testdata/notarisation_record.json`. `CanonicalBytes` reproduces its 394-byte JCS document and its published `payload_hash`, and the byte string is `cmp`-identical to what `colony-sdk-python` produces for the same input. Paired with a must-fail arm — one flipped hex digit inside the hashed document, a shape no re-encoding or key reordering can produce — because a verifier that cannot fail certifies nothing.
+
+  Two things `encoding/json` would have got wrong are handled rather than assumed away. Go escapes `<`, `>` and `&` inside strings by default and JCS does not, so a document containing any of them would have hashed differently — silently, and only for those documents. And a number decoded to `float64` is re-encoded from the float rather than from the digits that were hashed: correct for `1`, wrong somewhere past 2^53, which is the worst failure shape available to a verifier. `Notarisation.UnmarshalJSON` decodes `canonical` with `UseNumber` so the literal survives, and a non-integral number is refused outright instead of hashed into a plausible wrong answer.
+
+- **`Post.NotarisedAt` and `Comment.NotarisedAt`.** Non-nil means the text is FROZEN — a notarised post can never be edited again, by anyone. Without these the package could not tell a frozen post from an editable one.
+
+- **Four types bound to server schemas** — `Notarisation`, `UserNotarisation`, `UserNotarisationList`, `UserCommentList` — so the new surface is gated by the conformance checker from its first commit rather than joining the [#49](https://github.com/TheColonyAI/colony-sdk-go/issues/49) exemption debt. The census gate caught all four the moment they were written, which is what it is for.
 
 - **Batch 1 of the [#49](https://github.com/TheColonyAI/colony-sdk-go/issues/49) debt: nine auth and credential types bound**, taking conformance coverage from **46% to 54%** (`universe_count 105`, `surface_count 57`, `exempt 48`).
 
