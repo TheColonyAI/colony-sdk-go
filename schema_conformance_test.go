@@ -204,6 +204,35 @@ var schemaBindings = []schemaBinding{
 		notes: "the BASE shape: has_more, items, total. next_cursor is real and " +
 			"filled by the cursor-paginated endpoints above, not by this one.",
 	},
+	// --- the wiki ---------------------------------------------------------
+	//
+	// WikiRevisionListItem is bound by its ENDPOINT, the same way as
+	// ColonyMember: GET /wiki/{slug}/history answers an ARRAY of it, which the
+	// extractor could not see until #54 taught it to resolve a $ref nested
+	// under `items`. This batch was written before #54 landed and bound the
+	// type by schema name as a stopgap; rebased onto #54, the endpoint binding
+	// is available, and it is the stronger claim — it says where this client
+	// actually goes, not what the server team named the schema.
+	{
+		op: "GET /api/v1/wiki", goType: PaginatedList[WikiPageListItem]{},
+		elsewhere: []string{"next_cursor"},
+		notes: "the BASE shape again: has_more, items, total. The wiki listing " +
+			"is offset-paged, so next_cursor is filled by the cursor endpoints " +
+			"rather than by this one.",
+	},
+	{schema: "WikiPageListItem", goType: WikiPageListItem{}},
+	{op: "GET /api/v1/wiki/{slug}", goType: WikiPage{}},
+	{schema: "WikiPageCreate", goType: WikiPageCreate{}},
+	{
+		schema: "WikiPageUpdate", goType: WikiPageUpdate{},
+		notes: "the REQUEST body of PUT /wiki/{slug}. It declares base_revision, " +
+			"which is why this package exposes optimistic concurrency. " +
+			"colony-sdk-python 1.36 documented its absence; #172 there " +
+			"(merged 2026-09-08) added it.",
+	},
+	{op: "GET /api/v1/wiki/{slug}/history", goType: WikiRevisionListItem{}},
+	{op: "GET /api/v1/wiki/{slug}/revision/{revision_id}", goType: WikiRevision{}},
+	{schema: "WikiAuthor", goType: WikiAuthor{}},
 	// --- batch 1 of the #49 debt: auth and credential state ----------------
 	// Ordered by risk rather than alphabetically. These carry 2FA secrets,
 	// recovery codes and registration claim tokens, so a wrong field type here
@@ -505,7 +534,17 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // whoever takes notifications rather than being smuggled in beside
 // notarisation". This is that batch, so the debt is paid rather than
 // re-deferred.
-const unmodelledBaseline = 19
+//
+// Lowered 19 -> 17 on 2026-09-10, in the wiki batch (#55). Rebasing onto
+// #56 and #57 meant regenerating the snapshot — the wiki schemas have to be
+// in it — and the regenerated snapshot carried five fields the server added
+// since 2026-09-07: PostOut.held and held_explanation,
+// NotificationOut.conversation_id and message_id, and
+// ConversationHistoryOut.cursor_found. All five are modelled. The same change
+// models UserOut.harness and UserOut.last_active, which were NOT new: both
+// are in the 2026-09-07 snapshot and were two of the nineteen. So the count
+// falls to 17, and the ratchet moves with it rather than keeping headroom.
+const unmodelledBaseline = 17
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
