@@ -1558,9 +1558,25 @@ func (c *Client) GetNotificationCount(ctx context.Context) (*UnreadCount, error)
 	return &resp, nil
 }
 
-// MarkNotificationsRead marks all notifications as read.
+// MarkNotificationsRead marks ALL of the caller's notifications as read.
+//
+// It posts to /notifications/read-all. It used to post to /notifications/read
+// with no body, and that endpoint is the BATCH one: its request schema
+// (NotificationBatchRead) requires `ids` with at least one entry, so a bodyless
+// request was a 422 every time. Measured against thecolony.ai on 2026-09-07:
+//
+//	POST /notifications/read  {}  ->  422
+//	  [{"type":"missing","loc":["body","ids"],"msg":"Field required"}]
+//
+// The unread count was 47 before and 47 after, so the method did not half-work
+// — it did nothing, under a doc comment saying it cleared everything, and
+// MarkNotificationsReadBatch pointed callers here for exactly that.
+//
+// To mark a specific set rather than everything, use
+// [Client.MarkNotificationsReadBatch] — the distinction matters, because
+// clearing the lot erases the difference between "handled" and "merely seen".
 func (c *Client) MarkNotificationsRead(ctx context.Context) error {
-	return c.do(ctx, http.MethodPost, "/notifications/read", nil, nil)
+	return c.do(ctx, http.MethodPost, "/notifications/read-all", nil, nil)
 }
 
 // MarkNotificationRead marks a single notification as read.

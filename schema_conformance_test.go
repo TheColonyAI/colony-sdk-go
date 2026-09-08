@@ -88,6 +88,21 @@ var schemaBindings = []schemaBinding{
 	{schema: "MessageReadsOut", goType: MessageReads{}},
 	{schema: "NotarisationOut", goType: Notarisation{}},
 	{schema: "NotificationOut", goType: Notification{}},
+	{
+		schema: "NotificationActor", goType: NotificationActor{},
+		notes: "The field #53 left in the unmodelled baseline, saying it belonged " +
+			"to whoever took notifications. It is required and not nullable, so " +
+			"a Notification without it could not be decoded from a real response.",
+	},
+	{op: "POST /api/v1/notifications/delete", goType: NotificationDeleteResult{}},
+	{
+		schema: "NotificationBatchDelete", goType: NotificationIDBatch{},
+		notes: "One Go type, bound to BOTH batch request schemas. They are " +
+			"identical today; binding both is what makes that checked rather " +
+			"than assumed.",
+	},
+	{schema: "NotificationBatchRead", goType: NotificationIDBatch{}},
+	{op: "POST /api/v1/notifications/delete-read", goType: ReadNotificationsDeleted{}},
 	{schema: "PageMeta", goType: PageMeta{}},
 	{schema: "PollResults", goType: PollResults{}},
 	{schema: "PostOut", goType: Post{}},
@@ -484,7 +499,13 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // naming it means adding a type and binding it, which belongs to whoever
 // takes notifications rather than being smuggled in beside notarisation.
 // It is a known gap with a number attached, which is the point of the ratchet.
-const unmodelledBaseline = 20
+// Lowered 20 -> 19 on 2026-09-07. NotificationOut.actor is now modelled, as
+// [Notification.Actor] with [NotificationActor] bound beside it. #53 raised
+// the baseline to 20 for exactly this field and said naming it "belongs to
+// whoever takes notifications rather than being smuggled in beside
+// notarisation". This is that batch, so the debt is paid rather than
+// re-deferred.
+const unmodelledBaseline = 19
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
