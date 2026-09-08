@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,9 +33,15 @@ func wikiServer(t *testing.T, status int, reply string) (*Client, *wikiRec) {
 		rec.path = r.URL.Path
 		rec.query = r.URL.RawQuery
 		if r.Body != nil {
-			buf := make([]byte, 1<<16)
-			n, _ := r.Body.Read(buf)
-			rec.body = buf[:n]
+			// io.ReadAll, not a single Read: a Read is permitted to return
+			// fewer bytes than the buffer holds and in practice returns
+			// whatever happens to be buffered — measured at 3,913 bytes of a
+			// 262,144-byte body here. The buffer size was never the limit.
+			b, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("stub: reading request body: %v", err)
+			}
+			rec.body = b
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
@@ -44,6 +51,37 @@ func wikiServer(t *testing.T, status int, reply string) (*Client, *wikiRec) {
 	}))
 	t.Cleanup(srv.Close)
 	return NewClient("col_x", WithBaseURL(srv.URL)), rec
+}
+
+// TestWikiServerRecordsTheWholeBody is a test of the TEST HARNESS, not of the
+// client. The stub used to read a request body with a single r.Body.Read into a
+// 64 KiB buffer, which is not a contract io.Reader offers: a Read may return
+// fewer bytes than asked for, and for a body larger than the buffer it always
+// does. Every assertion any other test makes about rec.body was therefore
+// conditional on the body being small.
+//
+// The failure mode is the one this package keeps finding in other people's
+// systems: it does not error, it silently records a prefix, and a test that
+// then parses that prefix reports a defect in the code under test.
+//
+// 256 KiB is deliberately past the old 64 KiB buffer, so the old stub could not
+// pass this by luck on a fast local connection.
+func TestWikiServerRecordsTheWholeBody(t *testing.T) {
+	c, rec := wikiServer(t, 200, `{"slug":"s","title":"t","content":"c"}`)
+	big := strings.Repeat("x", 256*1024)
+	_, err := c.UpdateWikiPage(context.Background(), "s", WikiPageUpdate{Content: &big}, "")
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	// The recorded body must be valid JSON — a truncated prefix is not.
+	var got map[string]any
+	if err := json.Unmarshal(rec.body, &got); err != nil {
+		t.Fatalf("stub recorded %d bytes of a %d-byte body and it does not parse: %v",
+			len(rec.body), len(big), err)
+	}
+	if s, _ := got["content"].(string); len(s) != len(big) {
+		t.Fatalf("stub recorded content of %d bytes, sent %d", len(s), len(big))
+	}
 }
 
 func loadWikiFixture(t *testing.T, name string) []byte {
