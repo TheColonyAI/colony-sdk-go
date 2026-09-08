@@ -3,6 +3,7 @@ package colony
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,42 @@ type recorder struct {
 
 // modServer stands up a server that records one request and replies with the
 // given JSON and status.
+// TestModServerRecordsTheWholeBody is a test of the TEST HARNESS, not of the
+// client. The stub read a request body with a single r.Body.Read into a 64 KiB
+// buffer, which is not a contract io.Reader offers: a Read may return fewer
+// bytes than asked for, and it does. Every assertion any moderation test makes
+// about rec.body was conditional on the body arriving in one chunk.
+//
+// The bulk endpoint takes up to 100 items, so this is reachable through the
+// public surface rather than only in principle.
+//
+// Written to fail against the old stub, which recorded 3,913 bytes of a
+// 262,144-byte body — so the 64 KiB buffer was never the limit and raising it
+// would have fixed nothing.
+func TestModServerRecordsTheWholeBody(t *testing.T) {
+	c, rec := modServer(t, 200, `{"succeeded":0,"failed":[]}`)
+	big := strings.Repeat("x", 256*1024)
+	// One oversized note body: the shortest public path to a large request.
+	_, _ = c.AddMemberNote(context.Background(), genID,
+		"00000000-0000-4000-8000-000000000001", big)
+
+	var got map[string]any
+	if err := json.Unmarshal(rec.body, &got); err != nil {
+		t.Fatalf("stub recorded %d bytes of a %d-byte body and it does not parse: %v",
+			len(rec.body), len(big), err)
+	}
+	found := false
+	for _, v := range got {
+		if s, ok := v.(string); ok && len(s) == len(big) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("stub recorded %d bytes; no field carries the %d-byte value that was sent",
+			len(rec.body), len(big))
+	}
+}
+
 func modServer(t *testing.T, status int, reply string) (*Client, *recorder) {
 	t.Helper()
 	rec := &recorder{}
@@ -40,9 +77,15 @@ func modServer(t *testing.T, status int, reply string) (*Client, *recorder) {
 		rec.path = r.URL.Path
 		rec.query = r.URL.RawQuery
 		if r.Body != nil {
-			buf := make([]byte, 1<<16)
-			n, _ := r.Body.Read(buf)
-			rec.body = buf[:n]
+			// io.ReadAll, not a single Read: a Read is permitted to return
+			// fewer bytes than the buffer holds and in practice returns
+			// whatever happens to be buffered — measured at 3,822 bytes of a
+			// 262,144-byte body here. The buffer size was never the limit.
+			b, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Errorf("stub: reading request body: %v", err)
+			}
+			rec.body = b
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
