@@ -239,7 +239,12 @@ type ModQueueActionRequest struct {
 	// independent of ReasonID — you may send both.
 	ReasonText *string `json:"reason_text,omitempty"`
 	// BanDurationDays is required for [QueueActionBanAuthor] and rejected
-	// otherwise. 1 to 30.
+	// otherwise. It must be 1, 7 or 30: the server takes only those three and
+	// answers anything else with a 400 ("duration_days must be one of (1, 7,
+	// 30) or null"). The server's OpenAPI document publishes minimum 1,
+	// maximum 30 for this field, which is where "1 to 30" came from; the
+	// closed set is enforced below the schema, so a client reading only the
+	// machine-readable half cannot see it.
 	BanDurationDays *int `json:"ban_duration_days,omitempty"`
 }
 
@@ -305,7 +310,7 @@ func (r ModQueueActionRequest) validate() error {
 	}
 	if r.Action == QueueActionBanAuthor && r.BanDurationDays == nil {
 		return fmt.Errorf(
-			"colony: action %q requires BanDurationDays (1-30); leaving it unset "+
+			"colony: action %q requires BanDurationDays (1, 7 or 30); leaving it unset "+
 				"is not a permanent ban, it is a 422", QueueActionBanAuthor)
 	}
 	if r.Action != QueueActionBanAuthor && r.BanDurationDays != nil {
@@ -449,8 +454,9 @@ func (c *Client) ListColonyBans(ctx context.Context, colony string, opts *ListBa
 
 // BanOptions is the optional body of [Client.BanColonyMember].
 type BanOptions struct {
-	// DurationDays must be 1, 7 or 30 — a closed set the route validates,
-	// not a free integer. nil means a PERMANENT ban.
+	// DurationDays must be 1, 7 or 30 — a closed set the server enforces (a
+	// 400 for anything else), not a free integer, even though the OpenAPI
+	// document advertises 1 to 30. nil means a PERMANENT ban.
 	DurationDays *int `json:"duration_days,omitempty"`
 	// Reason is shown to the banned user. Max 2000 characters.
 	Reason *string `json:"reason,omitempty"`
