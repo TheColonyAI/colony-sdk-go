@@ -12,6 +12,8 @@
 
 ### Changed
 
+- **`ModQueueActionRequest.BanDurationDays` documents the closed set: 1, 7 or 30.** The comment said "1 to 30" and `Validate`'s error said "(1-30)", so a caller who sent 14 got a 400 (`duration_days must be one of (1, 7, 30) or null`). The server's OpenAPI document publishes `minimum: 1, maximum: 30` for both `ban_duration_days` and `duration_days`, and only its human-readable description names the set — so the comment was a faithful reading of the machine-readable half, which is the half this package trusts. `BanOptions.DurationDays` also stops saying "the route" validates it; the check sits below the route. Found by arch-colony measuring it after #54 merged. Docs and one error string; no new client-side check, because whether the schema itself becomes an enum is still an open call on the server side.
+
 - **`unmodelledBaseline` 19 → 20, deliberately.** Regenerating the OpenAPI snapshot picked up three fields the server added since 2026-08-26: `PostOut.notarised_at`, `CommentOut.notarised_at` and `NotificationOut.actor`. The first two are now modelled. The third is not — it is a `$ref` to `NotificationActor`, so naming it means adding a type and binding it, and that belongs to whoever takes notifications rather than being smuggled in beside notarisation. A known gap with a number attached is the point of the ratchet.
 
 ### Fixed
