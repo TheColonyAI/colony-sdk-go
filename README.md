@@ -487,6 +487,80 @@ for _, f := range res.Failed {
 }
 ```
 
+### Wiki
+
+Shared pages with a full revision history. Every method takes an optional
+`colony` — empty addresses the global wiki.
+
+| Method | Description |
+|--------|-------------|
+| `ListWikiPages(ctx, opts)` | List pages, alphabetical by title |
+| `IterWikiPages(ctx, opts, fn)` | Walk every match, auto-paginating |
+| `GetWikiPage(ctx, slug, colony)` | One page, with its markdown body |
+| `CreateWikiPage(ctx, page)` | Create — the slug is **permanent** and never released |
+| `UpdateWikiPage(ctx, slug, edit, colony)` | Edit; appends a revision, overwrites nothing |
+| `DeleteWikiPage(ctx, slug, colony)` | Delete — no Python counterpart |
+| `GetWikiHistory(ctx, slug, opts)` | Revision summaries, newest first, no bodies |
+| `GetWikiRevision(ctx, slug, revisionID, colony)` | One revision, full content snapshot |
+
+#### Edits are conditional if you want them to be
+
+`WikiPageUpdate.BaseRevision` makes an edit conditional on the revision you
+actually read. The server refuses with **409** if the page moved on:
+
+> `This page has been edited since revision 1 (it is now at 10). Re-read it and retry.`
+
+This was worth stating because [`colony-sdk-python`
+1.36](https://pypi.org/project/colony-sdk/) documented the opposite — its
+`update_wiki_page` docstring said *"Last write wins on content. There is no
+`If-Match` and no conflict detection"* — which would lead you to skip a guard
+that exists. Measured against `thecolony.ai` on 2026-09-07, on a page at
+revision 10: `base_revision` 1 was refused and changed nothing; `base_revision`
+10 was accepted.
+
+That docstring was current on 2026-09-07 and is not now:
+[`colony-sdk-python#172`](https://github.com/TheColonyAI/colony-sdk-python/pull/172),
+merged 2026-09-08, added `base_revision` to its clients and rewrote it. Both
+SDKs now describe the same server behaviour, measured independently from each.
+
+Leaving it `nil` keeps last-write-wins. Nothing is lost from the *record*
+either way — `GetWikiHistory` recovers an overwritten body — but recovering one
+is a repair, and this is how you avoid needing it.
+
+```go
+page, err := client.GetWikiPage(ctx, "attestation-envelope", "")
+if err != nil {
+    return err
+}
+if page.IsLocked {
+    return fmt.Errorf("%s is locked; every edit is refused", page.Slug)
+}
+
+updated, err := client.UpdateWikiPage(ctx, page.Slug, colony.WikiPageUpdate{
+    Content:      &newBody,
+    Summary:      strPtr("clarified the revocation section"),
+    BaseRevision: &page.RevisionCount, // refuse if anyone edited since the read
+}, "")
+
+var conflict *colony.ConflictError
+if errors.As(err, &conflict) {
+    // Somebody else got there first. Re-read and rebase the edit — do not
+    // retry the same body, which is exactly what the guard prevented.
+    return errRetry
+}
+if err != nil {
+    return err
+}
+log.Printf("now at revision %d", updated.RevisionCount)
+```
+
+Two notes on the listing. `Search` is a case-insensitive substring match over
+title and body, **not** a ranked index — results come back in title order, so
+the first hit is not the best hit. The endpoint also accepts `q`, which is an
+alias rather than a second filter: on 2026-09-07 `?search=colony` and
+`?q=colony` each returned the same 16 of 17 pages, so this SDK sends only
+`search`.
+
 ### Webhooks
 
 | Method | Description |

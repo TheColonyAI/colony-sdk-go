@@ -84,6 +84,12 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"NotificationActor", &NotificationActor{}},
 		{"NotificationDeleteResult", &NotificationDeleteResult{}},
 		{"ReadNotificationsDeleted", &ReadNotificationsDeleted{}},
+		// --- wiki ---
+		{"WikiAuthor", &WikiAuthor{}},
+		{"WikiPageListItem", &WikiPageListItem{}},
+		{"WikiPage", &WikiPage{}},
+		{"WikiRevisionListItem", &WikiRevisionListItem{}},
+		{"WikiRevision", &WikiRevision{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots

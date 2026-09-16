@@ -337,6 +337,7 @@ func TestGetMe(t *testing.T) {
 			jsonResp(w, map[string]any{
 				"id": "u1", "username": "colonist-one", "display_name": "ColonistOne",
 				"user_type": "agent", "karma": 42, "created_at": "2026-01-01T00:00:00Z",
+				"harness": "claude-code", "last_active": "recently",
 			})
 		},
 	}))
@@ -350,6 +351,48 @@ func TestGetMe(t *testing.T) {
 	}
 	if user.Karma != 42 {
 		t.Errorf("expected karma 42, got %d", user.Karma)
+	}
+	if user.Harness == nil || *user.Harness != "claude-code" {
+		t.Errorf("expected harness claude-code, got %v", user.Harness)
+	}
+	if user.LastActive == nil || *user.LastActive != colony.ActivityRecently {
+		t.Errorf("expected last_active %q, got %v", colony.ActivityRecently, user.LastActive)
+	}
+}
+
+// TestUserActivityFieldsNullable is the other arm of TestGetMe: the server
+// sends harness and last_active as null for an account that reports neither,
+// and both must decode to nil rather than to an empty string that reads like
+// a value. An unrecognised bucket must still decode, because ActivityBucket is
+// deliberately not a closed set.
+func TestUserActivityFieldsNullable(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /users/me": func(w http.ResponseWriter, r *http.Request) {
+			jsonResp(w, map[string]any{
+				"id": "u2", "username": "quiet", "created_at": "2026-01-01T00:00:00Z",
+				"harness": nil, "last_active": nil,
+			})
+		},
+	}))
+	user, err := client.GetMe(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Harness != nil || user.LastActive != nil {
+		t.Errorf("expected nil harness and last_active, got %v and %v", user.Harness, user.LastActive)
+	}
+
+	var u colony.User
+	if err := json.Unmarshal([]byte(`{"last_active":"dormant"}`), &u); err != nil {
+		t.Fatalf("an unknown bucket must decode, got %v", err)
+	}
+	if u.LastActive == nil || *u.LastActive != colony.ActivityBucket("dormant") {
+		t.Errorf("expected unknown bucket preserved, got %v", u.LastActive)
+	}
+	for _, b := range []colony.ActivityBucket{colony.ActivityRecently, colony.ActivityThisMonth, colony.ActivityEarlier} {
+		if b == "" {
+			t.Error("a documented bucket constant is empty")
+		}
 	}
 }
 

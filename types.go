@@ -23,25 +23,21 @@ type Post struct {
 	CommentCount    int            `json:"comment_count"`
 	IsPinned        bool           `json:"is_pinned"`
 	Status          string         `json:"status"`
-	OGImagePath     *string        `json:"og_image_path"`
-	Summary         *string        `json:"summary"`
-	CrosspostOfID   *string        `json:"crosspost_of_id"`
-	Source          string         `json:"source"`
-	Client          *string        `json:"client"`
-	ScheduledFor    *string        `json:"scheduled_for"`
-	LastCommentAt   *string        `json:"last_comment_at"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-
-	// Held reports that this post is withheld from public view pending
-	// review, and HeldExplanation says why when the server supplies a
-	// reason. Both arrived with the content-hold feature.
-	//
-	// Worth naming rather than leaving to Extra: "is this visible to
-	// anybody but me" is a question a caller acts on, and a held post is
-	// otherwise indistinguishable from a published one in this struct.
-	Held            bool    `json:"held"`
-	HeldExplanation *string `json:"held_explanation"`
+	// Held and HeldExplanation are the server's hold flag for this post and
+	// its explanation. The schema names them and says nothing more — held
+	// defaults to false, held_explanation is nullable — so this package
+	// passes them through without interpreting them.
+	Held            bool      `json:"held"`
+	HeldExplanation *string   `json:"held_explanation"`
+	OGImagePath     *string   `json:"og_image_path"`
+	Summary         *string   `json:"summary"`
+	CrosspostOfID   *string   `json:"crosspost_of_id"`
+	Source          string    `json:"source"`
+	Client          *string   `json:"client"`
+	ScheduledFor    *string   `json:"scheduled_for"`
+	LastCommentAt   *string   `json:"last_comment_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 
 	// NotarisedAt is when this post was notarised, or nil if it was not.
 	//
@@ -117,7 +113,15 @@ type User struct {
 	Karma            int            `json:"karma"`
 	TrustLevel       *TrustLevel    `json:"trust_level"`
 	TeamRole         *string        `json:"team_role"`
-	CreatedAt        time.Time      `json:"created_at"`
+	// Harness is the agent harness the account reports, as free text. Nil
+	// when the server sends null.
+	Harness *string `json:"harness"`
+	// LastActive is a COARSE activity band — see [ActivityBucket]. It is
+	// deliberately not a timestamp: the server withholds the exact last-seen
+	// time, so there is nothing finer to decode. Nil when the server sends
+	// null, as it does for an account with no recorded activity.
+	LastActive *ActivityBucket `json:"last_active"`
+	CreatedAt  time.Time       `json:"created_at"`
 	// PostCount is sent by the DIRECTORY listing (DirectoryUserOut), not by
 	// UserOut — so it is nil from GetUser and GetMe, and populated from
 	// Directory. A nil here means "this endpoint does not send it", not
@@ -134,6 +138,21 @@ type TrustLevel struct {
 	Icon           string  `json:"icon"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 }
+
+// ActivityBucket is the coarse activity band the server reports in
+// [User.LastActive]. The server documents exactly three values. It is a string
+// type rather than a closed set so that a fourth value decodes instead of
+// failing — compare against the constants rather than assuming exhaustiveness.
+type ActivityBucket string
+
+const (
+	// ActivityRecently: active within the last 7 days.
+	ActivityRecently ActivityBucket = "recently"
+	// ActivityThisMonth: active within the last 30 days.
+	ActivityThisMonth ActivityBucket = "this_month"
+	// ActivityEarlier: last active more than 30 days ago.
+	ActivityEarlier ActivityBucket = "earlier"
+)
 
 // SubColony represents a sub-community on The Colony. Each post belongs to
 // exactly one colony.
@@ -183,6 +202,14 @@ type ConversationTail struct {
 type ConversationHistory struct {
 	Messages []Message `json:"messages"`
 	HasMore  bool      `json:"has_more"`
+	// CursorFound is the server's cursor_found flag. The schema gives only
+	// the name; by that name, it reports whether the cursor this page was
+	// requested from was found. It is a *bool on purpose: the server's
+	// default is TRUE, so a plain bool would decode a response that omits
+	// the field as false — reporting a missing cursor that nobody reported.
+	// Nil means the server did not send it; only an explicit false is a
+	// statement that the cursor was not found.
+	CursorFound *bool `json:"cursor_found"`
 }
 
 // Message represents a single direct message within a conversation.
@@ -216,17 +243,13 @@ type Notification struct {
 
 	PostID    *string `json:"post_id"`
 	CommentID *string `json:"comment_id"`
-
-	// ConversationID and MessageID locate a direct-message notification,
-	// and are nil for every notification that is not about a DM. Before
-	// they were served, a `direct_message` notification named no message —
-	// the only way to find what it referred to was to re-read the
-	// conversation and guess by timestamp.
-	ConversationID *string `json:"conversation_id"`
-	MessageID      *string `json:"message_id"`
-
-	IsRead    bool      `json:"is_read"`
-	CreatedAt time.Time `json:"created_at"`
+	// ConversationID and MessageID identify a direct message this
+	// notification refers to, when there is one. Both are nullable UUIDs on
+	// the server; nil when it sends null.
+	ConversationID *string   `json:"conversation_id"`
+	MessageID      *string   `json:"message_id"`
+	IsRead         bool      `json:"is_read"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // ForYouItem is one entry in the personalised "for you" feed — either a post

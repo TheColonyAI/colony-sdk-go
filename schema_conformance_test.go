@@ -217,6 +217,35 @@ var schemaBindings = []schemaBinding{
 		notes: "the BASE shape: has_more, items, total. next_cursor is real and " +
 			"filled by the cursor-paginated endpoints above, not by this one.",
 	},
+	// --- the wiki ---------------------------------------------------------
+	//
+	// WikiRevisionListItem is bound by its ENDPOINT, the same way as
+	// ColonyMember: GET /wiki/{slug}/history answers an ARRAY of it, which the
+	// extractor could not see until #54 taught it to resolve a $ref nested
+	// under `items`. This batch was written before #54 landed and bound the
+	// type by schema name as a stopgap; rebased onto #54, the endpoint binding
+	// is available, and it is the stronger claim — it says where this client
+	// actually goes, not what the server team named the schema.
+	{
+		op: "GET /api/v1/wiki", goType: PaginatedList[WikiPageListItem]{},
+		elsewhere: []string{"next_cursor"},
+		notes: "the BASE shape again: has_more, items, total. The wiki listing " +
+			"is offset-paged, so next_cursor is filled by the cursor endpoints " +
+			"rather than by this one.",
+	},
+	{schema: "WikiPageListItem", goType: WikiPageListItem{}},
+	{op: "GET /api/v1/wiki/{slug}", goType: WikiPage{}},
+	{schema: "WikiPageCreate", goType: WikiPageCreate{}},
+	{
+		schema: "WikiPageUpdate", goType: WikiPageUpdate{},
+		notes: "the REQUEST body of PUT /wiki/{slug}. It declares base_revision, " +
+			"which is why this package exposes optimistic concurrency. " +
+			"colony-sdk-python 1.36 documented its absence; #172 there " +
+			"(merged 2026-09-08) added it.",
+	},
+	{op: "GET /api/v1/wiki/{slug}/history", goType: WikiRevisionListItem{}},
+	{op: "GET /api/v1/wiki/{slug}/revision/{revision_id}", goType: WikiRevision{}},
+	{schema: "WikiAuthor", goType: WikiAuthor{}},
 	// --- batch 1 of the #49 debt: auth and credential state ----------------
 	// Ordered by risk rather than alphabetically. These carry 2FA secrets,
 	// recovery codes and registration claim tokens, so a wrong field type here
@@ -518,41 +547,41 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // whoever takes notifications rather than being smuggled in beside
 // notarisation". This is that batch, so the debt is paid rather than
 // re-deferred.
-// Raised 19 -> 23 on 2026-09-16, and the number moved in both directions to
-// get there. Regenerating the snapshot after nine days of Catalogue drift
-// widened the extraction itself (90 schemas +38 referenced, 441 operations),
-// so the gap read 35 before any struct changed: 19 pre-existing, plus 16 the
-// server had added. The two sets are disjoint — every pre-existing entry is
-// ForYouFeedOut/MessageOut/PostOut/RotateKeyResponse/SavedMessageEntry/
-// SearchResults/UserOut, and none of them is from this wave.
 //
-// Twelve of the sixteen are modelled here: the eight the server declares
-// REQUIRED (EchoOut.author, MessageEditVersion.created_at,
-// ModHistoryEventOut.created_at, MyBanInfoOut.created_at, ModQueueListOut.
-// limit and offset, NotificationBatchDeleteOut.unread_notifications,
-// UnreadCountOut.unread_direct_messages) plus held/held_explanation on both
-// PostOut and CommentOut, because "is this withheld from everyone but me" is
-// a question a caller acts on.
+// --- #55 (wiki batch), measured against its own snapshot ---------------
+// Lowered 19 -> 17 on 2026-09-10, in the wiki batch (#55). Rebasing onto
+// #56 and #57 meant regenerating the snapshot — the wiki schemas have to be
+// in it — and the regenerated snapshot carried five fields the server added
+// since 2026-09-07: PostOut.held and held_explanation,
+// NotificationOut.conversation_id and message_id, and
+// ConversationHistoryOut.cursor_found. All five are modelled. The same change
+// models UserOut.harness and UserOut.last_active, which were NOT new: both
+// are in the 2026-09-07 snapshot and were two of the nineteen.
 //
-// Four are deferred as entries on record rather than silent gaps:
-// ForYouFeedOut.has_more and ConversationHistoryOut.cursor_found are declared
-// `optional` above with their reasons; the two NotificationBatchReadOut
-// twins belong with whoever takes batch reads.
+// --- #60 (drift batch), measured against a REGENERATED snapshot --------
+// Set to 19 on 2026-09-16, having gone through a wrong number to get there:
+// first 23, on the arithmetic "35 modelled down by 12". The test refused it
+// and reported the gap had FALLEN to 19 — four of the sixteen are
+// deprecated-alias twins that were never in the unmodelled set, and two more
+// were declared `optional`. The ratchet failing in BOTH directions is what
+// made that visible; a one-directional version would have shipped 23.
 //
-// 35 - 16 = 19, and the ratchet is what corrected the arithmetic. This comment
-// first said "35 - 12 = 23" and set the constant to 23; the test refused it,
-// reporting the gap had FALLEN to 19. Four of the sixteen are deprecated-alias
-// twins that were never in the unmodelled set (UnreadCount.unread_count,
-// MessageEditVersion.at, MyBanInfo.banned_at, NotificationDeleteResult.
-// unread_count), and the two `optional` declarations above remove two more
-// from the count rather than leaving them as gaps. So the reduction is 16, not
-// 12 — and 19 is exactly the pre-existing baseline, meaning this change closes
-// every field the server added and leaves the older 19 untouched for whoever
-// takes them.
-//
-// The ratchet failing in BOTH directions is what made that visible. A
-// one-directional version would have accepted 23 silently and shipped a
-// constant that was simply false.
+// --- the merge of the two, 2026-09-16 ----------------------------------
+// NEITHER 17 NOR 19 SURVIVES. They were measured against different snapshots
+// and this tree is a third state: #55's wiki bindings and #60's alias/held
+// work are both present, and four fields (PostOut.held, held_explanation,
+// NotificationOut.conversation_id, message_id) were modelled INDEPENDENTLY in
+// both branches. The snapshot is regenerated here and the number below is the
+// one the checker measured on the merged tree — not either side's constant
+// carried across on faith.
+// MEASURED on the merged tree: 19. Note this is NOT #60's 19 — the SET differs.
+// UserOut.harness and UserOut.last_active LEFT the gap (#55 models them), and
+// WikiPageListItem.colony_name and WikiPageOut.colony_name ARRIVED, because the
+// wiki schemas are only in the snapshot once #55's `wanted` entries are. #55's
+// own 19 -> 17 was right against ITS snapshot and wrong here, for the same
+// reason. That the total lands on 19 twice is a coincidence, and taking either
+// side's constant on faith would have hidden a changed set behind an unchanged
+// number.
 const unmodelledBaseline = 19
 
 // TestStructsMatchTheServerSchemas is the gate.
