@@ -69,13 +69,26 @@ var schemaBindings = []schemaBinding{
 	{schema: "CommentOut", goType: Comment{}},
 	{schema: "ConversationOut", goType: Conversation{}},
 	{schema: "ConversationDetail", goType: ConversationDetail{}},
-	{schema: "ConversationHistoryOut", goType: ConversationHistory{}},
+	{
+		schema: "ConversationHistoryOut", goType: ConversationHistory{},
+		optional: []string{"cursor_found"},
+		notes: "cursor_found reports whether the anchor message was located. " +
+			"Deferred rather than modelled: it defaults true and its false " +
+			"case needs a deliberate test against a deleted anchor, which " +
+			"belongs with whoever takes DM paging.",
+	},
 	{schema: "ConversationTailOut", goType: ConversationTail{}},
 	{schema: "DetailResult", goType: DetailResult{}},
 	{schema: "DmSpamMarkOut", goType: DmSpamMark{}},
 	{schema: "EchoOut", goType: Echo{}},
 	{schema: "EchoPost", goType: EchoPost{}},
-	{schema: "ForYouFeedOut", goType: ForYouFeed{}},
+	{
+		schema: "ForYouFeedOut", goType: ForYouFeed{},
+		optional: []string{"has_more"},
+		notes: "has_more pairs with next_cursor, which is in the unmodelled " +
+			"baseline. Modelling one half of a paging pair and ratcheting the " +
+			"other would be worse than deferring both; they go together.",
+	},
 	{schema: "ForYouItemOut", goType: ForYouItem{}},
 	{schema: "MessageOut", goType: Message{}},
 	{
@@ -505,6 +518,41 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // whoever takes notifications rather than being smuggled in beside
 // notarisation". This is that batch, so the debt is paid rather than
 // re-deferred.
+// Raised 19 -> 23 on 2026-09-16, and the number moved in both directions to
+// get there. Regenerating the snapshot after nine days of Catalogue drift
+// widened the extraction itself (90 schemas +38 referenced, 441 operations),
+// so the gap read 35 before any struct changed: 19 pre-existing, plus 16 the
+// server had added. The two sets are disjoint — every pre-existing entry is
+// ForYouFeedOut/MessageOut/PostOut/RotateKeyResponse/SavedMessageEntry/
+// SearchResults/UserOut, and none of them is from this wave.
+//
+// Twelve of the sixteen are modelled here: the eight the server declares
+// REQUIRED (EchoOut.author, MessageEditVersion.created_at,
+// ModHistoryEventOut.created_at, MyBanInfoOut.created_at, ModQueueListOut.
+// limit and offset, NotificationBatchDeleteOut.unread_notifications,
+// UnreadCountOut.unread_direct_messages) plus held/held_explanation on both
+// PostOut and CommentOut, because "is this withheld from everyone but me" is
+// a question a caller acts on.
+//
+// Four are deferred as entries on record rather than silent gaps:
+// ForYouFeedOut.has_more and ConversationHistoryOut.cursor_found are declared
+// `optional` above with their reasons; the two NotificationBatchReadOut
+// twins belong with whoever takes batch reads.
+//
+// 35 - 16 = 19, and the ratchet is what corrected the arithmetic. This comment
+// first said "35 - 12 = 23" and set the constant to 23; the test refused it,
+// reporting the gap had FALLEN to 19. Four of the sixteen are deprecated-alias
+// twins that were never in the unmodelled set (UnreadCount.unread_count,
+// MessageEditVersion.at, MyBanInfo.banned_at, NotificationDeleteResult.
+// unread_count), and the two `optional` declarations above remove two more
+// from the count rather than leaving them as gaps. So the reduction is 16, not
+// 12 — and 19 is exactly the pre-existing baseline, meaning this change closes
+// every field the server added and leaves the older 19 untouched for whoever
+// takes them.
+//
+// The ratchet failing in BOTH directions is what made that visible. A
+// one-directional version would have accepted 23 silently and shipped a
+// constant that was simply false.
 const unmodelledBaseline = 19
 
 // TestStructsMatchTheServerSchemas is the gate.
