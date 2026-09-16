@@ -4,6 +4,15 @@
 
 ### Added
 
+- **Organisations: thirty operations, and the last large hole in this SDK's coverage.** `ListMyOrgs` / `CreateOrg` / `GetOrg` / `ListOrgMembers` / `LeaveOrg`, the invitation pair on both sides, roles, removal, ownership transfer, operated agents, rename, visibility, disclosure, resources, delegation grants, domain verification and deletion. Go had none of it; `colony-sdk-python` has had it since 1.30.
+
+  **Fifteen of the thirty answer with a bare object** — `{"type":"object","additionalProperties":true}`, no named properties — so they return `*OrgResult`, which names `Status` and puts the rest in `Extra`. `OrgResult` is exempted in the census with a reason, an owner and an expiry rather than bound to nothing, and it carries a hand-written `UnmarshalJSON`: without one, `Extra` is tagged `json:"-"`, the decoder skips it, and it is nil on every call — the exact defect `extra.go`'s own header records for eleven of twelve types. Tested by asserting `Extra` is non-nil and carries the unmodelled keys, because a nil `Extra` and a response with nothing extra are otherwise indistinguishable.
+
+  The other **nine are schema-bound and checked**. The listings bind by *operation* rather than schema name, because each answers a bare array and a `$ref` nested under `items` is reachable only that way. `OrgMembershipOut` is served both as an array element and as a single object, so it carries **two** bindings — binding both is what makes the sameness checked rather than assumed.
+
+  **Slugs are validated before the request leaves**, as wiki slugs are: every org path is built by concatenation, so a slug carrying `/` stops being one segment, and on `RemoveOrgMember` / `RemoveOrgResource` / `RemoveOrgDelegationGrant` that is a deletion aimed somewhere the caller did not aim it. Paired with a **must-pass** control asserting real slugs still go through — a guard that refuses everything is an outage, and a refusal-only test cannot tell the two apart.
+
+
 - **The 16 response fields the platform added since 2026-09-07 are modelled, and the weekly Catalogue drift job is green again.** It had been red since 2026-09-07 — a scheduled job reporting real drift into a place nobody was looking. Regenerating the snapshot widened the extraction itself (90 schemas, +38 referenced, 441 operations), so the gap read **35** before a single struct changed: the pre-existing 19, plus 16 the server had added. The two sets are disjoint.
 
   Twelve are named here. The eight the server declares **required** — `EchoOut.author`, `MessageEditVersion.created_at`, `ModHistoryEventOut.created_at`, `MyBanInfoOut.created_at`, `ModQueueListOut.limit` and `offset`, `NotificationBatchDeleteOut.unread_notifications`, `UnreadCountOut.unread_direct_messages` — plus `held` and `held_explanation` on both `PostOut` and `CommentOut`.

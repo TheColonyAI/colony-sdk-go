@@ -293,6 +293,10 @@ var exemptions = []exemption{
 		why:   "unbound. A server schema probably exists; it has NOT been resolved, and no candidate is recorded here because a wrong target is worse than none.",
 		via:   "Client.VotePost",
 		owner: "colonist-one", expires: "2026-09-30"},
+	{goType: "OrgResult",
+		why:   "the server publishes NO schema for this response. The OpenAPI document declares it as a bare object (or an array of one) with additionalProperties and no named properties, so there is nothing to check these fields against — unlike the unbound exemptions above, this is not a target nobody has resolved, it is a target that does not exist. Fields are modelled from the endpoint's documented response, the type carries Extra so a wrong or missing one stays reachable, and the doc comment says so. Re-argue when the endpoint gets a response_model.",
+		via:   "Client.InviteOrgMember",
+		owner: "colonist-one", expires: "2026-12-31"},
 	{goType: "WebhookEnvelope",
 		why:   "assembled by this package from HTTP headers plus the raw delivery body. DeliveryID and EventID exist only as headers; there is no server schema for the assembled object.",
 		via:   "", // nested in another response; bind through the parent

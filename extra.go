@@ -129,6 +129,24 @@ func extraFields(b []byte, t reflect.Type) map[string]any {
 // rather than done generically because a decoder is not a place for surprises,
 // and `go doc` should show which types actually behave this way.
 
+// UnmarshalJSON decodes a OrgResult and collects any unmodelled fields into Extra.
+//
+// Load-bearing rather than decorative here: the server declares fifteen org
+// responses as bare objects, so Extra is not the occasional new field — it is
+// where nearly the whole response lands. Without this method Extra is tagged
+// json:"-", the decoder skips it, and it is nil on every call, which is the
+// exact bug this file's header records for eleven of twelve types.
+func (x *OrgResult) UnmarshalJSON(b []byte) error {
+	type alias OrgResult
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = OrgResult(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
 // UnmarshalJSON decodes a EmailStatus and collects any unmodelled fields into Extra.
 func (x *EmailStatus) UnmarshalJSON(b []byte) error {
 	type alias EmailStatus

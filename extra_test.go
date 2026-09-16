@@ -84,6 +84,11 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"NotificationActor", &NotificationActor{}},
 		{"NotificationDeleteResult", &NotificationDeleteResult{}},
 		{"ReadNotificationsDeleted", &ReadNotificationsDeleted{}},
+		// --- organisations ---
+		// OrgResult is the response of the fifteen org operations the server
+		// declares as bare objects, so Extra is not the occasional extra
+		// field here — it is most of the response.
+		{"OrgResult", &OrgResult{}},
 		// --- wiki ---
 		{"WikiAuthor", &WikiAuthor{}},
 		{"WikiPageListItem", &WikiPageListItem{}},

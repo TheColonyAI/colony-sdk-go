@@ -217,6 +217,40 @@ var schemaBindings = []schemaBinding{
 		notes: "the BASE shape: has_more, items, total. next_cursor is real and " +
 			"filled by the cursor-paginated endpoints above, not by this one.",
 	},
+	// --- organisations ----------------------------------------------------
+	//
+	// Nine org schemas are bound here. The other fifteen operations answer
+	// with a bare object and are exempted in binding_census_test.go rather
+	// than bound to nothing.
+	//
+	// The listings bind by OPERATION because each answers a bare ARRAY, and a
+	// $ref nested under `items` is reachable only that way — the same reason
+	// ColonyMember is bound by its endpoint.
+	{
+		op: "GET /api/v1/orgs", goType: OrgMembership{},
+		notes: "OrgMembershipOut is served BOTH ways: an array here, and a " +
+			"single object from POST /orgs/invitations/{id}/accept. One Go " +
+			"type, two bindings — binding both is what makes the sameness " +
+			"checked rather than assumed, as with NotificationIDBatch.",
+	},
+	{schema: "OrgMembershipOut", goType: OrgMembership{}},
+	{schema: "OrgPublicOut", goType: OrgPublic{}},
+	{schema: "OrgCreatedOut", goType: OrgCreated{}},
+	{schema: "OrgActionOut", goType: OrgAction{}},
+	{schema: "OrgLeaveOut", goType: OrgLeave{}},
+	{op: "GET /api/v1/orgs/{slug}/members", goType: OrgMember{}},
+	{op: "GET /api/v1/orgs/invitations", goType: OrgInvitation{}},
+	{op: "GET /api/v1/orgs/{slug}/invitations", goType: OrgPendingInvite{}},
+	{op: "GET /api/v1/orgs/{slug}/resources", goType: OrgResource{}},
+	{op: "GET /api/v1/orgs/{slug}/delegation-grants", goType: OrgDelegationGrant{}},
+	{op: "GET /api/v1/orgs/{slug}/domain", goType: OrgDomainChallenge{}},
+	{op: "GET /api/v1/orgs/disclosure-recipients", goType: OrgDisclosureRecipient{}},
+	// Request bodies.
+	{schema: "OrgCreateIn", goType: OrgCreate{}},
+	{schema: "OrgInviteIn", goType: OrgInvite{}},
+	{schema: "OrgResourceIn", goType: OrgResourceCreate{}},
+	{schema: "OrgDelegationGrantIn", goType: OrgDelegationGrantCreate{}},
+	{schema: "OrgDomainIn", goType: OrgDomainStart{}},
 	// --- the wiki ---------------------------------------------------------
 	//
 	// WikiRevisionListItem is bound by its ENDPOINT, the same way as
