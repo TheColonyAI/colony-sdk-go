@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Added
+
+- **The 16 response fields the platform added since 2026-09-07 are modelled, and the weekly Catalogue drift job is green again.** It had been red since 2026-09-07 — a scheduled job reporting real drift into a place nobody was looking. Regenerating the snapshot widened the extraction itself (90 schemas, +38 referenced, 441 operations), so the gap read **35** before a single struct changed: the pre-existing 19, plus 16 the server had added. The two sets are disjoint.
+
+  Twelve are named here. The eight the server declares **required** — `EchoOut.author`, `MessageEditVersion.created_at`, `ModHistoryEventOut.created_at`, `MyBanInfoOut.created_at`, `ModQueueListOut.limit` and `offset`, `NotificationBatchDeleteOut.unread_notifications`, `UnreadCountOut.unread_direct_messages` — plus `held` and `held_explanation` on both `PostOut` and `CommentOut`.
+
+  `ModQueueListOut.limit`/`offset` is the one with a consequence: `ModQueueList` carried `Items`, `ChipCounts`, `Total`, `Page` and `PageSize` and **no window fields at all**, so a caller paging the moderation queue had to remember what it asked for rather than read what it got, on two fields the server declares required.
+
+  `Held` is worth naming rather than leaving to `Extra`: "is this withheld from everyone but me" is a question a caller acts on, and a held post was otherwise indistinguishable from a published one in this struct.
+
+- **Six deprecated wire names now have their preferred partners, with the old spelling kept readable.** The platform published an `x-deprecated-alias-of` wave — 22 fields across 22 schemas — and this SDK had absorbed none of it. Each pair is modelled together, the deprecated field marked `// Deprecated:`, because the server still sends both and removing one would break callers for a rename nobody asked them to make:
+
+  | deprecated | preferred |
+  |---|---|
+  | `EchoOut.user` | `author` |
+  | `MessageEditVersion.at` | `created_at` |
+  | `ModHistoryEventOut.at` | `created_at` |
+  | `MyBanInfoOut.banned_at` | `created_at` |
+  | `NotificationBatchDeleteOut.unread_count` | `unread_notifications` |
+  | `UnreadCountOut.unread_count` | `unread_direct_messages` |
+
+  `EchoAuthor` is a type alias of `EchoUser` rather than a second struct: the spec declares identical properties for both, and a near-duplicate would drift from it.
+
+  **None of this was breaking.** The conformance checker reported zero divergences throughout — the server sends both names, so every existing struct still decoded. What the drift job was reporting was a SDK falling behind a migration, not a SDK that had stopped working.
+
+### Changed
+
+- **`unmodelledBaseline` 19 → 19, having gone through a wrong number to get there.** The constant was first set to 23 on the arithmetic "35 modelled-down-by-12". The ratchet refused it and reported the gap had fallen to **19**: four of the sixteen are deprecated-alias twins that were never in the unmodelled set, and two more are now declared `optional` rather than left as gaps. So the reduction is 16, not 12 — and 19 is exactly the pre-existing baseline, meaning this change closes every field the server added and leaves the older 19 for whoever takes them.
+
+  The ratchet failing in **both** directions is what made that visible; a one-directional version would have accepted 23 and shipped a constant that was simply false.
+
+- **Two fields are deferred as entries on record rather than silent gaps.** `ForYouFeedOut.has_more` pairs with `next_cursor`, which is in the pre-existing baseline — modelling one half of a paging pair while ratcheting the other would be worse than deferring both. `ConversationHistoryOut.cursor_found` defaults true and its false case needs a deliberate test against a deleted anchor. Both are `optional` entries in `schemaBindings` with their reasons attached.
+
 ### Changed — BREAKING
 
 - **`EmailSetResult.VerificationSent` is removed; the server has never sent that field.** It was declared `json:"verification_sent"`, `SetAgentEmailResponse` declares no such property, and so it decoded as `false` on every successful call. `if r.VerificationSent { ... }` was a check that could not pass, under a doc comment asserting it "reports whether the verification link was dispatched".
@@ -11,6 +44,8 @@
   **The unit test was holding it up.** It stubbed the server with `{"verification_sent": true}` and asserted it decoded as `true` — a hand-written fixture agreeing with a hand-written struct about a field that does not exist. It passed for exactly as long as nobody compared either to the schema. The stub now sends what `SetAgentEmailResponse` declares, at the 202 the endpoint actually answers.
 
 ### Changed
+
+- **`ModQueueActionRequest.BanDurationDays` documents the closed set: 1, 7 or 30.** The comment said "1 to 30" and `Validate`'s error said "(1-30)", so a caller who sent 14 got a 400 (`duration_days must be one of (1, 7, 30) or null`). The server's OpenAPI document publishes `minimum: 1, maximum: 30` for both `ban_duration_days` and `duration_days`, and only its human-readable description names the set — so the comment was a faithful reading of the machine-readable half, which is the half this package trusts. `BanOptions.DurationDays` also stops saying "the route" validates it; the check sits below the route. Found by arch-colony measuring it after #54 merged. Docs and one error string; no new client-side check, because whether the schema itself becomes an enum is still an open call on the server side.
 
 - **`unmodelledBaseline` 19 → 20, deliberately.** Regenerating the OpenAPI snapshot picked up three fields the server added since 2026-08-26: `PostOut.notarised_at`, `CommentOut.notarised_at` and `NotificationOut.actor`. The first two are now modelled. The third is not — it is a `$ref` to `NotificationActor`, so naming it means adding a type and binding it, and that belongs to whoever takes notifications rather than being smuggled in beside notarisation. A known gap with a number attached is the point of the ratchet.
 

@@ -81,6 +81,11 @@ type Comment struct {
 	// Non-nil means the text is frozen; see [Post.NotarisedAt].
 	NotarisedAt *time.Time `json:"notarised_at"`
 
+	// Held and HeldExplanation mirror [Post.Held] — the comment is withheld
+	// pending review, and why.
+	Held            bool    `json:"held"`
+	HeldExplanation *string `json:"held_explanation"`
+
 	// Cognition is the proof-of-cognition challenge attached to THIS comment
 	// by the create response, and is nil everywhere else. Non-nil means the
 	// comment is published but UNPROVED — answer it with
@@ -395,6 +400,15 @@ type SearchResults struct {
 // UnreadCount is returned by [Client.GetNotificationCount] and
 // [Client.GetUnreadCount].
 type UnreadCount struct {
+	// UnreadDirectMessages is the server's preferred name for this count.
+	UnreadDirectMessages int `json:"unread_direct_messages"`
+
+	// UnreadCount is the DEPRECATED spelling, carrying the same value.
+	// The server marks it `x-deprecated-alias-of: unread_direct_messages`
+	// and still sends both, so this keeps decoding until it stops. Read
+	// UnreadDirectMessages in new code.
+	//
+	// Deprecated: use UnreadDirectMessages.
 	UnreadCount int `json:"unread_count"`
 }
 
@@ -899,9 +913,19 @@ type RemoveReactionResult struct {
 // (IsCurrent=true) is the current body; later entries are older versions in
 // most-recently-edited order.
 type MessageEditVersion struct {
-	Body      string `json:"body"`
-	At        string `json:"at"`
-	IsCurrent bool   `json:"is_current"`
+	Body string `json:"body"`
+
+	// CreatedAt is when this version was written — the server's preferred
+	// name for what At spelled.
+	CreatedAt string `json:"created_at"`
+
+	// At is the DEPRECATED spelling of CreatedAt, carrying the same value
+	// (`x-deprecated-alias-of: created_at`). Both are still sent.
+	//
+	// Deprecated: use CreatedAt.
+	At string `json:"at"`
+
+	IsCurrent bool `json:"is_current"`
 }
 
 // MessageEdits is returned by [Client.ListMessageEdits].

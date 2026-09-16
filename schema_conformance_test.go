@@ -69,13 +69,26 @@ var schemaBindings = []schemaBinding{
 	{schema: "CommentOut", goType: Comment{}},
 	{schema: "ConversationOut", goType: Conversation{}},
 	{schema: "ConversationDetail", goType: ConversationDetail{}},
-	{schema: "ConversationHistoryOut", goType: ConversationHistory{}},
+	{
+		schema: "ConversationHistoryOut", goType: ConversationHistory{},
+		optional: []string{"cursor_found"},
+		notes: "cursor_found reports whether the anchor message was located. " +
+			"Deferred rather than modelled: it defaults true and its false " +
+			"case needs a deliberate test against a deleted anchor, which " +
+			"belongs with whoever takes DM paging.",
+	},
 	{schema: "ConversationTailOut", goType: ConversationTail{}},
 	{schema: "DetailResult", goType: DetailResult{}},
 	{schema: "DmSpamMarkOut", goType: DmSpamMark{}},
 	{schema: "EchoOut", goType: Echo{}},
 	{schema: "EchoPost", goType: EchoPost{}},
-	{schema: "ForYouFeedOut", goType: ForYouFeed{}},
+	{
+		schema: "ForYouFeedOut", goType: ForYouFeed{},
+		optional: []string{"has_more"},
+		notes: "has_more pairs with next_cursor, which is in the unmodelled " +
+			"baseline. Modelling one half of a paging pair and ratcheting the " +
+			"other would be worse than deferring both; they go together.",
+	},
 	{schema: "ForYouItemOut", goType: ForYouItem{}},
 	{schema: "MessageOut", goType: Message{}},
 	{
@@ -535,6 +548,7 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // notarisation". This is that batch, so the debt is paid rather than
 // re-deferred.
 //
+// --- #55 (wiki batch), measured against its own snapshot ---------------
 // Lowered 19 -> 17 on 2026-09-10, in the wiki batch (#55). Rebasing onto
 // #56 and #57 meant regenerating the snapshot — the wiki schemas have to be
 // in it — and the regenerated snapshot carried five fields the server added
@@ -542,9 +556,33 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // NotificationOut.conversation_id and message_id, and
 // ConversationHistoryOut.cursor_found. All five are modelled. The same change
 // models UserOut.harness and UserOut.last_active, which were NOT new: both
-// are in the 2026-09-07 snapshot and were two of the nineteen. So the count
-// falls to 17, and the ratchet moves with it rather than keeping headroom.
-const unmodelledBaseline = 17
+// are in the 2026-09-07 snapshot and were two of the nineteen.
+//
+// --- #60 (drift batch), measured against a REGENERATED snapshot --------
+// Set to 19 on 2026-09-16, having gone through a wrong number to get there:
+// first 23, on the arithmetic "35 modelled down by 12". The test refused it
+// and reported the gap had FALLEN to 19 — four of the sixteen are
+// deprecated-alias twins that were never in the unmodelled set, and two more
+// were declared `optional`. The ratchet failing in BOTH directions is what
+// made that visible; a one-directional version would have shipped 23.
+//
+// --- the merge of the two, 2026-09-16 ----------------------------------
+// NEITHER 17 NOR 19 SURVIVES. They were measured against different snapshots
+// and this tree is a third state: #55's wiki bindings and #60's alias/held
+// work are both present, and four fields (PostOut.held, held_explanation,
+// NotificationOut.conversation_id, message_id) were modelled INDEPENDENTLY in
+// both branches. The snapshot is regenerated here and the number below is the
+// one the checker measured on the merged tree — not either side's constant
+// carried across on faith.
+// MEASURED on the merged tree: 19. Note this is NOT #60's 19 — the SET differs.
+// UserOut.harness and UserOut.last_active LEFT the gap (#55 models them), and
+// WikiPageListItem.colony_name and WikiPageOut.colony_name ARRIVED, because the
+// wiki schemas are only in the snapshot once #55's `wanted` entries are. #55's
+// own 19 -> 17 was right against ITS snapshot and wrong here, for the same
+// reason. That the total lands on 19 twice is a coincidence, and taking either
+// side's constant on faith would have hidden a changed set behind an unchanged
+// number.
+const unmodelledBaseline = 19
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

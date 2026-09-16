@@ -162,6 +162,14 @@ type ModQueueList struct {
 	// appeal is the state this field exists to prevent.
 	PendingAppealCount int `json:"pending_appeal_count"`
 
+	// Limit and Offset are the window this page was served for. The server
+	// declares both required, and without them a caller paging the queue
+	// has to remember what it asked for rather than reading what it got —
+	// Page and PageSize above are the older spelling of the same idea and
+	// the server sends all four.
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+
 	Extra map[string]any `json:"-"`
 }
 
@@ -239,7 +247,12 @@ type ModQueueActionRequest struct {
 	// independent of ReasonID — you may send both.
 	ReasonText *string `json:"reason_text,omitempty"`
 	// BanDurationDays is required for [QueueActionBanAuthor] and rejected
-	// otherwise. 1 to 30.
+	// otherwise. It must be 1, 7 or 30: the server takes only those three and
+	// answers anything else with a 400 ("duration_days must be one of (1, 7,
+	// 30) or null"). The server's OpenAPI document publishes minimum 1,
+	// maximum 30 for this field, which is where "1 to 30" came from; the
+	// closed set is enforced below the schema, so a client reading only the
+	// machine-readable half cannot see it.
 	BanDurationDays *int `json:"ban_duration_days,omitempty"`
 }
 
@@ -305,7 +318,7 @@ func (r ModQueueActionRequest) validate() error {
 	}
 	if r.Action == QueueActionBanAuthor && r.BanDurationDays == nil {
 		return fmt.Errorf(
-			"colony: action %q requires BanDurationDays (1-30); leaving it unset "+
+			"colony: action %q requires BanDurationDays (1, 7 or 30); leaving it unset "+
 				"is not a permanent ban, it is a 422", QueueActionBanAuthor)
 	}
 	if r.Action != QueueActionBanAuthor && r.BanDurationDays != nil {
@@ -449,8 +462,9 @@ func (c *Client) ListColonyBans(ctx context.Context, colony string, opts *ListBa
 
 // BanOptions is the optional body of [Client.BanColonyMember].
 type BanOptions struct {
-	// DurationDays must be 1, 7 or 30 — a closed set the route validates,
-	// not a free integer. nil means a PERMANENT ban.
+	// DurationDays must be 1, 7 or 30 — a closed set the server enforces (a
+	// 400 for anything else), not a free integer, even though the OpenAPI
+	// document advertises 1 to 30. nil means a PERMANENT ban.
 	DurationDays *int `json:"duration_days,omitempty"`
 	// Reason is shown to the banned user. Max 2000 characters.
 	Reason *string `json:"reason,omitempty"`
@@ -534,8 +548,18 @@ type BanAppeal struct {
 
 // MyBanInfo describes a ban against you.
 type MyBanInfo struct {
-	Reason   *string   `json:"reason"`
+	Reason *string `json:"reason"`
+
+	// CreatedAt is when the ban was issued — the server's preferred name
+	// for what BannedAt spelled.
+	CreatedAt time.Time `json:"created_at"`
+
+	// BannedAt is the DEPRECATED spelling of CreatedAt, carrying the same
+	// value (`x-deprecated-alias-of: created_at`). Both are still sent.
+	//
+	// Deprecated: use CreatedAt.
 	BannedAt time.Time `json:"banned_at"`
+
 	// ExpiresAt is nil for a permanent ban.
 	ExpiresAt *time.Time `json:"expires_at"`
 
@@ -803,10 +827,20 @@ type ActiveBan struct {
 
 // ModHistoryEvent is one moderation action taken against a member.
 type ModHistoryEvent struct {
-	Action  string    `json:"action"`
-	ActorID string    `json:"actor_id"`
-	At      time.Time `json:"at"`
-	Reason  *string   `json:"reason"`
+	Action  string `json:"action"`
+	ActorID string `json:"actor_id"`
+
+	// CreatedAt is when the action was taken — the server's preferred name
+	// for what At spelled.
+	CreatedAt time.Time `json:"created_at"`
+
+	// At is the DEPRECATED spelling of CreatedAt, carrying the same value
+	// (`x-deprecated-alias-of: created_at`). Both are still sent.
+	//
+	// Deprecated: use CreatedAt.
+	At time.Time `json:"at"`
+
+	Reason *string `json:"reason"`
 	// TargetPostID and TargetCommentID say what the action was about; both
 	// are nil for an action against the member rather than their content.
 	TargetPostID    *string `json:"target_post_id"`

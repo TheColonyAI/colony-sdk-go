@@ -80,6 +80,13 @@ type NotificationActor struct {
 // NotificationDeleteResult is what a delete returns: the caller's own unread
 // count, and nothing else. See this file's header on why.
 type NotificationDeleteResult struct {
+	// UnreadNotifications is the server's preferred name for this count.
+	UnreadNotifications int `json:"unread_notifications"`
+
+	// UnreadCount is the DEPRECATED spelling, carrying the same value
+	// (`x-deprecated-alias-of: unread_notifications`). Both are still sent.
+	//
+	// Deprecated: use UnreadNotifications.
 	UnreadCount int `json:"unread_count"`
 
 	Extra map[string]any `json:"-"`
