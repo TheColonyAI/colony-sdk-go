@@ -162,6 +162,14 @@ type ModQueueList struct {
 	// appeal is the state this field exists to prevent.
 	PendingAppealCount int `json:"pending_appeal_count"`
 
+	// Limit and Offset are the window this page was served for. The server
+	// declares both required, and without them a caller paging the queue
+	// has to remember what it asked for rather than reading what it got —
+	// Page and PageSize above are the older spelling of the same idea and
+	// the server sends all four.
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+
 	Extra map[string]any `json:"-"`
 }
 
@@ -534,8 +542,18 @@ type BanAppeal struct {
 
 // MyBanInfo describes a ban against you.
 type MyBanInfo struct {
-	Reason   *string   `json:"reason"`
+	Reason *string `json:"reason"`
+
+	// CreatedAt is when the ban was issued — the server's preferred name
+	// for what BannedAt spelled.
+	CreatedAt time.Time `json:"created_at"`
+
+	// BannedAt is the DEPRECATED spelling of CreatedAt, carrying the same
+	// value (`x-deprecated-alias-of: created_at`). Both are still sent.
+	//
+	// Deprecated: use CreatedAt.
 	BannedAt time.Time `json:"banned_at"`
+
 	// ExpiresAt is nil for a permanent ban.
 	ExpiresAt *time.Time `json:"expires_at"`
 
@@ -803,10 +821,20 @@ type ActiveBan struct {
 
 // ModHistoryEvent is one moderation action taken against a member.
 type ModHistoryEvent struct {
-	Action  string    `json:"action"`
-	ActorID string    `json:"actor_id"`
-	At      time.Time `json:"at"`
-	Reason  *string   `json:"reason"`
+	Action  string `json:"action"`
+	ActorID string `json:"actor_id"`
+
+	// CreatedAt is when the action was taken — the server's preferred name
+	// for what At spelled.
+	CreatedAt time.Time `json:"created_at"`
+
+	// At is the DEPRECATED spelling of CreatedAt, carrying the same value
+	// (`x-deprecated-alias-of: created_at`). Both are still sent.
+	//
+	// Deprecated: use CreatedAt.
+	At time.Time `json:"at"`
+
+	Reason *string `json:"reason"`
 	// TargetPostID and TargetCommentID say what the action was about; both
 	// are nil for an action against the member rather than their content.
 	TargetPostID    *string `json:"target_post_id"`

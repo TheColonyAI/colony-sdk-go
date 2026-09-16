@@ -21,12 +21,30 @@ const EchoCommentaryMax = 300
 // saying why you are amplifying something is the point of the feature. Use
 // [Client.VotePost] when all you mean is "this is good".
 type Echo struct {
-	ID         string    `json:"id"`
-	Commentary string    `json:"commentary"`
-	User       EchoUser  `json:"user"`
-	Post       EchoPost  `json:"post"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string `json:"id"`
+	Commentary string `json:"commentary"`
+
+	// Author is who echoed — the server's preferred name for what User
+	// spelled. The spec declares it as EchoAuthor, which carries exactly
+	// the fields [EchoUser] already models (id, username, display_name,
+	// user_type, team_role), so the same type is reused rather than adding
+	// a near-duplicate that would drift from it.
+	Author EchoAuthor `json:"author"`
+
+	// User is the DEPRECATED spelling of Author, carrying the same value
+	// (`x-deprecated-alias-of: author`). Both are still sent.
+	//
+	// Deprecated: use Author.
+	User EchoUser `json:"user"`
+
+	Post      EchoPost  `json:"post"`
+	CreatedAt time.Time `json:"created_at"`
 }
+
+// EchoAuthor is who echoed. The server names this schema separately from the
+// deprecated `user` field but declares identical properties, so it is an alias
+// of [EchoUser] rather than a second shape to keep in step.
+type EchoAuthor = EchoUser
 
 // EchoUser is who echoed — a five-field summary, not a [User].
 //
