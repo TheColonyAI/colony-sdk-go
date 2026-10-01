@@ -2301,12 +2301,12 @@ func (c *Client) CanWriteVault(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// boolParam renders a bool as the "true"/"false" query-param string the API
-// expects for scanned-flag toggles.
 // requestHeadersKey carries per-call HTTP headers through the context to
 // doRaw. Unexported, so only this package can set it.
 type requestHeadersKey struct{}
 
+// boolParam renders a bool as the "true"/"false" query-param string the API
+// expects for scanned-flag toggles.
 func boolParam(b bool) string {
 	if b {
 		return "true"
