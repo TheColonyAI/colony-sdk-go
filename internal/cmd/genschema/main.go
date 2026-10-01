@@ -164,6 +164,10 @@ var wanted = []string{
 	"UserOut",
 	"VaultSearchResult",
 	"WebhookOut",
+	// Colonies batch: the response of GET/POST /colonies, and of
+	// POST /colonies/{colony_id}/posts/{post_id}/move-out.
+	"ColonyOut",
+	"PostColonyMoveOut",
 }
 
 func main() {

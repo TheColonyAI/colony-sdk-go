@@ -57,12 +57,12 @@ type MessageAttachment struct {
 // ColonyImageResult is the reply to a colony icon or banner upload.
 //
 // Its fields are whatever the server sends. The endpoint returns the updated
-// colony including the new image URLs, and those URLs are not on [SubColony] —
-// so decoding into SubColony would silently drop precisely the thing the call
-// was made to obtain. Rather than invent field names for them, this keeps the
-// decoded body in Raw, the same choice [RecoverKeyResult] makes for the same
-// reason. If the shape is pinned later, named fields can be added without
-// breaking callers who read Raw.
+// colony including the new image URLs. When this type was written those URLs
+// were not on [SubColony], so decoding into it would have dropped precisely
+// the thing the call was made to obtain, and the decoded body is kept in Raw,
+// the same choice [RecoverKeyResult] makes. SubColony now names the icon URLs
+// (IconURL, IconURL96, IconURL256) but no banner field, and Raw stays so that
+// callers reading it keep working.
 type ColonyImageResult struct {
 	Raw map[string]any
 }
