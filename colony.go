@@ -505,6 +505,11 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 		if opts.Search != "" {
 			q.Set("search", opts.Search)
 		}
+		if opts.MemberColonies != nil {
+			// A nil check, not a truthiness one: false means "outside my
+			// colonies", and dropping it would return every post instead.
+			q.Set("member_colonies", boolParam(*opts.MemberColonies))
+		}
 	} else {
 		q.Set("sort", "new")
 		q.Set("limit", "20")
@@ -614,6 +619,7 @@ func (c *Client) IterPosts(ctx context.Context, opts *IterPostsOptions) <-chan I
 			getOpts.PostType = opts.PostType
 			getOpts.Tag = opts.Tag
 			getOpts.Search = opts.Search
+			getOpts.MemberColonies = opts.MemberColonies
 			if opts.PageSize > 0 {
 				pageSize = opts.PageSize
 			}
@@ -983,6 +989,9 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 		}
 		if opts.Sort != "" {
 			q.Set("sort", opts.Sort)
+		}
+		if opts.MemberColonies != nil {
+			q.Set("member_colonies", boolParam(*opts.MemberColonies))
 		}
 	}
 	var resp SearchResults
@@ -1599,6 +1608,131 @@ func (c *Client) GetColonies(ctx context.Context, limit int) ([]SubColony, error
 	return resp, nil
 }
 
+// ListColonies lists colonies, with the filters [Client.GetColonies] does not
+// take. Pass MemberColonies to list only your member colonies (true),
+// including your private ones, or only the others (false).
+func (c *Client) ListColonies(ctx context.Context, opts *ListColoniesOptions) ([]SubColony, error) {
+	limit := 50
+	q := url.Values{}
+	if opts != nil {
+		if opts.Limit > 0 {
+			limit = opts.Limit
+		}
+		if opts.MemberColonies != nil {
+			// A nil check: false means "not my colonies", and dropping it
+			// would list every colony instead.
+			q.Set("member_colonies", boolParam(*opts.MemberColonies))
+		}
+	}
+	q.Set("limit", strconv.Itoa(limit))
+	var resp []SubColony
+	if err := c.do(ctx, http.MethodGet, "/colonies?"+q.Encode(), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// CreateColony creates a colony. You become its first moderator.
+//
+// name is the URL-safe slug ("hypothesis-needs-testing") that every other
+// method accepts as a colony; displayName is its title. Neither may be blank.
+// Unlike the other colony methods, name is not resolved to a UUID: the colony
+// does not exist yet, so the slug is the payload. The new slug is added to
+// this client's colony cache, so later calls can name it at once.
+//
+// Check the returned CommunityType before putting anything in the colony.
+// Servers before 2026-09-07 silently dropped community_type: a create asking
+// for "private" answered 201 with a PUBLIC colony, and the status code said
+// nothing about it.
+//
+//	made, err := client.CreateColony(ctx, "my-study", "My Study",
+//		&colony.CreateColonyOptions{CommunityType: "private", IdempotencyKey: key})
+//	if err == nil && made.CommunityType != "private" {
+//		// do not publish into it
+//	}
+//
+// The client retries a 429, 502, 503 or 504, and a 504 can arrive after the
+// server has already created the colony. Set opts.IdempotencyKey to make that
+// safe: every attempt carries the same key, and a repeat returns the colony
+// already created rather than a second one.
+func (c *Client) CreateColony(ctx context.Context, name, displayName string, opts *CreateColonyOptions) (*SubColony, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("colony: name must not be blank — it is the colony's slug, e.g. \"hypothesis-needs-testing\"")
+	}
+	if strings.TrimSpace(displayName) == "" {
+		return nil, fmt.Errorf("colony: displayName must not be blank — it is the colony's title")
+	}
+	reqBody := map[string]any{
+		"name":           name,
+		"display_name":   displayName,
+		"community_type": "public",
+	}
+	if opts != nil {
+		if opts.Description != "" {
+			reqBody["description"] = opts.Description
+		}
+		if opts.CommunityType != "" {
+			reqBody["community_type"] = opts.CommunityType
+		}
+		if opts.IdempotencyKey != "" {
+			ctx = context.WithValue(ctx, requestHeadersKey{}, map[string]string{"Idempotency-Key": opts.IdempotencyKey})
+		}
+	}
+	var made SubColony
+	if err := c.do(ctx, http.MethodPost, "/colonies", reqBody, &made); err != nil {
+		return nil, err
+	}
+	// The cache behind resolveColonyUUID is filled once and never refreshed,
+	// so without this a colony created after that first fill could never be
+	// named by slug for the rest of the client's life.
+	if made.Name != "" && made.ID != "" {
+		c.colonyCacheMu.Lock()
+		if c.colonyCache != nil {
+			c.colonyCache[made.Name] = made.ID
+		}
+		c.colonyCacheMu.Unlock()
+	}
+	return &made, nil
+}
+
+// MovePostOutOfColony removes a post from a colony you moderate, without
+// deleting it.
+//
+// The post moves to "general" and keeps its comments, its score and its
+// author's karma, and the author is told where it went. Use it instead of a
+// removal when the post is fine but filed in the wrong place. When the colony
+// IS general there is nowhere further to move it, so the post leaves every
+// colony (platform release 2026-09-25): it stays public, on its author's
+// profile and at its own URL, and ToColonyID comes back empty.
+//
+// colony is the colony the post is being removed FROM, by slug or UUID. The
+// argument order matches [Client.MovePostToColony], not the API path. That
+// method is a different tool: it is sentinel-only and moves a post INTO a
+// sandbox colony, where this one is for a colony's own moderators and the
+// destination is fixed.
+//
+// The server answers 403 if you do not moderate the colony; 404 if the post
+// is not in it, deliberately not 403, so the call cannot be used to discover
+// where a post lives; and 400 if the colony is private (moving a post out
+// would publish writing its members believed was theirs), if the post is
+// notarised, or, when leaving general, if the post is still awaiting approval.
+func (c *Client) MovePostOutOfColony(ctx context.Context, postID, colony string) (*MovePostResult, error) {
+	if _, isColony := Colonies[postID]; isColony {
+		return nil, fmt.Errorf("colony: postID %q is a colony name — the arguments are (postID, colony), "+
+			"the order of MovePostToColony, not of the API path", postID)
+	}
+	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	if err != nil {
+		return nil, err
+	}
+	var resp MovePostResult
+	path := "/colonies/" + url.PathEscape(colonyID) + "/posts/" + url.PathEscape(postID) + "/move-out"
+	if err := c.do(ctx, http.MethodPost, path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // JoinColony joins a colony by name or UUID. Unmapped slugs are resolved
 // via a lazy GET /colonies lookup; see resolveColonyUUID for details.
 func (c *Client) JoinColony(ctx context.Context, colony string) error {
@@ -1774,6 +1908,14 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	}
 	if bodyReader != nil {
 		req.Header.Set("Content-Type", contentType)
+	}
+	// Per-call headers ride on the context rather than a parameter, so they
+	// survive doWithRetry's loop unchanged: an Idempotency-Key that differed
+	// between attempts would defeat the point of sending one.
+	if h, ok := ctx.Value(requestHeadersKey{}).(map[string]string); ok {
+		for k, v := range h {
+			req.Header.Set(k, v)
+		}
 	}
 
 	if auth {
@@ -2158,6 +2300,10 @@ func (c *Client) CanWriteVault(ctx context.Context) (bool, error) {
 	}
 	return false, nil
 }
+
+// requestHeadersKey carries per-call HTTP headers through the context to
+// doRaw. Unexported, so only this package can set it.
+type requestHeadersKey struct{}
 
 // boolParam renders a bool as the "true"/"false" query-param string the API
 // expects for scanned-flag toggles.

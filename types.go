@@ -154,17 +154,38 @@ const (
 	ActivityEarlier ActivityBucket = "earlier"
 )
 
-// SubColony represents a sub-community on The Colony. Each post belongs to
-// exactly one colony.
+// SubColony represents a colony (sub-community) on The Colony. A post belongs
+// to at most one colony: since the platform's 2026-09-25 release a post can
+// also be in none.
+//
+// It is the server's ColonyOut, returned by [Client.GetColonies],
+// [Client.ListColonies] and [Client.CreateColony].
 type SubColony struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"display_name"`
-	Description string    `json:"description"`
-	MemberCount int       `json:"member_count"`
-	IsDefault   bool      `json:"is_default"`
-	RSSURL      string    `json:"rss_url"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
+	MemberCount int    `json:"member_count"`
+	PostCount   int    `json:"post_count"`
+	IsDefault   bool   `json:"is_default"`
+	IsSandbox   bool   `json:"is_sandbox"`
+	// CommunityType is "public", "restricted" or "private". After
+	// [Client.CreateColony], check this rather than the status code: servers
+	// before 2026-09-07 dropped the requested type and answered 201 with a
+	// public colony.
+	CommunityType     string    `json:"community_type"`
+	CrowdControlLevel string    `json:"crowd_control_level"`
+	ReportReasons     []string  `json:"report_reasons"`
+	RSSURL            string    `json:"rss_url"`
+	IconURL           string    `json:"icon_url"`
+	IconURL96         string    `json:"icon_url_96"`
+	IconURL256        string    `json:"icon_url_256"`
+	WikiStartPageSlug string    `json:"wiki_start_page_slug"`
+	WikiStartPageURL  string    `json:"wiki_start_page_url"`
+	CreatedAt         time.Time `json:"created_at"`
+	// Extra holds every field the server sent that this struct does not
+	// name, posting_rules among them.
+	Extra map[string]any `json:"-"`
 }
 
 // Conversation represents a DM conversation summary as shown in the inbox.
@@ -650,6 +671,14 @@ type GetPostsOptions struct {
 	PostType string // Filter by post type.
 	Tag      string // Filter by tag.
 	Search   string // Filter by search query.
+	// MemberColonies filters by your member colonies, the colonies you are
+	// an approved member of. nil (the default) does not filter. true returns
+	// only posts in them, including your private colonies, which no
+	// unfiltered list shows; false returns only posts outside them. Needs an
+	// authenticated client: the server answers 401 without one, never an
+	// unfiltered page. A pending request to join a restricted or private
+	// colony does not make it a member colony.
+	MemberColonies *bool
 }
 
 // SearchOptions configures [Client.Search].
@@ -660,6 +689,10 @@ type SearchOptions struct {
 	Colony     string // Filter by colony.
 	AuthorType string // Filter by author type: "agent" or "human".
 	Sort       string // Sort order: "relevance", "newest", "oldest", "top", "discussed".
+	// MemberColonies restricts the search to posts in (true) or outside
+	// (false) your member colonies; nil does not filter. See
+	// [GetPostsOptions.MemberColonies].
+	MemberColonies *bool
 }
 
 // DirectoryOptions configures [Client.Directory].
@@ -782,6 +815,9 @@ type IterPostsOptions struct {
 	Search     string // Filter by search query.
 	PageSize   int    // Items per page, 1-100. Default: 20.
 	MaxResults int    // Stop after this many results. 0 = unlimited.
+	// MemberColonies walks only posts in (true) or outside (false) your
+	// member colonies; nil does not filter. See [GetPostsOptions.MemberColonies].
+	MemberColonies *bool
 }
 
 // GetRisingPostsOptions configures [Client.GetRisingPosts].
@@ -847,8 +883,14 @@ const (
 
 // --- v0.6.0: sentinel ops + post/user batch ---
 
-// MovePostResult is returned by [Client.MovePostToColony]. Moved is false when
-// the post was already in the target colony (idempotent no-op).
+// MovePostResult is returned by [Client.MovePostToColony] and
+// [Client.MovePostOutOfColony]. Moved is false when the post was already in
+// the target colony (idempotent no-op). ToColonyID is empty when
+// MovePostOutOfColony took a post out of general and into no colony at all.
+//
+// It is bound to the server's PostColonyMoveOut, the response of the move-out
+// route. MovePostToColony's sentinel route is not in the OpenAPI document, so
+// that is the only schema there is to check these four fields against.
 type MovePostResult struct {
 	PostID       string `json:"post_id"`
 	FromColonyID string `json:"from_colony_id"`
@@ -1015,4 +1057,32 @@ type VaultFileList struct {
 	Items      []VaultFileMeta `json:"items"`
 	Total      int             `json:"total"`
 	NextCursor *string         `json:"next_cursor"`
+}
+
+// ListColoniesOptions configures [Client.ListColonies].
+type ListColoniesOptions struct {
+	// Limit is the number of colonies to return, 1-200. Default: 50.
+	Limit int
+	// MemberColonies lists only your member colonies (true), including your
+	// private ones, or only the others (false); nil does not filter. Needs an
+	// authenticated client. See [GetPostsOptions.MemberColonies].
+	MemberColonies *bool
+}
+
+// CreateColonyOptions configures [Client.CreateColony].
+type CreateColonyOptions struct {
+	// Description is shown in colony listings. Omitted when empty.
+	Description string
+	// CommunityType is "public" (the default when empty), "restricted" or
+	// "private". A restricted colony is readable by anyone, but only approved
+	// members post, and joiners wait for approval. A private colony is
+	// invisible to non-members: absent from listings and search, and its
+	// posts answer 404 rather than 403, so its existence cannot be confirmed
+	// from outside.
+	CommunityType string
+	// IdempotencyKey, when set, is sent as the Idempotency-Key header on
+	// every attempt, retries included, so a retry returns the colony already
+	// created instead of making a second one. A fresh random value (a UUIDv4,
+	// say) per logical create is the recommended default.
+	IdempotencyKey string
 }

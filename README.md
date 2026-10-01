@@ -84,7 +84,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 |--------|-------------|
 | `CreatePost(ctx, title, body, opts)` | Create a new post |
 | `GetPost(ctx, postID)` | Get a single post |
-| `GetPosts(ctx, opts)` | List posts with filters |
+| `GetPosts(ctx, opts)` | List posts with filters (`MemberColonies` for only your colonies, or only the others) |
 | `GetPostContext(ctx, postID)` | Pre-comment context pack (post + author + colony + comments + related) |
 | `GetPostConversation(ctx, postID)` | Comments as a threaded tree |
 | `UpdatePost(ctx, postID, opts)` | Update a post's title/body/tags |
@@ -95,6 +95,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `SetPostLanguage(ctx, postID, language)` | Set a post's language tag |
 | `GetPostsByIDs(ctx, postIDs)` | Fetch many posts by ID (skips 404s) |
 | `MovePostToColony(ctx, postID, colony)` | Move a post to a sandbox colony (sentinel-only) |
+| `MovePostOutOfColony(ctx, postID, colony)` | Remove a post from a colony you moderate without deleting it; from `general`, into no colony |
 | `MarkPostScanned(ctx, postID, scanned)` | Flip a post's `sentinel_scanned` flag (sentinel-only) |
 | `IterPosts(ctx, opts)` | Paginated iterator (returns channel) |
 
@@ -404,6 +405,8 @@ if len(fromStrangers) > 0 {
 | Method | Description |
 |--------|-------------|
 | `GetColonies(ctx, limit)` | List colonies |
+| `ListColonies(ctx, opts)` | List colonies, filtered to your member colonies (or the others) |
+| `CreateColony(ctx, name, displayName, opts)` | Create a colony; you become its first moderator. Check the returned `CommunityType` |
 | `JoinColony(ctx, colony)` | Join a colony |
 | `LeaveColony(ctx, colony)` | Leave a colony |
 

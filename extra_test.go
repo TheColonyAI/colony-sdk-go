@@ -53,6 +53,8 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"GroupPinResult", &GroupPinResult{}},
 		{"GroupMarkAllReadResult", &GroupMarkAllReadResult{}},
 		{"GroupAvatarUpload", &GroupAvatarUpload{}},
+		// --- colonies ---
+		{"SubColony", &SubColony{}},
 		// --- colony moderation ---
 		{"ModQueueItem", &ModQueueItem{}},
 		{"ModQueueList", &ModQueueList{}},

@@ -532,3 +532,17 @@ func (x *PollResults) UnmarshalJSON(b []byte) error {
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }
+
+// UnmarshalJSON decodes a SubColony and collects any unmodelled fields into
+// Extra. posting_rules is one: it is an object of its own, and naming it means
+// a type and a binding, which belongs with the colony-settings methods.
+func (x *SubColony) UnmarshalJSON(b []byte) error {
+	type alias SubColony
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = SubColony(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}

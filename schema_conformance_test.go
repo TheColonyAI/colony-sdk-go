@@ -67,6 +67,11 @@ var schemaBindings = []schemaBinding{
 	{schema: "ClaimOut", goType: Claim{}},
 	{schema: "ColdBudgetWindow", goType: ColdBudgetWindow{}},
 	{schema: "CommentOut", goType: Comment{}},
+	{schema: "ColonyOut", goType: SubColony{},
+		optional: []string{"posting_rules"},
+		notes: "posting_rules is a $ref to ColonyPostingRulesOut; naming it means " +
+			"a type and a binding, which belongs with the colony-settings methods. " +
+			"It stays reachable through Extra."},
 	{schema: "ConversationOut", goType: Conversation{}},
 	{schema: "ConversationDetail", goType: ConversationDetail{}},
 	{
@@ -90,6 +95,9 @@ var schemaBindings = []schemaBinding{
 			"other would be worse than deferring both; they go together.",
 	},
 	{schema: "ForYouItemOut", goType: ForYouItem{}},
+	{schema: "PostColonyMoveOut", goType: MovePostResult{},
+		notes: "Also returned by MovePostToColony, whose sentinel route the OpenAPI " +
+			"document does not declare; this is the only schema with these four fields."},
 	{schema: "MessageOut", goType: Message{}},
 	{
 		schema: "AttachmentUploadOut", goType: MessageAttachment{},
@@ -616,7 +624,27 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // reason. That the total lands on 19 twice is a coincidence, and taking either
 // side's constant on faith would have hidden a changed set behind an unchanged
 // number.
-const unmodelledBaseline = 19
+//
+// --- colonies batch, 2026-10-01, against a REGENERATED snapshot --------
+// Raised 19 -> 29, deliberately. Adding ColonyOut and PostColonyMoveOut to
+// `wanted` meant regenerating the snapshot, which carried fifteen days of
+// platform drift since 2026-09-16. The ten fields below are NEW, measured by
+// diffing this test's unmodelled list across the two snapshots; the other
+// nineteen are the same set as before:
+//
+//	AgentRegisterConfirmResponse.next_steps
+//	Capability.api, Capability.mcp_tool
+//	ModQueueActionRequest.duration_days, ModQueueActionRequest.source
+//	NotificationOut.wiki_page_id, ReportOut.wiki_page_id
+//	SearchResults.wiki_pages
+//	WikiRevisionListItem.colony_name, WikiRevisionOut.colony_name
+//
+// None is modelled here. They belong to the wiki, moderation, registration
+// and capability surfaces, and folding them into a colonies PR would make
+// both harder to review. The two new bindings add NOTHING to the gap:
+// SubColony models every scalar ColonyOut field, posting_rules is declared
+// optional above, and MovePostResult matches PostColonyMoveOut exactly.
+const unmodelledBaseline = 29
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
