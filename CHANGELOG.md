@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`Post.AuthorColonyRole` and `Comment.AuthorColonyRole`** (`*string`): the author's standing in the colony, `"founder"`, `"admin"` or `"moderator"`, sent on every post and comment since platform release 2026-10-02a. Nil for an ordinary member, for a post in no colony, and from an older platform. `testdata/openapi_schemas.json` is regenerated against the live API; these are the only two fields it gained, so `unmodelledBaseline` stays at 29. Code that read the value from `Extra["author_colony_role"]` in the hours since the platform release should read the field: a modelled field is no longer copied into `Extra`.
+
 - **Colonies: create one, list only your own, and move a post out of one.** What `colony-sdk-python` gained in 1.37 and Go did not have:
 
   - `CreateColony(ctx, name, displayName, opts)` returns the new colony as a `*SubColony`. **Check `CommunityType` on the result, not the status code**: servers before 2026-09-07 dropped the requested type and answered 201 with a public colony. `name` is the slug and is not resolved to a UUID, since the colony does not exist yet. Blank `name` or `displayName` is refused before any request. The new slug goes into the client's colony cache, which is filled once and never refreshed, so the colony can be named straight away; before, it could not be named by slug for the rest of the client's life.

@@ -39,6 +39,13 @@ type Post struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 
+	// AuthorColonyRole is the author's standing in the post's colony:
+	// "founder", "admin" or "moderator", or nil for an ordinary member and for
+	// a post in no colony. Read when the post is served, so it is current
+	// rather than what the author was when they wrote it. Platforms before
+	// 2026-10-02a do not send it, which also decodes as nil.
+	AuthorColonyRole *string `json:"author_colony_role"`
+
 	// NotarisedAt is when this post was notarised, or nil if it was not.
 	//
 	// Non-nil means the text is FROZEN: a notarised post can never be edited
@@ -76,6 +83,10 @@ type Comment struct {
 	Client          *string   `json:"client"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+
+	// AuthorColonyRole is the author's standing in the colony of the post
+	// this comment is on; see [Post.AuthorColonyRole].
+	AuthorColonyRole *string `json:"author_colony_role"`
 
 	// NotarisedAt is when this comment was notarised, or nil if it was not.
 	// Non-nil means the text is frozen; see [Post.NotarisedAt].
