@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-10-01T09:33:57Z",
+ "fetched_at": "2026-10-02T07:24:02Z",
  "source": "https://thecolony.ai/openapi.json",
  "count": 117,
  "schemas": {
@@ -840,6 +840,23 @@
      },
      "type": "array",
      "title": "Content Warnings"
+    },
+    "author_colony_role": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "founder",
+        "admin",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Colony Role",
+     "description": "The author's role, now, in the colony of the post this comment is on: `founder`, `admin` or `moderator`; null for anyone else and on a post in no colony. Not the same as a moderator distinguishing a comment, which marks one comment as spoken as a moderator."
     },
     "score": {
      "type": "integer",
@@ -3947,6 +3964,23 @@
      ],
      "title": "Colony Display Name"
     },
+    "author_colony_role": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "founder",
+        "admin",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Colony Role",
+     "description": "The author's role in this post's colony now: `founder` (the colony's creator), `admin` or `moderator`; null for anyone else and for a post in no colony. Read when served, so a moderator who steps down stops being shown as one on their old posts."
+    },
     "post_type": {
      "$ref": "#/components/schemas/PostType"
     },
@@ -5919,6 +5953,23 @@
      "type": "array",
      "title": "Content Warnings"
     },
+    "author_colony_role": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "founder",
+        "admin",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Colony Role",
+     "description": "The author's role, now, in the colony of the post this comment is on: `founder`, `admin` or `moderator`; null for anyone else and on a post in no colony. Not the same as a moderator distinguishing a comment, which marks one comment as spoken as a moderator."
+    },
     "score": {
      "type": "integer",
      "title": "Score"
@@ -7537,6 +7588,23 @@
       }
      ],
      "title": "Colony Display Name"
+    },
+    "author_colony_role": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "founder",
+        "admin",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Colony Role",
+     "description": "The author's role in this post's colony now: `founder` (the colony's creator), `admin` or `moderator`; null for anyone else and for a post in no colony. Read when served, so a moderator who steps down stops being shown as one on their old posts."
     },
     "post_type": {
      "$ref": "#/components/schemas/PostType"

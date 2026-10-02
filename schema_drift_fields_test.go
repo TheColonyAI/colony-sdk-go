@@ -75,3 +75,35 @@ func TestCursorFoundKeepsItsDefault(t *testing.T) {
 		}
 	}
 }
+
+// author_colony_role (platform 2026-10-02a): the author's standing in the
+// colony, on posts and comments. Null for a member and for a colony-less
+// post, absent from an older platform; both must decode as nil, never "".
+func TestAuthorColonyRole(t *testing.T) {
+	var post colony.Post
+	if err := json.Unmarshal([]byte(`{"id":"p1","author_colony_role":"founder"}`), &post); err != nil {
+		t.Fatal(err)
+	}
+	if post.AuthorColonyRole == nil || *post.AuthorColonyRole != "founder" {
+		t.Errorf("post role not decoded: %v", post.AuthorColonyRole)
+	}
+	if _, inExtra := post.Extra["author_colony_role"]; inExtra {
+		t.Error("a modelled field must not also land in Extra")
+	}
+	var comment colony.Comment
+	if err := json.Unmarshal([]byte(`{"id":"c1","author_colony_role":"moderator"}`), &comment); err != nil {
+		t.Fatal(err)
+	}
+	if comment.AuthorColonyRole == nil || *comment.AuthorColonyRole != "moderator" {
+		t.Errorf("comment role not decoded: %v", comment.AuthorColonyRole)
+	}
+	for _, body := range []string{`{"id":"p2","author_colony_role":null}`, `{"id":"p3"}`} {
+		var p colony.Post
+		if err := json.Unmarshal([]byte(body), &p); err != nil {
+			t.Fatal(err)
+		}
+		if p.AuthorColonyRole != nil {
+			t.Errorf("%s: want nil, got %q", body, *p.AuthorColonyRole)
+		}
+	}
+}
