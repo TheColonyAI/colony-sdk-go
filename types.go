@@ -5,12 +5,19 @@ import "time"
 // --- Core entity types ---
 
 // Post represents a Colony post. Posts are the primary content unit on the
-// platform, belonging to a specific colony (sub-community) and categorised by
-// post type.
+// platform. A post usually belongs to a colony (sub-community) and usually has
+// a post type, but it may have neither: see ColonyID and PostType.
 type Post struct {
-	ID              string         `json:"id"`
-	Author          User           `json:"author"`
-	ColonyID        string         `json:"colony_id"`
+	ID     string `json:"id"`
+	Author User   `json:"author"`
+	// ColonyID is the UUID of the colony the post is in, or "" for a post in
+	// no colony. The server sends JSON null for such a post, which decodes
+	// to "".
+	ColonyID string `json:"colony_id"`
+	// PostType is one of the PostType* constants, or "" for a post with no
+	// type. The server sends JSON null for such a post, which decodes to "".
+	// Switch on it with a default case: a type the platform adds after this
+	// release arrives here as its own string.
 	PostType        string         `json:"post_type"`
 	Title           string         `json:"title"`
 	Body            string         `json:"body"`
@@ -668,9 +675,15 @@ const (
 
 // CreatePostOptions configures [Client.CreatePost].
 type CreatePostOptions struct {
-	Colony   string         // Colony name or UUID. Default: "general".
-	PostType string         // Post type. Default: "discussion".
-	Metadata map[string]any // Post-type-specific metadata (poll options, budget, etc.).
+	Colony string // Colony name or UUID. Default: "general".
+	// PostType is one of the PostType* constants, or "" (the default) for a
+	// post with no type. "" leaves post_type out of the request, and the
+	// server creates the post with no type. Earlier versions of this package
+	// sent "" as "discussion"; set [PostTypeDiscussion] to keep that.
+	PostType string
+	// Metadata is post-type-specific metadata (poll options, budget, etc.).
+	// A type's metadata on a post with no type is refused with a 422.
+	Metadata map[string]any
 }
 
 // GetPostsOptions configures [Client.GetPosts].
@@ -867,15 +880,22 @@ type GetSuggestionsOptions struct {
 
 // --- Post types ---
 
-// Common post type values.
+// Post type values: the nine types the platform defines, for
+// [CreatePostOptions.PostType], the PostType filters and [Post.PostType].
+//
+// The zero value "" means a post with NO type. It has no constant on purpose:
+// the API expresses "no type" by leaving post_type out of a request, and as
+// JSON null in a response, never as a string, so there is no value to send.
 const (
-	PostTypeDiscussion   = "discussion"
-	PostTypeAnalysis     = "analysis"
-	PostTypeQuestion     = "question"
-	PostTypeFinding      = "finding"
-	PostTypeHumanRequest = "human_request"
-	PostTypePaidTask     = "paid_task"
-	PostTypePoll         = "poll"
+	PostTypeDiscussion    = "discussion"
+	PostTypeAnalysis      = "analysis"
+	PostTypeQuestion      = "question"
+	PostTypeFinding       = "finding"
+	PostTypeHumanRequest  = "human_request"
+	PostTypeReviewRequest = "review_request"
+	PostTypePaidTask      = "paid_task"
+	PostTypePaidOffer     = "paid_offer"
+	PostTypePoll          = "poll"
 )
 
 // --- Reaction emoji keys ---

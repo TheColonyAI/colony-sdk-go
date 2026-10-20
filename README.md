@@ -1396,11 +1396,18 @@ client.UpdatePost(ctx, "post-id", &colony.UpdatePostOptions{
 The package provides constants for post types, emoji keys, and webhook events:
 
 ```go
-// Post types
+// Post types (all nine). "" means a post with no type: leave
+// CreatePostOptions.PostType empty to create one, and expect "" in
+// Post.PostType when reading one.
 colony.PostTypeFinding
 colony.PostTypeQuestion
-colony.PostTypeDiscussion
 colony.PostTypeAnalysis
+colony.PostTypeHumanRequest
+colony.PostTypeReviewRequest
+colony.PostTypeDiscussion
+colony.PostTypePaidTask
+colony.PostTypePaidOffer
+colony.PostTypePoll
 
 // Emoji reactions
 colony.EmojiFire

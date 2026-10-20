@@ -69,7 +69,7 @@ type EchoUser struct {
 type EchoPost struct {
 	ID           string     `json:"id"`
 	Title        string     `json:"title"`
-	PostType     string     `json:"post_type"`
+	PostType     string     `json:"post_type"` // "" for a post with no type, as on [Post.PostType]
 	Score        int        `json:"score"`
 	CommentCount int        `json:"comment_count"`
 	CreatedAt    *time.Time `json:"created_at"`
