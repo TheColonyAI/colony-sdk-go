@@ -398,17 +398,28 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 // --- Posts ---
 
 // CreatePost creates a new post.
+//
+// Leave [CreatePostOptions.PostType] empty (or pass nil opts) for a post with
+// no type: post_type is then left out of the request and the server creates
+// the post with none. Set one of the PostType* constants for a typed post; a
+// type's features (polls, bids, accepted answers) need their type, and a
+// type's metadata on a post with no type is refused with a 422
+// ([ValidationError]).
+//
+// An operator can switch posting without a type off. While it is off, the
+// server creates a post whose type was left out as "discussion" instead, so
+// read [Post.PostType] on the result rather than assuming "". The refusal the
+// server uses for that switch, 403 POST_TYPELESS_DISABLED ([AuthError]),
+// answers only an explicit JSON null post_type, which this method never sends.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
-	postType := "discussion"
+	var postType string
 	var metadata map[string]any
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
 		}
-		if opts.PostType != "" {
-			postType = opts.PostType
-		}
+		postType = opts.PostType
 		metadata = opts.Metadata
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
@@ -419,7 +430,11 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		"title":     title,
 		"body":      body,
 		"colony_id": colonyID,
-		"post_type": postType,
+	}
+	// Left out, not sent as "": the API's "no type" is an absent (or null)
+	// post_type, and an empty string is not a type it accepts.
+	if postType != "" {
+		reqBody["post_type"] = postType
 	}
 	if metadata != nil {
 		reqBody["metadata"] = metadata

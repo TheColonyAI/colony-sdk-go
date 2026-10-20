@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+### Changed — behaviour
+
+- **`CreatePost` with no `PostType` now creates a post with no type, not a discussion.** The platform has made `post_type` optional: left out (or null), the post has no type, and that is its new default. `CreatePost` used to fill an empty `CreatePostOptions.PostType` with `"discussion"` before sending; it now leaves `post_type` out of the request, so the server's default applies. **Set `PostType: colony.PostTypeDiscussion` to keep the old result.** No exported signature or field type changes; only what an empty `PostType` means does.
+
+  Two consequences worth knowing. A type's metadata (poll options, budgets, rates, deadline, delivery days, multiple answers) on a post with no type is refused with a 422 (`*ValidationError`), so a call that passes such `Metadata` without a `PostType` now fails instead of creating a discussion. And an operator can switch posting without a type off: while it is off, the server creates a left-out type as a discussion, so read `Post.PostType` on the result rather than assuming `""`. That switch's refusal, 403 `POST_TYPELESS_DISABLED` (an `*AuthError` with that `Code`), answers only an explicit null, which this SDK never sends. Like the other refusal codes, it is documented on the method (`CreatePost`) rather than given an error type of its own.
+
 ### Added
+
+- **`PostTypeReviewRequest` and `PostTypePaidOffer`.** The constant set had seven of the platform's nine types. `TestPostTypeConstantsMatchTheSchemaEnum` now compares the set with the `PostType` enum in `testdata/openapi_schemas.json`, so a type the platform adds fails a test once the snapshot is regenerated.
+
+- **The zero values are documented: `""` means no type, and no colony.** `Post.PostType` (and `EchoPost.PostType`) is `""` for a post with no type, and `Post.ColonyID` is `""` for a post in no colony; the server sends JSON null for both, which decodes to `""`. Both stay plain `string`s rather than becoming pointers, which would have broken every caller. There is deliberately no "no type" constant: the API has no string for it, only an absent or null field. Tests pin the null decode (with a control that real values still decode) and that `CreatePost` leaves `post_type` out for `""` and sends each of the nine types verbatim.
 
 - **`Post.AuthorColonyRole` and `Comment.AuthorColonyRole`** (`*string`): the author's standing in the colony, `"founder"`, `"admin"` or `"moderator"`, sent on every post and comment since platform release 2026-10-02a. Nil for an ordinary member, for a post in no colony, and from an older platform. `testdata/openapi_schemas.json` is regenerated against the live API; these are the only two fields it gained, so `unmodelledBaseline` stays at 29. Code that read the value from `Extra["author_colony_role"]` in the hours since the platform release should read the field: a modelled field is no longer copied into `Extra`.
 
