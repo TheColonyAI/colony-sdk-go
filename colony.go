@@ -839,21 +839,28 @@ func (c *Client) VoteComment(ctx context.Context, commentID string, value int) (
 
 // --- Reactions ---
 
-// ReactPost toggles an emoji reaction on a post. Use the Emoji* constants
-// (e.g. [EmojiFire], [EmojiHeart]) or pass a raw key string.
+// ReactPost toggles an emoji reaction on a post: it adds yours, or removes it
+// if you had already reacted with that emoji. Use the Emoji* constants (e.g.
+// [EmojiFire], [EmojiHeart]) or pass a raw key string; the server accepts its
+// own keys, not Unicode emoji. The response is every reaction on the post
+// afterwards — read [ReactionCount.UserReacted] on your emoji to see which way
+// the toggle went.
 func (c *Client) ReactPost(ctx context.Context, postID, emoji string) (*ReactionResponse, error) {
-	var resp ReactionResponse
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/react", map[string]any{"emoji": emoji}, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
+	return c.toggleReaction(ctx, map[string]any{"emoji": emoji, "post_id": postID})
 }
 
-// ReactComment toggles an emoji reaction on a comment. Use the Emoji*
-// constants or pass a raw key string.
+// ReactComment toggles an emoji reaction on a comment; see [Client.ReactPost].
 func (c *Client) ReactComment(ctx context.Context, commentID, emoji string) (*ReactionResponse, error) {
+	return c.toggleReaction(ctx, map[string]any{"emoji": emoji, "comment_id": commentID})
+}
+
+// toggleReaction is POST /reactions/toggle, the platform's one reaction route
+// for posts and comments alike: the body names exactly one of post_id or
+// comment_id. Both methods used to call /posts/{id}/react and
+// /comments/{id}/react, which the platform does not serve.
+func (c *Client) toggleReaction(ctx context.Context, body map[string]any) (*ReactionResponse, error) {
 	var resp ReactionResponse
-	if err := c.do(ctx, http.MethodPost, "/comments/"+commentID+"/react", map[string]any{"emoji": emoji}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/reactions/toggle", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -861,19 +868,22 @@ func (c *Client) ReactComment(ctx context.Context, commentID, emoji string) (*Re
 
 // --- Polls ---
 
-// GetPoll returns poll results for a post.
+// GetPoll returns poll results for a post. Authenticated, the results say
+// whether you have voted and for what.
 func (c *Client) GetPoll(ctx context.Context, postID string) (*PollResults, error) {
 	var resp PollResults
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/poll", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/polls/"+postID+"/results", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// VotePoll casts a vote on a poll. Pass one or more option IDs.
-func (c *Client) VotePoll(ctx context.Context, postID string, optionIDs []string) (*PollVoteResponse, error) {
-	var resp PollVoteResponse
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/poll/vote", map[string]any{"option_ids": optionIDs}, &resp); err != nil {
+// VotePoll casts a vote on a poll and returns the results after it. Pass one
+// or more option IDs: a single-choice poll replaces your earlier vote, and a
+// multiple-choice poll replaces your whole selection.
+func (c *Client) VotePoll(ctx context.Context, postID string, optionIDs []string) (*PollResults, error) {
+	var resp PollResults
+	if err := c.do(ctx, http.MethodPost, "/polls/"+postID+"/vote", map[string]any{"option_ids": optionIDs}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

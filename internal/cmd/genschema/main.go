@@ -52,6 +52,8 @@ var wanted = []string{
 	"AgentEmailStatusResponse",
 	"AgentRegisterBeginResponse",
 	"AgentRegisterConfirmResponse",
+	"ReactionCount",
+	"ReactionSummary",
 	"RecoverKeyConfirmResponse",
 	"SetAgentEmailResponse",
 	"TwoFactorConfirmResponse",
@@ -124,6 +126,7 @@ var wanted = []string{
 	"NotificationBatchDeleteOut",
 	"NotificationDeleteReadOut",
 	"PageMeta",
+	"PollResultOption",
 	"PollResults",
 	"PostOut",
 	"ReportOut",
@@ -287,6 +290,24 @@ func run() error {
 		return fmt.Errorf("spec declares 0 resolvable operations — refusing to rewrite")
 	}
 
+	// routes is every "METHOD /path" the document declares, whatever it
+	// answers. operations above keeps only the ones with a named response
+	// schema (475 of 599 on 2026-10-21), so it cannot say whether a route
+	// exists at all. TestEveryRequestedRouteIsDeclared reads this list: four
+	// methods called routes the platform does not serve, from the first
+	// release until 2026-10-21, and every unit test passed because each
+	// mocked the route its method called.
+	routes := []string{}
+	for path, byMethod := range spec.Paths {
+		for method := range byMethod {
+			switch strings.ToLower(method) {
+			case "get", "post", "put", "patch", "delete":
+				routes = append(routes, strings.ToUpper(method)+" "+path)
+			}
+		}
+	}
+	sort.Strings(routes)
+
 	doc := struct {
 		FetchedAt  string                     `json:"fetched_at"`
 		Source     string                     `json:"source"`
@@ -294,7 +315,8 @@ func run() error {
 		Schemas    map[string]json.RawMessage `json:"schemas"`
 		Refs       map[string]json.RawMessage `json:"refs"`
 		Operations map[string]string          `json:"operations"`
-	}{time.Now().UTC().Format(time.RFC3339), specURL, len(out), out, refs, ops}
+		Routes     []string                   `json:"routes"`
+	}{time.Now().UTC().Format(time.RFC3339), specURL, len(out), out, refs, ops, routes}
 
 	b, err := json.MarshalIndent(doc, "", " ")
 	if err != nil {
@@ -303,8 +325,8 @@ func run() error {
 	if err := os.WriteFile("testdata/openapi_schemas.json", append(b, '\n'), 0o644); err != nil {
 		return err
 	}
-	fmt.Printf("wrote %d schemas (+%d referenced) of %d in the document, and %d operations\n",
-		len(out), len(refs), len(all), len(ops))
+	fmt.Printf("wrote %d schemas (+%d referenced) of %d in the document, %d operations, and %d routes\n",
+		len(out), len(refs), len(all), len(ops), len(routes))
 	return nil
 }
 

@@ -246,15 +246,24 @@ func TestVotePost(t *testing.T) {
 	}
 }
 
+// reactionSummary is the shape POST /reactions/toggle answers (ReactionSummary).
+var reactionSummary = map[string]any{"reactions": []map[string]any{
+	{"emoji": "fire", "emoji_char": "\U0001F525", "count": 3, "user_reacted": true},
+	{"emoji": "heart", "emoji_char": "\u2764", "count": 1, "user_reacted": false},
+}}
+
+// TestReactPost pins the route as well as the decode. Until 2026-10-21 this
+// test served POST /posts/p1/react, a route the platform does not serve, so
+// the method passed here and 404'd against the real API.
 func TestReactPost(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
-		"POST /posts/p1/react": func(w http.ResponseWriter, r *http.Request) {
+		"POST /reactions/toggle": func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
-			if body["emoji"] != "fire" {
-				t.Errorf("expected emoji fire, got %v", body["emoji"])
+			if body["emoji"] != "fire" || body["post_id"] != "p1" || len(body) != 2 {
+				t.Errorf("want exactly {emoji: fire, post_id: p1}, got %v", body)
 			}
-			jsonResp(w, map[string]any{"toggled": true})
+			jsonResp(w, reactionSummary)
 		},
 	}))
 
@@ -262,14 +271,20 @@ func TestReactPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.Toggled {
-		t.Error("expected toggled=true")
+	if len(resp.Reactions) != 2 {
+		t.Fatalf("want 2 reaction rows, got %+v", resp.Reactions)
+	}
+	if r := resp.Reactions[0]; r.Emoji != "fire" || r.EmojiChar != "\U0001F525" || r.Count != 3 || !r.UserReacted {
+		t.Errorf("first row not decoded: %+v", r)
+	}
+	if resp.Reactions[1].UserReacted {
+		t.Error("user_reacted false must decode as false")
 	}
 }
 
 func TestGetPoll(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
-		"GET /posts/p1/poll": func(w http.ResponseWriter, r *http.Request) {
+		"GET /polls/p1/results": func(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, map[string]any{
 				"options":     []map[string]any{{"id": "o1", "text": "Yes", "vote_count": 3}},
 				"total_votes": 3,

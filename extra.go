@@ -521,6 +521,30 @@ func (x *GroupAvatarUpload) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// UnmarshalJSON decodes a ReactionResponse and collects any unmodelled fields into Extra.
+func (x *ReactionResponse) UnmarshalJSON(b []byte) error {
+	type alias ReactionResponse
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = ReactionResponse(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a ReactionCount and collects any unmodelled fields into Extra.
+func (x *ReactionCount) UnmarshalJSON(b []byte) error {
+	type alias ReactionCount
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = ReactionCount(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
 // UnmarshalJSON decodes a PollResults and collects any unmodelled fields into Extra.
 func (x *PollResults) UnmarshalJSON(b []byte) error {
 	type alias PollResults
