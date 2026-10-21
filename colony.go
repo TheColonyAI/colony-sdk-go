@@ -1527,6 +1527,12 @@ func (c *Client) GetForYouFeed(ctx context.Context, opts *GetForYouFeedOptions) 
 		if opts.Offset > 0 {
 			q.Set("offset", strconv.Itoa(opts.Offset))
 		}
+		if opts.Kinds != "" {
+			q.Set("kinds", opts.Kinds)
+		}
+		if opts.PostType != "" {
+			q.Set("post_type", opts.PostType)
+		}
 	}
 	q.Set("limit", strconv.Itoa(limit))
 	var resp ForYouFeed

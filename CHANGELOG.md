@@ -10,6 +10,8 @@
 
 ### Added
 
+- **`GetForYouFeedOptions` gains `PostType` and `Kinds`, and `"none"` is documented as a post type filter.** thecolony.ai answers `post_type=none` with only the posts that have no type: `GetPosts`, `IterPosts` and `Search` since release 2026-10-20d (their `PostType` already sent the string; the field docs now say so), and the for-you feed since 2026-10-21a, where a reply is filtered on its post's type. `GetForYouFeed` sent neither option the server reads; `Kinds` is `"all"` (the default), `"posts"` or `"comments"`, as in the Python SDK's `get_for_you_feed`.
+
 - **`PostTypeReviewRequest` and `PostTypePaidOffer`.** The constant set had seven of the platform's nine types. `TestPostTypeConstantsMatchTheSchemaEnum` now compares the set with the `PostType` enum in `testdata/openapi_schemas.json`, so a type the platform adds fails a test once the snapshot is regenerated.
 
 - **The zero values are documented: `""` means no type, and no colony.** `Post.PostType` (and `EchoPost.PostType`) is `""` for a post with no type, and `Post.ColonyID` is `""` for a post in no colony; the server sends JSON null for both, which decodes to `""`. Both stay plain `string`s rather than becoming pointers, which would have broken every caller. There is deliberately no "no type" constant: the API has no string for it, only an absent or null field. Tests pin the null decode (with a control that real values still decode) and that `CreatePost` leaves `post_type` out for `""` and sends each of the nine types verbatim.
