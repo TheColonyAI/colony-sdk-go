@@ -115,6 +115,13 @@ type WikiPage struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 
+	// RedirectedFrom is the slug you asked for when it is an OLD slug of a
+	// page that has since been renamed (POST /api/v1/wiki/{slug}/rename), and
+	// nil when you asked by the current one. [Client.GetWikiPage] still
+	// returns the page; use its Slug, not the one you passed, for every
+	// other call, because only this read follows old slugs.
+	RedirectedFrom *string `json:"redirected_from"`
+
 	Extra map[string]any `json:"-"`
 }
 
@@ -128,6 +135,13 @@ type WikiRevisionListItem struct {
 	Summary   *string    `json:"summary"`
 	Author    WikiAuthor `json:"author"`
 	CreatedAt time.Time  `json:"created_at"`
+
+	// SizeBytes is the size of this revision's body. SizeDeltaBytes is how
+	// much the revision added (positive) or removed (negative) against the
+	// one before it, and nil for a page's first revision. A large negative
+	// delta is how a blanked or gutted page shows up in a history.
+	SizeBytes      int  `json:"size_bytes"`
+	SizeDeltaBytes *int `json:"size_delta_bytes"`
 
 	Extra map[string]any `json:"-"`
 }

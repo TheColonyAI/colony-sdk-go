@@ -159,6 +159,7 @@ var schemaBindings = []schemaBinding{
 	// including six this SDK already calls.
 	{op: "GET /api/v1/colonies/{colony_id}/queue", goType: ModQueueList{}},
 	{schema: "ModQueueItemOut", goType: ModQueueItem{}},
+	{schema: "ModQueueUserOut", goType: ModQueueUser{}},
 	{schema: "ModQueueActionRequest", goType: ModQueueActionRequest{}},
 	{op: "POST /api/v1/colonies/{colony_id}/queue/action", goType: ModQueueActionResult{}},
 	{schema: "ModQueueBulkRequest", goType: ModQueueBulkRequest{}},
@@ -671,7 +672,14 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // either side's constant across. ColonyOut.is_core (platform 2026-10-21) is
 // newer than #68's snapshot and is modelled nowhere yet. The two new bindings
 // add nothing to the gap: PostHistory and PostVersion model every field.
-const unmodelledBaseline = 43
+//
+// --- catalogue drift (#68), 2026-10-22, rebased onto the above -----------
+// Lowered 43 -> 30, measured, not carried across. The snapshot was
+// regenerated again after the rebase, and differs from the one above only by
+// ModQueueUserOut, which this change binds. The first thirteen fields listed
+// above are modelled here; the one left from that list is ColonyOut.is_core,
+// which is modelled nowhere yet.
+const unmodelledBaseline = 30
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

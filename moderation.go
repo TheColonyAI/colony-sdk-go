@@ -144,6 +144,29 @@ type ModQueueItem struct {
 	// keys vary by SourceKind.
 	Payload map[string]any `json:"payload"`
 
+	// Author and Reporter are the row's author and reporter, each nil where
+	// the row has none. PostID and PostTitle name the post the row concerns,
+	// nil where there is none. Text is the server's text for the row and
+	// TextTruncated whether it was cut. The schema names these six fields and
+	// says nothing more about them (it does not say how Text differs from
+	// Excerpt), so this package passes them through without interpreting
+	// them.
+	Author        *ModQueueUser `json:"author"`
+	Reporter      *ModQueueUser `json:"reporter"`
+	PostID        *string       `json:"post_id"`
+	PostTitle     *string       `json:"post_title"`
+	Text          string        `json:"text"`
+	TextTruncated bool          `json:"text_truncated"`
+
+	Extra map[string]any `json:"-"`
+}
+
+// ModQueueUser is the author or reporter on a [ModQueueItem].
+type ModQueueUser struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+
 	Extra map[string]any `json:"-"`
 }
 
@@ -1154,6 +1177,18 @@ func (x *ModQueueItem) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*x = ModQueueItem(a)
+	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	return nil
+}
+
+// UnmarshalJSON decodes a ModQueueUser and collects any unmodelled fields into Extra.
+func (x *ModQueueUser) UnmarshalJSON(b []byte) error {
+	type alias ModQueueUser
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*x = ModQueueUser(a)
 	x.Extra = extraFields(b, reflect.TypeOf(*x))
 	return nil
 }

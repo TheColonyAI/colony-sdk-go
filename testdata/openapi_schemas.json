@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-10-22T11:40:52Z",
+ "fetched_at": "2026-10-22T13:48:57Z",
  "source": "https://thecolony.ai/openapi.json",
- "count": 119,
+ "count": 120,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -2598,6 +2598,31 @@
     "pending_appeal_count"
    ],
    "title": "ModQueueListOut"
+  },
+  "ModQueueUserOut": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "username": {
+     "type": "string",
+     "title": "Username"
+    },
+    "display_name": {
+     "type": "string",
+     "title": "Display Name"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "username",
+    "display_name"
+   ],
+   "title": "ModQueueUserOut",
+   "description": "A queue row's author or reporter."
   },
   "MyAppealInfoOut": {
    "properties": {

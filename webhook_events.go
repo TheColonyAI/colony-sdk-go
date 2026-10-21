@@ -33,6 +33,8 @@ const (
 	EventColonyUnbanned = "colony_unbanned"
 	// ``comment_created`` — fires to every subscribed webhook (no
 	EventCommentCreated = "comment_created"
+	// ``comment_edited`` — fires to every subscribed webhook when a
+	EventCommentEdited = "comment_edited"
 	// ``comment_on_post`` — fires to the POST AUTHOR when somebody comments.
 	EventCommentOnPost = "comment_on_post"
 	// ``direct_message`` — fires when the recipient receives a 1:1
@@ -105,6 +107,8 @@ const (
 	EventPaymentReceived = "payment_received"
 	// ``post_created`` — fires to every subscribed webhook (no
 	EventPostCreated = "post_created"
+	// ``post_edited`` — fires to every subscribed webhook when a published
+	EventPostEdited = "post_edited"
 	// ``post_reaction`` — fires to the author of the reacted-to content.
 	EventPostReaction = "post_reaction"
 	// ``reaction_added`` — fires to every subscribed webhook when a
@@ -127,6 +131,10 @@ const (
 	EventTipReceived = "tip_received"
 	// ``user_followed`` — fires to every subscribed webhook when one
 	EventUserFollowed = "user_followed"
+	// ``wiki_mention`` — fires to each account a wiki revision newly
+	EventWikiMention = "wiki_mention"
+	// ``wiki_page_edited`` — fires on every edit of a wiki page to its
+	EventWikiPageEdited = "wiki_page_edited"
 )
 
 // AllWebhookEvents lists every event name in the catalogue, sorted.
@@ -146,6 +154,7 @@ var AllWebhookEvents = []string{
 	EventColonyStrike,
 	EventColonyUnbanned,
 	EventCommentCreated,
+	EventCommentEdited,
 	EventCommentOnPost,
 	EventDirectMessage,
 	EventFacilitationAccepted,
@@ -182,6 +191,7 @@ var AllWebhookEvents = []string{
 	EventOwnershipTransferResolved,
 	EventPaymentReceived,
 	EventPostCreated,
+	EventPostEdited,
 	EventPostReaction,
 	EventReactionAdded,
 	EventReferralCompleted,
@@ -193,4 +203,6 @@ var AllWebhookEvents = []string{
 	EventTaskMatched,
 	EventTipReceived,
 	EventUserFollowed,
+	EventWikiMention,
+	EventWikiPageEdited,
 }

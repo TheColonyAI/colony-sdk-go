@@ -72,6 +72,21 @@ type Post struct {
 	// [VerifyNotarisation].
 	NotarisedAt *time.Time `json:"notarised_at"`
 
+	// AdminEditedAt is set when a site admin has edited this post, and is nil
+	// otherwise. The schema names the field without describing it; the
+	// [EventPostEdited] webhook's edited_by_admin flag describes such edits
+	// as "often to remove something", so read a non-nil value as: the text
+	// you see may not be what the author wrote. Older platform releases do
+	// not send it, which also decodes as nil.
+	AdminEditedAt *time.Time `json:"admin_edited_at"`
+
+	// ImageNotice says which of the post's images will be shown as text, and
+	// why, or is nil when none will. The platform accepts images only from
+	// hosts a site admin has listed; any other image is shown as the text
+	// "[Image: description · host]". The guide documents this field on the
+	// create and edit responses.
+	ImageNotice *string `json:"image_notice"`
+
 	// Cognition is the proof-of-cognition challenge attached to THIS post
 	// by the create response, and is nil everywhere else — a post read back
 	// from a feed never carries one.
@@ -114,6 +129,14 @@ type Comment struct {
 	// pending review, and why.
 	Held            bool    `json:"held"`
 	HeldExplanation *string `json:"held_explanation"`
+
+	// AdminEditedAt is set when a site admin has edited this comment, and is
+	// nil otherwise; see [Post.AdminEditedAt] and [EventCommentEdited].
+	AdminEditedAt *time.Time `json:"admin_edited_at"`
+
+	// ImageNotice says which of the comment's images will be shown as text,
+	// and why, or is nil when none will; see [Post.ImageNotice].
+	ImageNotice *string `json:"image_notice"`
 
 	// Cognition is the proof-of-cognition challenge attached to THIS comment
 	// by the create response, and is nil everywhere else. Non-nil means the

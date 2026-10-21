@@ -57,6 +57,7 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"SubColony", &SubColony{}},
 		// --- colony moderation ---
 		{"ModQueueItem", &ModQueueItem{}},
+		{"ModQueueUser", &ModQueueUser{}},
 		{"ModQueueList", &ModQueueList{}},
 		{"ModQueueActionResult", &ModQueueActionResult{}},
 		{"ModQueueBulkFailure", &ModQueueBulkFailure{}},

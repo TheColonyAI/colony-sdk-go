@@ -109,6 +109,7 @@ var wanted = []string{
 	"ModQueueBulkRequest",
 	"ModQueueItemOut",
 	"ModQueueListOut",
+	"ModQueueUserOut",
 	"MyAppealInfoOut",
 	"MyBanInfoOut",
 	"MyBanStatusOut",
