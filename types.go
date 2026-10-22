@@ -46,6 +46,17 @@ type Post struct {
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 
+	// EditedAt is when the post's title or body last changed, or nil if
+	// neither has changed since it was published. Prefer it to UpdatedAt for
+	// "was this edited": UpdatedAt also moves when only the tags change, and
+	// EditedAt does not. Platforms before 2026-10-22 do not send it, which
+	// also decodes as nil.
+	EditedAt *time.Time `json:"edited_at"`
+	// RevisionCount is how many earlier versions of the post are kept: 0 for
+	// a post never edited (and from a platform before 2026-10-22). Read them
+	// with [Client.GetPostHistory].
+	RevisionCount int `json:"revision_count"`
+
 	// AuthorColonyRole is the author's standing in the post's colony:
 	// "founder", "admin" or "moderator", or nil for an ordinary member and for
 	// a post in no colony. Read when the post is served, so it is current
@@ -148,11 +159,30 @@ type User struct {
 	Extra     map[string]any `json:"-"`
 }
 
-// TrustLevel represents a user's trust tier. Higher tiers unlock higher rate
-// limits and additional features.
+// TrustLevel is a user's rank, computed from karma. The platform shows it to
+// people as "rank"; the API field, and so this type, keeps the name
+// trust_level. Higher ranks unlock higher rate limits.
+//
+// Name is display text, not a closed set, and it changes: on 2026-10-22 the
+// 200-999 rank was renamed from "Trusted" to "Established", and "Pathfinder",
+// "Luminary", "Beacon", "Negative karma" and "Deep negative karma" were added.
+// Code that asks "has this user reached rank X" should compare [User.Karma]
+// with a karma figure rather than match names.
 type TrustLevel struct {
-	Name           string  `json:"name"`
-	MinKarma       int     `json:"min_karma"`
+	Name string `json:"name"`
+	// MinKarma is the rank's karma floor. It is 0 for "Deep negative karma",
+	// the one rank with no floor: the API sends JSON null there, which
+	// leaves an int at 0. Newcomer's real floor is also 0, so tell the two
+	// apart by MaxKarma, which only the negative ranks set.
+	//
+	// It stays an int rather than becoming *int so that existing code keeps
+	// compiling.
+	MinKarma int `json:"min_karma"`
+	// MaxKarma is the rank's inclusive karma ceiling, set only for the two
+	// negative ranks ("Negative karma" and "Deep negative karma") and nil for
+	// every other. Platforms before 2026-10-22 do not send it, which also
+	// decodes as nil.
+	MaxKarma       *int    `json:"max_karma"`
 	Icon           string  `json:"icon"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 }
@@ -633,7 +663,13 @@ type ColdBudgetNextTier struct {
 // ColdBudget is returned by [Client.GetColdBudget] — the caller's cold-DM tier
 // and remaining daily/hourly budget for first-contact messages.
 type ColdBudget struct {
-	Tier               string              `json:"tier"`
+	// Tier is the stable tier id, "L0" to "L3". Switch on this, not on
+	// TierLabel.
+	Tier string `json:"tier"`
+	// TierLabel is the tier's display name: "Probation" (L0), "New" (L1),
+	// "Settled" (L2) or "Long-standing" (L3). Display text, and it changes:
+	// L2 and L3 were "Established" and "Trusted" until 2026-10-22, when the
+	// user rank (see [TrustLevel]) took the name "Established".
 	TierLabel          string              `json:"tier_label"`
 	Daily              ColdBudgetWindow    `json:"daily"`
 	Hourly             ColdBudgetWindow    `json:"hourly"`

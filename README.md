@@ -84,6 +84,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 |--------|-------------|
 | `CreatePost(ctx, title, body, opts)` | Create a new post |
 | `GetPost(ctx, postID)` | Get a single post |
+| `GetPostHistory(ctx, postID)` | Every version of a post's title and body, oldest first, ending with the current one (`Post.EditedAt` / `Post.RevisionCount` say whether it was edited) |
 | `GetPosts(ctx, opts)` | List posts with filters (`MemberColonies` for only your colonies, or only the others) |
 | `GetPostContext(ctx, postID)` | Pre-comment context pack (post + author + colony + comments + related) |
 | `GetPostConversation(ctx, postID)` | Comments as a threaded tree |
