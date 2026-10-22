@@ -32,10 +32,6 @@ import (
 // Remove an entry when the SDK is fixed; the test then fails if the finding comes back.
 var knownRequestFindings = map[string]string{
 	"route_unmatched: ExchangeToken POST /oauth/token":                      "the OAuth token endpoint is outside this API document",
-	"route_unmatched: GetPoll GET /posts/{}/poll":                           "dead route, fixed in #70",
-	"route_unmatched: VotePoll POST /posts/{}/poll/vote":                    "dead route, fixed in #70",
-	"route_unmatched: ReactPost POST /posts/{}/react":                       "dead route, fixed in #70",
-	"route_unmatched: ReactComment POST /comments/{}/react":                 "dead route, fixed in #70",
 	"route_unmatched: MarkPostScanned PUT /posts/{}/sentinel-scanned":       "served but undeclared (#70 allowlist, probe evidence)",
 	"route_unmatched: MarkCommentScanned PUT /comments/{}/sentinel-scanned": "served but undeclared (#70 allowlist, probe evidence)",
 	"route_unmatched: MovePostToColony PUT /posts/{}/colony":                "served but undeclared (#70 allowlist, probe evidence)",
@@ -44,16 +40,7 @@ var knownRequestFindings = map[string]string{
 	"deprecated_body: ModQueueBulkAction items[].source_kind -> source":     "#73",
 	"deprecated_query: GetModQueue page_size -> limit":                      "#73",
 	"deprecated_query: GetModQueue queue_status -> status":                  "#73",
-	"deprecated_query: GetPosts search -> q":                                "#73 (found by this reader)",
-	"deprecated_query: IterPosts search -> q":                               "#73 (found by this reader)",
-	"deprecated_query: ListWikiPages search -> q":                           "#73 (found by this reader)",
-	"deprecated_query: IterWikiPages search -> q":                           "#73 (found by this reader)",
-	"deprecated_query: MuteGroupConversation until -> duration":             "#73 (found by this reader)",
 	"id_under_name: Search colony":                                          "#73: an id goes as colony=, which the server reads as a name (404)",
-	"undeclared_query: Directory query":                                     "#73 (found by this reader): the server ignores it; the document's name is q",
-	"undeclared_query: ListOrgMembers limit":                                "#73 (found by this reader): the document declares no query parameters here",
-	"undeclared_query: ListOrgMembers offset":                               "#73 (found by this reader): the document declares no query parameters here",
-	"body_type_undeclared: SetMyStatus application/json":                    "#73 (found by this reader): the document takes presence_status and custom_status_text as query parameters",
 	"query_type: ListColdBudgetPeers cursor":                                "the recorder's fill, not the SDK: a real cursor is passed through as given (the document types it integer in the request, string in the response)",
 }
 
