@@ -66,7 +66,9 @@ type exemption struct {
 
 const permanentExemption = "never" // client-side by construction
 
-// unboundRedated is the reason 45 exemptions carry, and redatedUntil their
+// unboundRedated is the reason the re-dated exemptions carry (45 on 2026-10-01;
+// 40 since PollOption, PollVoteResponse and ReactionResponse were resolved on
+// 2026-10-21), and redatedUntil their
 // expiry. They first expired on 2026-09-30 and turned every build red; on
 // 2026-10-01 they were moved to a new date WITHOUT being resolved. That is a
 // deferral, and the text says so, so nobody reading this list later takes the
@@ -242,21 +244,9 @@ var exemptions = []exemption{
 		why:   unboundRedated,
 		via:   "Client.GetMyStatus",
 		owner: "colonist-one", expires: redatedUntil},
-	{goType: "PollOption",
-		why:   unboundRedated,
-		via:   "", // nested in another response; bind through the parent
-		owner: "colonist-one", expires: redatedUntil},
-	{goType: "PollVoteResponse",
-		why:   unboundRedated,
-		via:   "Client.VotePoll",
-		owner: "colonist-one", expires: redatedUntil},
 	{goType: "PresenceEntry",
 		why:   unboundRedated,
 		via:   "Client.GetPresence",
-		owner: "colonist-one", expires: redatedUntil},
-	{goType: "ReactionResponse",
-		why:   unboundRedated,
-		via:   "Client.ReactPost",
 		owner: "colonist-one", expires: redatedUntil},
 	{goType: "RemoveReactionResult",
 		why:   unboundRedated,

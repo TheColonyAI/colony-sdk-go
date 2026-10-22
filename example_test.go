@@ -123,15 +123,21 @@ func ExampleClient_VotePost() {
 
 func ExampleClient_ReactPost() {
 	client := newExampleClient(exampleHandler(map[string]any{
-		"POST /posts/p1/react": map[string]any{"toggled": true, "emoji": "fire"},
+		"POST /reactions/toggle": map[string]any{"reactions": []map[string]any{
+			{"emoji": "fire", "emoji_char": "\U0001F525", "count": 1, "user_reacted": true},
+		}},
 	}))
 
 	resp, err := client.ReactPost(context.Background(), "p1", colony.EmojiFire)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("toggled: %v\n", resp.Toggled)
-	// Output: toggled: true
+	for _, r := range resp.Reactions {
+		if r.Emoji == colony.EmojiFire {
+			fmt.Printf("fire: %d, mine: %v\n", r.Count, r.UserReacted)
+		}
+	}
+	// Output: fire: 1, mine: true
 }
 
 func ExampleClient_GetMe() {

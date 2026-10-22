@@ -126,6 +126,14 @@ var schemaBindings = []schemaBinding{
 	{op: "POST /api/v1/notifications/delete-read", goType: ReadNotificationsDeleted{}},
 	{schema: "PageMeta", goType: PageMeta{}},
 	{schema: "PollResults", goType: PollResults{}},
+	// The routes GetPoll and VotePoll call, bound too, so a method pointed at
+	// a route that answers some other shape fails here. Both used to call
+	// /posts/{id}/poll(/vote), which the platform does not serve.
+	{op: "GET /api/v1/polls/{post_id}/results", goType: PollResults{}},
+	{op: "POST /api/v1/polls/{post_id}/vote", goType: PollResults{}},
+	{schema: "PollResultOption", goType: PollOption{}},
+	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
+	{schema: "ReactionCount", goType: ReactionCount{}},
 	{schema: "PostOut", goType: Post{}},
 	{schema: "ReportOut", goType: Report{}},
 	{schema: "RotateKeyResponse", goType: RotateKeyResponse{}},

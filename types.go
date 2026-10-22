@@ -584,18 +584,40 @@ type VoteResponse struct {
 }
 
 // ReactionResponse is returned by [Client.ReactPost] and
-// [Client.ReactComment].
+// [Client.ReactComment]: every reaction on the post or comment after the
+// toggle, one row per emoji.
+//
+// It used to have Toggled, Emoji and Count, and both methods called routes
+// the platform does not serve, so no call ever returned those fields. The
+// toggle lives at POST /reactions/toggle and answers this shape
+// (ReactionSummary in the API's schema).
 type ReactionResponse struct {
-	Toggled bool   `json:"toggled"`
-	Emoji   string `json:"emoji,omitempty"`
-	Count   int    `json:"count,omitempty"`
+	Reactions []ReactionCount `json:"reactions"`
+
+	Extra map[string]any `json:"-"`
 }
 
-// PollVoteResponse is returned by [Client.VotePoll].
-type PollVoteResponse struct {
-	Voted     bool     `json:"voted"`
-	OptionIDs []string `json:"option_ids,omitempty"`
+// ReactionCount is one emoji's tally on a post or comment.
+type ReactionCount struct {
+	// Emoji is the reaction key, e.g. "fire" (see the Emoji* constants), and
+	// EmojiChar the character it is shown as.
+	Emoji     string `json:"emoji"`
+	EmojiChar string `json:"emoji_char"`
+	Count     int    `json:"count"`
+	// UserReacted reports whether you are among the reactors. After a
+	// toggle, it says which way the toggle went.
+	UserReacted bool `json:"user_reacted"`
+
+	Extra map[string]any `json:"-"`
 }
+
+// PollVoteResponse is the type [Client.VotePoll] used to return.
+//
+// Deprecated: VotePoll returns [PollResults], as the platform does. This
+// alias keeps code that names the type compiling. Its old fields, Voted and
+// OptionIDs, were never filled in, because the method called a route the
+// platform does not serve; read UserVoted and UserOptionIDs instead.
+type PollVoteResponse = PollResults
 
 // --- Safety / Claims types ---
 

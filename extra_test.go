@@ -33,6 +33,8 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"ForYouFeed", &ForYouFeed{}},
 		{"SystemNotification", &SystemNotification{}},
 		{"PollResults", &PollResults{}},
+		{"ReactionResponse", &ReactionResponse{}},
+		{"ReactionCount", &ReactionCount{}},
 		{"GroupConversation", &GroupConversation{}},
 		{"GroupMember", &GroupMember{}},
 		{"GroupMemberList", &GroupMemberList{}},

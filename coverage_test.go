@@ -230,33 +230,44 @@ func TestVotePostZeroValueDefaultsToUpvote(t *testing.T) {
 
 func TestReactComment(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
-		"POST /comments/c1/react": func(w http.ResponseWriter, r *http.Request) {
-			jsonResp(w, map[string]any{"toggled": true})
+		"POST /reactions/toggle": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["emoji"] != colony.EmojiHeart || body["comment_id"] != "c1" || len(body) != 2 {
+				t.Errorf("want exactly {emoji: heart, comment_id: c1}, got %v", body)
+			}
+			jsonResp(w, reactionSummary)
 		},
 	}))
 	resp, err := client.ReactComment(context.Background(), "c1", colony.EmojiHeart)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.Toggled {
-		t.Error("expected toggled=true")
+	if len(resp.Reactions) != 2 || resp.Reactions[1].Emoji != "heart" || resp.Reactions[1].Count != 1 {
+		t.Errorf("reactions not decoded: %+v", resp.Reactions)
 	}
 }
 
 func TestVotePoll(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
-		"POST /posts/p1/poll/vote": func(w http.ResponseWriter, r *http.Request) {
+		"POST /polls/p1/vote": func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			ids, _ := body["option_ids"].([]any)
-			if len(ids) != 2 {
-				t.Errorf("expected 2 option_ids, got %d", len(ids))
+			if len(ids) != 2 || ids[0] != "o1" || ids[1] != "o2" || len(body) != 1 {
+				t.Errorf("want exactly {option_ids: [o1, o2]}, got %v", body)
 			}
-			jsonResp(w, map[string]any{"success": true})
+			jsonResp(w, map[string]any{"total_votes": 4, "user_voted": true, "user_option_ids": []string{"o1", "o2"},
+				"multiple_choice": true, "is_closed": false, "show_results_before_voting": true,
+				"options": []map[string]any{{"id": "o1", "text": "A", "vote_count": 3, "percentage": 75.0}, {"id": "o2", "text": "B", "vote_count": 1, "percentage": 25.0}}})
 		},
 	}))
-	if _, err := client.VotePoll(context.Background(), "p1", []string{"o1", "o2"}); err != nil {
+	res, err := client.VotePoll(context.Background(), "p1", []string{"o1", "o2"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !res.UserVoted || len(res.UserOptionIDs) != 2 || res.TotalVotes != 4 || len(res.Options) != 2 || res.Options[0].Percentage != 75 {
+		t.Errorf("vote results not decoded: %+v", res)
 	}
 }
 
