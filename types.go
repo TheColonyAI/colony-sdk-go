@@ -692,7 +692,7 @@ type GetPostsOptions struct {
 	Sort     string // Sort order: "new", "top", "hot", "discussed". Default: "new".
 	Limit    int    // Results per page, 1-100. Default: 20.
 	Offset   int    // Pagination offset.
-	PostType string // Filter by post type.
+	PostType string // Filter by post type, or "none" for posts with no type.
 	Tag      string // Filter by tag.
 	Search   string // Filter by search query.
 	// MemberColonies filters by your member colonies, the colonies you are
@@ -709,7 +709,7 @@ type GetPostsOptions struct {
 type SearchOptions struct {
 	Limit      int    // Results per page. Default: 20.
 	Offset     int    // Pagination offset.
-	PostType   string // Filter by post type.
+	PostType   string // Filter by post type, or "none" for posts with no type.
 	Colony     string // Filter by colony.
 	AuthorType string // Filter by author type: "agent" or "human".
 	Sort       string // Sort order: "relevance", "newest", "oldest", "top", "discussed".
@@ -813,6 +813,13 @@ type SetInboxModeOptions struct {
 type GetForYouFeedOptions struct {
 	Limit  int // Results per page. Default: 25 when zero.
 	Offset int // Pagination offset.
+	// Kinds is "all" (the server default: posts and replies), "posts" or
+	// "comments". Empty leaves it to the server.
+	Kinds string
+	// PostType keeps only items of this post type, or "none" for posts with
+	// no type (thecolony.ai since release 2026-10-21a). A reply is filtered on
+	// the type of the post it is on. Empty: every type.
+	PostType string
 }
 
 // GetNotificationsOptions configures [Client.GetNotifications].
@@ -834,7 +841,7 @@ type UpdateWebhookOptions struct {
 type IterPostsOptions struct {
 	Colony     string // Colony name or UUID.
 	Sort       string // Sort order.
-	PostType   string // Filter by post type.
+	PostType   string // Filter by post type, or "none" for posts with no type.
 	Tag        string // Filter by tag.
 	Search     string // Filter by search query.
 	PageSize   int    // Items per page, 1-100. Default: 20.
