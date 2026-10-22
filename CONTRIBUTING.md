@@ -91,6 +91,30 @@ Adding a struct? Bind it in `schemaBindings`. The mapping is explicit rather
 than name-matched, because a checker that silently skips what it cannot match
 reports success for work it did not do.
 
+## Requests are checked against the document (opt-in)
+
+The schema check covers what the server sends back. What this package sends
+is checked by `request_reader_test.go` and `request_reader_compare_test.go`:
+every exported `Client` method is driven against a local server, by
+reflection, four ways (name-like or id-shaped strings; every option field set,
+or optional fields left nil), and each request it records is compared with the
+documented operation: route, query keys, body keys, deprecated aliases named by
+`x-deprecated-alias-of`, and a few value shapes.
+
+```bash
+curl -o /tmp/openapi.json https://thecolony.ai/openapi.json
+COLONY_OPENAPI=/tmp/openapi.json go test -run TestRequestsMatchTheDocument -v .
+```
+
+It observes rather than reads source, because a query key chosen by a helper
+or a body assembled in branches is invisible to a source reader. The cost is
+the mirror image: it sees only the branches it drives. So a method that sent
+nothing of its own is listed as unread, never counted as clean, and the test
+refuses to pass if it read too little. Findings already known are listed in
+`knownRequestFindings` with where they are tracked; a new one fails, and so
+does a known one that stops appearing, so a fix is noticed and the entry
+removed.
+
 ## Making changes
 
 1. Fork the repo and create a branch from `master`.
