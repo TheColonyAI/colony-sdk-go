@@ -65,13 +65,13 @@ func recorderFill(t reflect.Type, mode string, depth int, minimal ...bool) refle
 	if depth > 4 {
 		return v
 	}
-	switch {
-	case t == ctxType:
+	switch t {
+	case ctxType:
 		return v
-	case t == timeType:
+	case timeType:
 		v.Set(reflect.ValueOf(time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)))
 		return v
-	case t == readerType:
+	case readerType:
 		v.Set(reflect.ValueOf(io.Reader(strings.NewReader("data"))))
 		return v
 	}
