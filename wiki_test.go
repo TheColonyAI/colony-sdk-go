@@ -389,11 +389,11 @@ func TestWikiQueryParameters(t *testing.T) {
 				Limit: 100, Offset: 20,
 			})
 			return err
-		}, "category=Reference&colony=general&limit=100&offset=20&search=attestation", false},
-		{"list: search goes to search, never q", func(c *Client) error {
+		}, "category=Reference&colony=general&limit=100&offset=20&q=attestation", false},
+		{"list: search goes to q, never the deprecated search", func(c *Client) error {
 			_, err := c.ListWikiPages(ctx, &ListWikiOptions{Search: "colony"})
 			return err
-		}, "search=colony", false},
+		}, "q=colony", false},
 		{"page: colony scope", func(c *Client) error {
 			_, err := c.GetWikiPage(ctx, "vault", "general")
 			return err

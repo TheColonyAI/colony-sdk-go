@@ -223,11 +223,15 @@ func TestOptionalParametersAreOmittedNotEmptied(t *testing.T) {
 	}
 
 	c, got = groupServer(t, `{"muted":true,"muted_until":"2026-09-01T00:00:00Z"}`)
-	if _, err := c.MuteGroupConversation(ctx, "g1", "2026-09-01T00:00:00Z"); err != nil {
+	if _, err := c.MuteGroupConversation(ctx, "g1", "1d"); err != nil {
 		t.Fatal(err)
 	}
-	if got.query.Get("until") != "2026-09-01T00:00:00Z" {
-		t.Errorf("until = %q", got.query.Get("until"))
+	if got.query.Get("duration") != "1d" {
+		t.Errorf("duration = %q, want 1d", got.query.Get("duration"))
+	}
+	// until is the deprecated name for the same parameter.
+	if got.query.Has("until") {
+		t.Errorf("sent the deprecated until: %v", got.query)
 	}
 
 	c, got = groupServer(t, `{"override":null,"effective":true}`)

@@ -2,36 +2,23 @@ package colony
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"net/url"
-	"strconv"
 )
 
 // The thirty organisation operations. Types and the slug guard live in orgs.go.
 
-// ListOrgsOptions pages [Client.ListOrgMembers] and the other org listings.
+// ListOrgsOptions was meant to page [Client.ListOrgMembers]. That endpoint takes
+// no window, so ListOrgMembers refuses a non-zero Limit or Offset; the type is
+// kept so existing calls that pass nil or an empty value still compile.
 //
-// The org endpoints answer with BARE ARRAYS rather than a paginated envelope —
-// no total and no has_more — so a short page is the only end-of-list signal.
+// The org endpoints answer with BARE ARRAYS rather than a paginated envelope:
+// no total and no has_more.
 type ListOrgsOptions struct {
-	// Limit is the page size the server accepts; zero leaves its default.
+	// Limit must be zero: ListOrgMembers refuses a window the server would not read.
 	Limit int
-	// Offset is the window start.
+	// Offset must be zero, for the same reason.
 	Offset int
-}
-
-func (o *ListOrgsOptions) query() url.Values {
-	q := url.Values{}
-	if o == nil {
-		return q
-	}
-	if o.Limit > 0 {
-		q.Set("limit", strconv.Itoa(o.Limit))
-	}
-	if o.Offset > 0 {
-		q.Set("offset", strconv.Itoa(o.Offset))
-	}
-	return q
 }
 
 // ---- membership --------------------------------------------------------
@@ -74,12 +61,20 @@ func (c *Client) GetOrg(ctx context.Context, slug string) (*OrgPublic, error) {
 
 // ListOrgMembers lists an org's members, each with their role and their own
 // visibility choice.
+//
+// The endpoint takes no window: the API document declares no query parameters
+// for it. Pass nil for opts. A Limit or Offset is refused before any request,
+// because this used to send them as limit and offset, which the server never
+// read, so a caller asking for 25 members got all of them.
 func (c *Client) ListOrgMembers(ctx context.Context, slug string, opts *ListOrgsOptions) ([]OrgMember, error) {
 	if err := requireOrgSlug(slug); err != nil {
 		return nil, err
 	}
+	if opts != nil && (opts.Limit != 0 || opts.Offset != 0) {
+		return nil, fmt.Errorf("colony: ListOrgMembers takes no window (Limit %d, Offset %d): the endpoint returns every member and declares no limit or offset", opts.Limit, opts.Offset)
+	}
 	var out []OrgMember
-	if err := c.do(ctx, http.MethodGet, withQuery("/orgs/"+slug+"/members", opts.query()), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/orgs/"+slug+"/members", nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
