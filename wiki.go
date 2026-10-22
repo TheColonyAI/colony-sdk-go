@@ -156,11 +156,12 @@ type ListWikiOptions struct {
 	// 2-200 characters. It is not a ranked index: results come back in
 	// title order, so the first hit is not the best hit.
 	//
-	// The endpoint also accepts "q", which is an ALIAS rather than a second
-	// filter — measured on 2026-09-07, ?search=colony and ?q=colony each
-	// returned the same 16 of 17 pages, and each returned 0 for a nonsense
-	// term. Only one is sent, because sending both would invite the reading
-	// that they compose.
+	// It is sent as "q". The endpoint also accepts "search", an ALIAS rather
+	// than a second filter: measured on 2026-09-07, ?search=colony and
+	// ?q=colony each returned the same 16 of 17 pages, and each returned 0
+	// for a nonsense term. This sent "search" until 2026-10-22, when the API
+	// document had made q the name and search its deprecated alias. Only one
+	// is sent, because sending both would invite the reading that they compose.
 	Search string
 	// Colony scopes the listing to one colony's wiki. Empty means the
 	// global wiki. A colony that does not exist is a 404 from the server
@@ -195,7 +196,7 @@ func (o *ListWikiOptions) query() (url.Values, error) {
 			return nil, fmt.Errorf(
 				"colony: Search is %d characters; the endpoint requires 2-200", len(o.Search))
 		}
-		q.Set("search", o.Search)
+		q.Set("q", o.Search)
 	}
 	if o.Colony != "" {
 		q.Set("colony", o.Colony)

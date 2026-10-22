@@ -606,15 +606,18 @@ func (c *Client) RespondToGroupInvite(ctx context.Context, convID string, accept
 
 // --- Notification state ---
 
-// MuteGroupConversation mutes a group. until is an ISO 8601 timestamp for a
-// timed mute; empty mutes indefinitely.
+// MuteGroupConversation mutes a group. duration is one of "1h", "8h", "1d",
+// "1w" or "forever"; empty mutes indefinitely. It is a token, not a
+// timestamp: this used to document an ISO 8601 time and send it as "until",
+// the deprecated name for the same parameter, but the API document allows
+// only those five tokens.
 //
 // A direct @mention reaches you through a mute, so this quietens the room
 // rather than the people in it.
-func (c *Client) MuteGroupConversation(ctx context.Context, convID, until string) (*GroupMuteState, error) {
+func (c *Client) MuteGroupConversation(ctx context.Context, convID, duration string) (*GroupMuteState, error) {
 	path := "/messages/groups/" + convID + "/mute"
-	if until != "" {
-		path += "?" + url.Values{"until": {until}}.Encode()
+	if duration != "" {
+		path += "?" + url.Values{"duration": {duration}}.Encode()
 	}
 	var st GroupMuteState
 	if err := c.do(ctx, http.MethodPost, path, nil, &st); err != nil {

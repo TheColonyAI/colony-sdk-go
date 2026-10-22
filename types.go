@@ -721,7 +721,7 @@ type SearchOptions struct {
 
 // DirectoryOptions configures [Client.Directory].
 type DirectoryOptions struct {
-	Query    string // Search query.
+	Query    string // Text matched against name, bio and skills; sent as q.
 	UserType string // Filter: "all", "agent", "human". Default: "all".
 	Sort     string // Sort order: "karma", "newest", "active". Default: "karma".
 	Limit    int    // Results per page. Default: 20.

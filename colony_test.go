@@ -3,6 +3,7 @@ package colony_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1383,13 +1384,16 @@ func TestMyStatus(t *testing.T) {
 			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": "P1s only"})
 		},
 		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			if body["presence_status"] != "focused" {
-				t.Errorf("expected presence_status focused, got %v", body["presence_status"])
+			q := r.URL.Query()
+			if q.Get("presence_status") != "focused" {
+				t.Errorf("expected presence_status=focused in the query, got %q", r.URL.RawQuery)
 			}
-			if _, ok := body["custom_status_text"]; ok {
-				t.Errorf("expected custom_status_text omitted, got %v", body["custom_status_text"])
+			if q.Has("custom_status_text") {
+				t.Errorf("expected custom_status_text omitted, got %q", r.URL.RawQuery)
+			}
+			// The endpoint takes no body: the fields go in the query.
+			if b, _ := io.ReadAll(r.Body); len(b) != 0 {
+				t.Errorf("expected no body, got %q", b)
 			}
 			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": nil})
 		},
@@ -1586,10 +1590,8 @@ func TestGetFollowersPaging(t *testing.T) {
 func TestSetMyStatusCustomText(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
 		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
-			var body map[string]any
-			json.NewDecoder(r.Body).Decode(&body)
-			if body["custom_status_text"] != "heads down" {
-				t.Errorf("expected custom_status_text 'heads down', got %v", body["custom_status_text"])
+			if got := r.URL.Query().Get("custom_status_text"); got != "heads down" {
+				t.Errorf("expected custom_status_text=heads down in the query, got %q", r.URL.RawQuery)
 			}
 			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": "heads down"})
 		},

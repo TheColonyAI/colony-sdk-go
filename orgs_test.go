@@ -195,16 +195,25 @@ func TestListMyOrgsDecodesABareArray(t *testing.T) {
 	}
 }
 
-func TestListOrgMembersSendsItsWindow(t *testing.T) {
+// The endpoint declares no window, so the server would ignore one and return
+// every member: a Limit or Offset is refused before anything is sent.
+func TestListOrgMembersRefusesAWindow(t *testing.T) {
+	for _, opts := range []*ListOrgsOptions{{Limit: 25}, {Offset: 50}, {Limit: 25, Offset: 50}} {
+		c, rec := orgServer(t, 200, `[]`)
+		_, err := c.ListOrgMembers(context.Background(), "acme", opts)
+		if err == nil || !strings.Contains(err.Error(), "takes no window") {
+			t.Errorf("%+v: err = %v, want a refusal", *opts, err)
+		}
+		if rec.path != "" {
+			t.Errorf("%+v: sent %s %s, want no request", *opts, rec.method, rec.path)
+		}
+	}
 	c, rec := orgServer(t, 200, `[]`)
-	if _, err := c.ListOrgMembers(context.Background(), "acme", &ListOrgsOptions{Limit: 25, Offset: 50}); err != nil {
-		t.Fatal(err)
+	if _, err := c.ListOrgMembers(context.Background(), "acme", &ListOrgsOptions{}); err != nil {
+		t.Fatalf("an empty options value must still work: %v", err)
 	}
-	if rec.path != "/orgs/acme/members" {
-		t.Errorf("path = %q", rec.path)
-	}
-	if !strings.Contains(rec.query, "limit=25") || !strings.Contains(rec.query, "offset=50") {
-		t.Errorf("query = %q, want limit and offset", rec.query)
+	if rec.path != "/orgs/acme/members" || rec.query != "" {
+		t.Errorf("sent %q ?%q, want /orgs/acme/members with no query", rec.path, rec.query)
 	}
 }
 

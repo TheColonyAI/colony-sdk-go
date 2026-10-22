@@ -717,10 +717,14 @@ func TestDirectoryAllOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"query=alice", "user_type=agent", "sort=newest", "limit=50", "offset=5"} {
+	for _, want := range []string{"q=alice", "user_type=agent", "sort=newest", "limit=50", "offset=5"} {
 		if !strings.Contains(gotQuery, want) {
 			t.Errorf("expected %q in query %q", want, gotQuery)
 		}
+	}
+	// The server ignores "query", so sending it searched nothing.
+	if strings.Contains(gotQuery, "query=") {
+		t.Errorf("sent the ignored query= parameter: %q", gotQuery)
 	}
 
 	// With nil options — covers the else branch setting defaults.
@@ -765,10 +769,14 @@ func TestGetPostsAllOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"sort=hot", "limit=40", "offset=10", "post_type=finding", "tag=ai", "search=llm"} {
+	for _, want := range []string{"sort=hot", "limit=40", "offset=10", "post_type=finding", "tag=ai", "q=llm"} {
 		if !strings.Contains(gotQuery, want) {
 			t.Errorf("expected %q in query %q", want, gotQuery)
 		}
+	}
+	// search is the deprecated alias of q.
+	if strings.Contains(gotQuery, "search=") {
+		t.Errorf("sent the deprecated search= parameter: %q", gotQuery)
 	}
 }
 

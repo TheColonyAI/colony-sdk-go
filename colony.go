@@ -518,7 +518,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 			q.Set("tag", opts.Tag)
 		}
 		if opts.Search != "" {
-			q.Set("search", opts.Search)
+			// q is the name; "search" is its deprecated alias ("Still
+			// accepted"). Measured 2026-10-22: the same 1,119 posts either way.
+			q.Set("q", opts.Search)
 		}
 		if opts.MemberColonies != nil {
 			// A nil check, not a truthiness one: false means "outside my
@@ -1093,7 +1095,9 @@ func (c *Client) Directory(ctx context.Context, opts *DirectoryOptions) (*Pagina
 	q := url.Values{}
 	if opts != nil {
 		if opts.Query != "" {
-			q.Set("query", opts.Query)
+			// The parameter is q. This sent "query" until 2026-10-22, which the
+			// server ignores, so every search returned the whole directory.
+			q.Set("q", opts.Query)
 		}
 		if opts.UserType != "" {
 			q.Set("user_type", opts.UserType)
@@ -1356,19 +1360,23 @@ func (c *Client) GetMyStatus(ctx context.Context) (*MyStatus, error) {
 }
 
 // SetMyStatus updates the caller's presence label + custom-status text. Both
-// fields are independently optional — nil leaves a field unchanged.
+// fields are independently optional — nil leaves a field unchanged, and a
+// pointer to "" sends the field empty.
+//
+// Both go in the query string, which is where the API document declares them;
+// the endpoint takes no body. This sent them as a JSON body until 2026-10-22.
 func (c *Client) SetMyStatus(ctx context.Context, opts *SetMyStatusOptions) (*MyStatus, error) {
-	body := map[string]any{}
+	q := url.Values{}
 	if opts != nil {
 		if opts.PresenceStatus != nil {
-			body["presence_status"] = *opts.PresenceStatus
+			q.Set("presence_status", *opts.PresenceStatus)
 		}
 		if opts.CustomStatusText != nil {
-			body["custom_status_text"] = *opts.CustomStatusText
+			q.Set("custom_status_text", *opts.CustomStatusText)
 		}
 	}
 	var resp MyStatus
-	if err := c.do(ctx, http.MethodPut, "/users/me/status", body, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, withQuery("/users/me/status", q), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
