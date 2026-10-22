@@ -183,3 +183,119 @@ func TestTrustLevelNegativeRanks(t *testing.T) {
 		}
 	}
 }
+
+// Fields the server added between the 2026-10-02 snapshot and 2026-10-21.
+// Each is decoded present and absent (or null), and none may also land in
+// Extra once modelled.
+
+func TestAdminEditAndImageNotice(t *testing.T) {
+	var post colony.Post
+	if err := json.Unmarshal([]byte(`{"id":"p1","admin_edited_at":"2026-10-21T08:00:00Z","image_notice":"1 image shown as text: host not listed"}`), &post); err != nil {
+		t.Fatal(err)
+	}
+	if post.AdminEditedAt == nil || post.AdminEditedAt.UTC().Format("2006-01-02T15:04:05Z") != "2026-10-21T08:00:00Z" {
+		t.Errorf("post admin_edited_at not decoded: %v", post.AdminEditedAt)
+	}
+	if post.ImageNotice == nil || *post.ImageNotice != "1 image shown as text: host not listed" {
+		t.Errorf("post image_notice not decoded: %v", post.ImageNotice)
+	}
+	for _, k := range []string{"admin_edited_at", "image_notice"} {
+		if _, inExtra := post.Extra[k]; inExtra {
+			t.Errorf("modelled field %s must not also land in Extra", k)
+		}
+	}
+
+	var comment colony.Comment
+	if err := json.Unmarshal([]byte(`{"id":"c1","admin_edited_at":"2026-10-21T08:00:00Z","image_notice":"shown as text"}`), &comment); err != nil {
+		t.Fatal(err)
+	}
+	if comment.AdminEditedAt == nil || comment.ImageNotice == nil || *comment.ImageNotice != "shown as text" {
+		t.Errorf("comment fields not decoded: %v %v", comment.AdminEditedAt, comment.ImageNotice)
+	}
+
+	for _, body := range []string{`{"id":"p2","admin_edited_at":null,"image_notice":null}`, `{"id":"p3"}`} {
+		var p colony.Post
+		var c colony.Comment
+		if err := json.Unmarshal([]byte(body), &p); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(body), &c); err != nil {
+			t.Fatal(err)
+		}
+		if p.AdminEditedAt != nil || p.ImageNotice != nil || c.AdminEditedAt != nil || c.ImageNotice != nil {
+			t.Errorf("%s: want all nil", body)
+		}
+	}
+}
+
+func TestWikiRedirectAndRevisionSizes(t *testing.T) {
+	var page colony.WikiPage
+	if err := json.Unmarshal([]byte(`{"id":"w1","slug":"new-name","redirected_from":"old-name"}`), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.RedirectedFrom == nil || *page.RedirectedFrom != "old-name" || page.Slug != "new-name" {
+		t.Errorf("redirected_from not decoded: %v (slug %q)", page.RedirectedFrom, page.Slug)
+	}
+	var current colony.WikiPage
+	if err := json.Unmarshal([]byte(`{"id":"w2","slug":"new-name"}`), &current); err != nil {
+		t.Fatal(err)
+	}
+	if current.RedirectedFrom != nil {
+		t.Errorf("a page read by its current slug must have no redirect, got %q", *current.RedirectedFrom)
+	}
+
+	var rows []colony.WikiRevisionListItem
+	if err := json.Unmarshal([]byte(`[{"id":"r2","size_bytes":120,"size_delta_bytes":-4800},{"id":"r1","size_bytes":4920,"size_delta_bytes":null},{"id":"r0"}]`), &rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].SizeBytes != 120 || rows[0].SizeDeltaBytes == nil || *rows[0].SizeDeltaBytes != -4800 {
+		t.Errorf("a blanking revision must keep its negative delta: %+v", rows[0])
+	}
+	if rows[1].SizeBytes != 4920 || rows[1].SizeDeltaBytes != nil {
+		t.Errorf("a first revision has no delta (null), got %+v", rows[1])
+	}
+	if rows[2].SizeBytes != 0 || rows[2].SizeDeltaBytes != nil {
+		t.Errorf("absent sizes must decode to the server's defaults (0, nil), got %+v", rows[2])
+	}
+	for _, k := range []string{"size_bytes", "size_delta_bytes"} {
+		if _, inExtra := rows[0].Extra[k]; inExtra {
+			t.Errorf("modelled field %s must not also land in Extra", k)
+		}
+	}
+}
+
+func TestModQueueItemPeople(t *testing.T) {
+	var item colony.ModQueueItem
+	body := `{"source_kind":"report","source_id":"s1","target_kind":"comment","target_id":"t1",
+		"author":{"id":"u1","username":"writer","display_name":"Writer"},
+		"reporter":{"id":"u2","username":"flagger","display_name":"Flagger","extra_key":1},
+		"post_id":"p1","post_title":"A post","text":"the comment text","text_truncated":true}`
+	if err := json.Unmarshal([]byte(body), &item); err != nil {
+		t.Fatal(err)
+	}
+	if item.Author == nil || item.Author.Username != "writer" || item.Author.DisplayName != "Writer" || item.Author.ID != "u1" {
+		t.Errorf("author not decoded: %+v", item.Author)
+	}
+	if item.Reporter == nil || item.Reporter.Username != "flagger" || item.Reporter.Extra["extra_key"] == nil {
+		t.Errorf("reporter not decoded, or its unmodelled key lost: %+v", item.Reporter)
+	}
+	if item.PostID == nil || *item.PostID != "p1" || item.PostTitle == nil || *item.PostTitle != "A post" {
+		t.Errorf("post fields not decoded: %v %v", item.PostID, item.PostTitle)
+	}
+	if item.Text != "the comment text" || !item.TextTruncated {
+		t.Errorf("text fields not decoded: %q %v", item.Text, item.TextTruncated)
+	}
+	for _, k := range []string{"author", "reporter", "post_id", "post_title", "text", "text_truncated"} {
+		if _, inExtra := item.Extra[k]; inExtra {
+			t.Errorf("modelled field %s must not also land in Extra", k)
+		}
+	}
+
+	var bare colony.ModQueueItem
+	if err := json.Unmarshal([]byte(`{"source_kind":"automod","author":null,"reporter":null,"post_id":null,"post_title":null}`), &bare); err != nil {
+		t.Fatal(err)
+	}
+	if bare.Author != nil || bare.Reporter != nil || bare.PostID != nil || bare.PostTitle != nil || bare.Text != "" || bare.TextTruncated {
+		t.Errorf("null and absent fields must decode to the server's defaults, got %+v", bare)
+	}
+}
