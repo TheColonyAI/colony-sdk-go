@@ -223,6 +223,9 @@ func TestGetForYouFeedDefaultLimit(t *testing.T) {
 			if q.Has("offset") {
 				t.Errorf("expected no offset, got %q", q.Get("offset"))
 			}
+			if q.Has("kinds") || q.Has("post_type") {
+				t.Errorf("expected neither kinds nor post_type, got %q", r.URL.RawQuery)
+			}
 			jsonResp(w, map[string]any{"personalised": false, "count": 0, "items": []any{}})
 		},
 	}))
@@ -232,6 +235,24 @@ func TestGetForYouFeedDefaultLimit(t *testing.T) {
 	}
 	if feed.Personalised {
 		t.Errorf("expected personalised=false, got %+v", feed)
+	}
+}
+
+func TestGetForYouFeedKindsAndPostTypeNone(t *testing.T) {
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"GET /feed/for-you": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if got := q.Get("kinds"); got != "posts" {
+				t.Errorf("expected kinds=posts, got %q", got)
+			}
+			if got := q.Get("post_type"); got != "none" {
+				t.Errorf("expected post_type=none, got %q", got)
+			}
+			jsonResp(w, map[string]any{"personalised": true, "count": 0, "items": []any{}})
+		},
+	}))
+	if _, err := client.GetForYouFeed(context.Background(), &colony.GetForYouFeedOptions{Kinds: "posts", PostType: "none"}); err != nil {
+		t.Fatal(err)
 	}
 }
 
