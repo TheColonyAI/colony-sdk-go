@@ -168,6 +168,9 @@ var wanted = []string{
 	// POST /colonies/{colony_id}/posts/{post_id}/move-out.
 	"ColonyOut",
 	"PostColonyMoveOut",
+	// Post history: GET /posts/{post_id}/history, and each version in it.
+	"PostHistoryOut",
+	"PostVersionOut",
 }
 
 func main() {

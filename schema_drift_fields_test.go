@@ -3,6 +3,7 @@ package colony_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	colony "github.com/thecolonyai/colony-sdk-go"
 )
@@ -104,6 +105,81 @@ func TestAuthorColonyRole(t *testing.T) {
 		}
 		if p.AuthorColonyRole != nil {
 			t.Errorf("%s: want nil, got %q", body, *p.AuthorColonyRole)
+		}
+	}
+}
+
+// edited_at and revision_count (platform 2026-10-22): when the title or body
+// last changed, and how many earlier versions are kept. A post never edited
+// sends null and 0; an older platform sends neither. Both must read as "not
+// edited" — nil and 0 — never as a zero time.
+func TestPostEditedAtAndRevisionCount(t *testing.T) {
+	var edited colony.Post
+	body := `{"id":"p1","edited_at":"2026-10-21T08:45:27.256805Z","revision_count":2,
+	  "updated_at":"2026-10-22T09:00:00Z"}`
+	if err := json.Unmarshal([]byte(body), &edited); err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 10, 21, 8, 45, 27, 256805000, time.UTC)
+	if edited.EditedAt == nil || !edited.EditedAt.Equal(want) || edited.RevisionCount != 2 {
+		t.Errorf("edited_at %v, revision_count %d", edited.EditedAt, edited.RevisionCount)
+	}
+	// A tag change moves updated_at and not edited_at; the two are separate
+	// fields and must not be conflated.
+	if edited.EditedAt.Equal(edited.UpdatedAt) {
+		t.Error("EditedAt decoded from updated_at")
+	}
+	for _, key := range []string{"edited_at", "revision_count"} {
+		if _, inExtra := edited.Extra[key]; inExtra {
+			t.Errorf("modelled field %s also landed in Extra", key)
+		}
+	}
+
+	for _, body := range []string{`{"id":"p2","edited_at":null,"revision_count":0}`, `{"id":"p3"}`} {
+		var p colony.Post
+		if err := json.Unmarshal([]byte(body), &p); err != nil {
+			t.Fatal(err)
+		}
+		if p.EditedAt != nil || p.RevisionCount != 0 {
+			t.Errorf("%s: want nil and 0, got %v and %d", body, p.EditedAt, p.RevisionCount)
+		}
+	}
+}
+
+// trust_level (platform 2026-10-22): min_karma can be null, for the one rank
+// with no floor, and max_karma is new, set only on the two negative ranks.
+// MinKarma stays an int, so the null reads as 0; MaxKarma is what tells that
+// rank apart from Newcomer's real floor of 0.
+func TestTrustLevelNegativeRanks(t *testing.T) {
+	cases := []struct {
+		body    string
+		wantMin int
+		wantMax *int
+	}{
+		{`{"name":"Deep negative karma","min_karma":null,"max_karma":-50,"icon":"x","rate_multiplier":1.0}`, 0, colony.Ptr(-50)},
+		{`{"name":"Negative karma","min_karma":-49,"max_karma":-10,"icon":"x","rate_multiplier":1.0}`, -49, colony.Ptr(-10)},
+		{`{"name":"Newcomer","min_karma":0,"max_karma":null,"icon":"x","rate_multiplier":1.0}`, 0, nil},
+		{`{"name":"Established","min_karma":200,"max_karma":null,"icon":"x","rate_multiplier":2.0}`, 200, nil},
+		// A platform before 2026-10-22 sends no max_karma at all.
+		{`{"name":"Veteran","min_karma":1000,"icon":"x","rate_multiplier":3.0}`, 1000, nil},
+	}
+	for _, tc := range cases {
+		var u colony.User
+		if err := json.Unmarshal([]byte(`{"id":"u1","trust_level":`+tc.body+`}`), &u); err != nil {
+			t.Fatalf("%s: %v", tc.body, err)
+		}
+		tl := u.TrustLevel
+		if tl == nil {
+			t.Fatalf("%s: trust_level decoded as nil", tc.body)
+		}
+		if tl.MinKarma != tc.wantMin {
+			t.Errorf("%s: MinKarma = %d, want %d", tc.body, tl.MinKarma, tc.wantMin)
+		}
+		switch {
+		case tc.wantMax == nil && tl.MaxKarma != nil:
+			t.Errorf("%s: MaxKarma = %d, want nil", tc.body, *tl.MaxKarma)
+		case tc.wantMax != nil && (tl.MaxKarma == nil || *tl.MaxKarma != *tc.wantMax):
+			t.Errorf("%s: MaxKarma = %v, want %d", tc.body, tl.MaxKarma, *tc.wantMax)
 		}
 	}
 }

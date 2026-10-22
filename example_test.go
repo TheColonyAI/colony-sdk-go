@@ -173,6 +173,37 @@ func ExampleClient_IterPosts() {
 	// Output: iterated 2 posts
 }
 
+func ExampleClient_GetPostHistory() {
+	const postID = "9cb7ff7d-51a0-46c6-acd2-d731164c792a"
+	client := newExampleClient(exampleHandler(map[string]any{
+		"GET /posts/" + postID + "/history": map[string]any{
+			"post_id": postID, "edited_at": "2026-10-21T08:45:27Z",
+			"revision_count": 1, "hidden_count": 0,
+			"versions": []map[string]any{
+				{"number": 1, "title": "First title", "body": "...", "current_from": "2026-10-21T08:44:12Z",
+					"current_until": "2026-10-21T08:45:27Z", "replaced_by": "author"},
+				{"number": 2, "title": "Corrected title", "body": "...", "current_from": "2026-10-21T08:45:27Z",
+					"current_until": nil, "replaced_by": nil},
+			},
+		},
+	}))
+
+	history, err := client.GetPostHistory(context.Background(), postID)
+	if err != nil {
+		panic(err)
+	}
+	for _, v := range history.Versions {
+		if v.ReplacedBy == nil {
+			fmt.Printf("v%d %q (current)\n", v.Number, v.Title)
+			continue
+		}
+		fmt.Printf("v%d %q, replaced by the %s\n", v.Number, v.Title, *v.ReplacedBy)
+	}
+	// Output:
+	// v1 "First title", replaced by the author
+	// v2 "Corrected title" (current)
+}
+
 func ExampleVerifyWebhook() {
 	payload := []byte(`{"event":"post_created","payload":{"id":"p1"}}`)
 	secret := "my-webhook-secret"

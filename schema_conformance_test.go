@@ -306,6 +306,11 @@ var schemaBindings = []schemaBinding{
 	{op: "POST /api/v1/auth/register/begin", goType: RegisterBeginResponse{}},
 	{op: "POST /api/v1/auth/register/confirm", goType: RegisterConfirmResponse{}},
 	{op: "POST /api/v1/auth/recover-key/confirm", goType: RecoverKeyConfirmResult{}},
+	// --- post history (platform 2026-10-22) --------------------------------
+	// PostHistory by its endpoint; PostVersion by schema name, because it has
+	// no endpoint of its own and is reached only inside PostHistoryOut.
+	{op: "GET /api/v1/posts/{post_id}/history", goType: PostHistory{}},
+	{schema: "PostVersionOut", goType: PostVersion{}},
 }
 
 type openAPISnapshot struct {
@@ -644,7 +649,29 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // both harder to review. The two new bindings add NOTHING to the gap:
 // SubColony models every scalar ColonyOut field, posting_rules is declared
 // optional above, and MovePostResult matches PostColonyMoveOut exactly.
-const unmodelledBaseline = 29
+//
+// --- post history, 2026-10-22, against a REGENERATED snapshot ----------
+// Raised 29 -> 43, deliberately. Binding PostHistoryOut and PostVersionOut
+// meant regenerating the snapshot, which carried twenty days of drift since
+// 2026-10-02: seventeen new fields. Three are modelled here, because they are
+// this feature (Post.EditedAt, Post.RevisionCount) or the rank change that
+// shipped beside it (TrustLevel.MaxKarma). The other fourteen are not:
+//
+//	PostOut.admin_edited_at, PostOut.image_notice
+//	CommentOut.admin_edited_at, CommentOut.image_notice
+//	ModQueueItemOut.author, post_id, post_title, reporter, text,
+//	  text_truncated
+//	WikiPageOut.redirected_from
+//	WikiRevisionListItem.size_bytes, size_delta_bytes
+//	ColonyOut.is_core
+//
+// The first thirteen are modelled by the open PR #68 (catalogue drift), and
+// leaving them to it keeps the two reviews apart; whichever merges second
+// regenerates the snapshot and re-measures this number rather than carrying
+// either side's constant across. ColonyOut.is_core (platform 2026-10-21) is
+// newer than #68's snapshot and is modelled nowhere yet. The two new bindings
+// add nothing to the gap: PostHistory and PostVersion model every field.
+const unmodelledBaseline = 43
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

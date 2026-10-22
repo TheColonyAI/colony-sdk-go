@@ -97,6 +97,9 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		{"WikiPage", &WikiPage{}},
 		{"WikiRevisionListItem", &WikiRevisionListItem{}},
 		{"WikiRevision", &WikiRevision{}},
+		// --- post history ---
+		{"PostHistory", &PostHistory{}},
+		{"PostVersion", &PostVersion{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots
