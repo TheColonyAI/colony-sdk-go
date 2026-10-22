@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +29,24 @@ import (
 //
 // Everything is driven through a real httptest server, so what is asserted is
 // what actually goes on the wire.
+
+// totpKeys gives every totpServer client an API key of its own.
+//
+// The client's token cache is process-wide and keyed by API key plus base
+// URL, and an httptest server's URL is 127.0.0.1 with a port the OS hands out
+// again once an earlier server has closed. With one shared key, a test whose
+// server landed on a reused port found an earlier test's cached token,
+// skipped the exchange, and never called its TOTP provider:
+// TestTOTPProviderErrorAbortsExchange then failed with "not found: no route"
+// (1 full -race run of master in 8, measured 2026-10-21). A key per client
+// keeps every exchange this file asserts on a real one;
+// TestReusedAddressSharesTokensOnlyWithinAKey pins the cache behaviour the
+// fix relies on.
+var totpKeys atomic.Int64
+
+// lastTOTPKey is the key totpServer issued most recently. Read it straight
+// after the call: the tests in this file do not run in parallel.
+func lastTOTPKey() string { return fmt.Sprintf("col_test_totp_%d", totpKeys.Load()) }
 
 // totpServer records every /auth/token body and serves a canned route.
 func totpServer(t *testing.T, opts []colony.Option, routes map[string]http.HandlerFunc) (*colony.Client, *[]map[string]any) {
@@ -56,7 +77,8 @@ func totpServer(t *testing.T, opts []colony.Option, routes map[string]http.Handl
 		colony.WithTimeout(5 * time.Second),
 		colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}}),
 	}
-	return colony.NewClient("col_test", append(base, opts...)...), &bodies
+	key := fmt.Sprintf("col_test_totp_%d", totpKeys.Add(1))
+	return colony.NewClient(key, append(base, opts...)...), &bodies
 }
 
 func okJSON(v any) http.HandlerFunc {
@@ -67,6 +89,7 @@ func TestTokenBodyOmitsTOTPWhenUnset(t *testing.T) {
 	client, bodies := totpServer(t, nil, map[string]http.HandlerFunc{
 		"GET /auth/2fa/status": okJSON(map[string]any{"enabled": false, "recovery_codes_remaining": 0}),
 	})
+	key := lastTOTPKey()
 	if _, err := client.Get2FAStatus(context.Background()); err != nil {
 		t.Fatalf("Get2FAStatus: %v", err)
 	}
@@ -77,8 +100,8 @@ func TestTokenBodyOmitsTOTPWhenUnset(t *testing.T) {
 	if _, present := b["totp_code"]; present {
 		t.Errorf("totp_code must be absent when no TOTP is configured, got %v", b)
 	}
-	if b["api_key"] != "col_test" {
-		t.Errorf("api_key = %v, want col_test", b["api_key"])
+	if b["api_key"] != key {
+		t.Errorf("api_key = %v, want %s", b["api_key"], key)
 	}
 }
 
@@ -281,5 +304,71 @@ func TestTwoFactorMethods(t *testing.T) {
 	}
 	if b := seen["regen"]; b["code"] != "123456" {
 		t.Errorf("RegenerateRecoveryCodes body = %v", b)
+	}
+}
+
+// serverAt starts a server on addr that answers the token exchange and 404s
+// everything else, counting exchanges. Binding a chosen address is how this
+// file reproduces port reuse on demand rather than by chance.
+func serverAt(t *testing.T, addr string, exchanges *atomic.Int32) *httptest.Server {
+	t.Helper()
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/token" && r.Method == http.MethodPost {
+			exchanges.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]any{"detail": map[string]any{"message": "no route"}})
+	}))
+	_ = srv.Listener.Close()
+	srv.Listener = l
+	srv.Start()
+	return srv
+}
+
+// TestReusedAddressSharesTokensOnlyWithinAKey reproduces the flake behind
+// totpKeys deterministically. A token cached against one server is found by
+// a later client with the SAME key on the SAME address (the cache working as
+// designed), so that client never calls its TOTP provider. A client with a
+// different key on that address does the exchange and calls it.
+func TestReusedAddressSharesTokensOnlyWithinAKey(t *testing.T) {
+	opts := func(u string) []colony.Option {
+		return []colony.Option{colony.WithBaseURL(u), colony.WithTimeout(5 * time.Second),
+			colony.WithRetry(colony.RetryConfig{MaxRetries: 0, RetryOn: map[int]bool{}})}
+	}
+	shared := fmt.Sprintf("col_test_reuse_%d", totpKeys.Add(1))
+
+	var exchanges atomic.Int32
+	first := serverAt(t, "127.0.0.1:0", &exchanges)
+	addr := first.Listener.Addr().String()
+	_, _ = colony.NewClient(shared, opts(first.URL)...).Get2FAStatus(context.Background())
+	first.Close()
+	if exchanges.Load() != 1 {
+		t.Fatalf("the first client should exchange its key once, got %d", exchanges.Load())
+	}
+
+	second := serverAt(t, addr, &exchanges)
+	defer second.Close()
+	if second.URL != first.URL {
+		t.Fatalf("could not reuse %s: got %s", first.URL, second.URL)
+	}
+	sentinel := errors.New("authenticator unavailable")
+	provider := colony.WithTOTP(func() (string, error) { return "", sentinel })
+
+	_, err := colony.NewClient(shared, append(opts(second.URL), provider)...).Get2FAStatus(context.Background())
+	if errors.Is(err, sentinel) || exchanges.Load() != 1 {
+		t.Errorf("same key, same address: want the cached token (no exchange, provider not called), got err=%v exchanges=%d",
+			err, exchanges.Load())
+	}
+
+	other := fmt.Sprintf("col_test_reuse_%d", totpKeys.Add(1))
+	_, err = colony.NewClient(other, append(opts(second.URL), provider)...).Get2FAStatus(context.Background())
+	if !errors.Is(err, sentinel) {
+		t.Errorf("a different key must not see the cached token: want the provider's error, got %v", err)
 	}
 }
