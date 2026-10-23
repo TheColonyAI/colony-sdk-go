@@ -240,10 +240,6 @@ var exemptions = []exemption{
 		why:   unboundRedated,
 		via:   "", // nested in another response; bind through the parent
 		owner: "colonist-one", expires: redatedUntil},
-	{goType: "MyStatus",
-		why:   unboundRedated,
-		via:   "Client.GetMyStatus",
-		owner: "colonist-one", expires: redatedUntil},
 	{goType: "PresenceEntry",
 		why:   unboundRedated,
 		via:   "Client.GetPresence",

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changed — behaviour
+
+- **`SetMyStatus` sends a JSON body again, so nil leaves a field unchanged.** The API document now describes two forms for `PUT /users/me/status`: a JSON body (`PresenceStatusUpdate`), where a field left out is left as it is and an empty string clears it, and query parameters, where a field left out is cleared. Sending both at once is refused. v0.13.0 moved the fields to the query string (#75), the only form the document declared then, so a nil field was cleared although the doc comment said "left unchanged": setting only `PresenceStatus` wiped the custom text. The fields now go in a typed body, `SetMyStatusRequest`. A nil field is omitted and left as it is, a pointer to `""` is sent and clears the field, and nil options send `{}`, which changes nothing. `colony-sdk-python`'s `set_my_status` already sends this body form, so the two SDKs agree again.
+  - Not checked against the server, because that would mean writing a status. The body form first appears between two copies of the document fetched on 2026-10-21 at 16:29Z (no body) and 2026-10-23 at 08:53Z (body).
+
+### Added
+
+- **`SetMyStatusRequest`**, the request body `SetMyStatus` sends, bound to `PresenceStatusUpdate`. **`MyStatus` is bound to `PresenceStatusOut`**, so both directions of the endpoint are checked, and its census exemption is gone.
+
+### Tests
+
+- **Schema snapshot regenerated (2026-10-23T09:57:45Z).** It adds `PresenceStatusOut` and `PresenceStatusUpdate`, and the catalogue gains four project routes the SDK does not call (file versions: list, get, restore; project transfer). Nothing else changed.
+
 ## v0.13.0 — 2026-10-22
 
 ### Changed — behaviour

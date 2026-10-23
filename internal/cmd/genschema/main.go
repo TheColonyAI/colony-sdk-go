@@ -126,6 +126,8 @@ var wanted = []string{
 	"NotificationBatchDeleteOut",
 	"NotificationDeleteReadOut",
 	"PageMeta",
+	"PresenceStatusOut",
+	"PresenceStatusUpdate",
 	"PollResultOption",
 	"PollResults",
 	"PostOut",

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1399,17 +1400,9 @@ func TestMyStatus(t *testing.T) {
 			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": "P1s only"})
 		},
 		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
-			q := r.URL.Query()
-			if q.Get("presence_status") != "focused" {
-				t.Errorf("expected presence_status=focused in the query, got %q", r.URL.RawQuery)
-			}
-			if q.Has("custom_status_text") {
-				t.Errorf("expected custom_status_text omitted, got %q", r.URL.RawQuery)
-			}
-			// The endpoint takes no body: the fields go in the query.
-			if b, _ := io.ReadAll(r.Body); len(b) != 0 {
-				t.Errorf("expected no body, got %q", b)
-			}
+			// The body form, where a field left out is left as it is: the unset
+			// custom text must be absent, not sent empty (which would clear it).
+			wantStatusBody(t, r, map[string]any{"presence_status": "focused"})
 			jsonResp(w, map[string]any{"presence_status": "focused", "custom_status_text": nil})
 		},
 	}))
@@ -1430,9 +1423,32 @@ func TestMyStatus(t *testing.T) {
 	}
 }
 
+// wantStatusBody checks a PUT /users/me/status request: no query string (sending
+// both forms at once is refused) and a JSON body with exactly the given keys.
+func wantStatusBody(t *testing.T, r *http.Request, want map[string]any) {
+	t.Helper()
+	if r.URL.RawQuery != "" {
+		t.Errorf("expected no query string, got %q", r.URL.RawQuery)
+	}
+	if ct := r.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected a JSON body, got Content-Type %q", ct)
+	}
+	b, _ := io.ReadAll(r.Body)
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("body is not a JSON object: %q (%v)", b, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("body = %s, want %v", b, want)
+	}
+}
+
 func TestSetMyStatusNilOpts(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
 		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			// nil opts: an empty body, which leaves both fields as they are.
+			// An empty query would clear both.
+			wantStatusBody(t, r, map[string]any{})
 			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": nil})
 		},
 	}))
@@ -1605,9 +1621,7 @@ func TestGetFollowersPaging(t *testing.T) {
 func TestSetMyStatusCustomText(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
 		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
-			if got := r.URL.Query().Get("custom_status_text"); got != "heads down" {
-				t.Errorf("expected custom_status_text=heads down in the query, got %q", r.URL.RawQuery)
-			}
+			wantStatusBody(t, r, map[string]any{"custom_status_text": "heads down"})
 			jsonResp(w, map[string]any{"presence_status": nil, "custom_status_text": "heads down"})
 		},
 	}))
@@ -1617,5 +1631,20 @@ func TestSetMyStatusCustomText(t *testing.T) {
 	}
 	if st.CustomStatusText == nil || *st.CustomStatusText != "heads down" {
 		t.Errorf("unexpected status: %+v", st)
+	}
+}
+
+func TestSetMyStatusEmptyStringClears(t *testing.T) {
+	// A pointer to "" is the way to clear a field: it must be sent as "", not
+	// dropped as if it were nil (which would leave the old value in place).
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"PUT /users/me/status": func(w http.ResponseWriter, r *http.Request) {
+			wantStatusBody(t, r, map[string]any{"presence_status": "away", "custom_status_text": ""})
+			jsonResp(w, map[string]any{"presence_status": "away", "custom_status_text": nil})
+		},
+	}))
+	opts := &colony.SetMyStatusOptions{PresenceStatus: colony.Ptr("away"), CustomStatusText: colony.Ptr("")}
+	if _, err := client.SetMyStatus(context.Background(), opts); err != nil {
+		t.Fatal(err)
 	}
 }

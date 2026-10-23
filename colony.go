@@ -1371,22 +1371,23 @@ func (c *Client) GetMyStatus(ctx context.Context) (*MyStatus, error) {
 
 // SetMyStatus updates the caller's presence label + custom-status text. Both
 // fields are independently optional — nil leaves a field unchanged, and a
-// pointer to "" sends the field empty.
+// pointer to "" clears it.
 //
-// Both go in the query string, which is where the API document declares them;
-// the endpoint takes no body. This sent them as a JSON body until 2026-10-22.
+// The fields go in a JSON body, [SetMyStatusRequest]. The API document
+// describes two forms for PUT /users/me/status: in the JSON body a field left
+// out is left as it is, and in the query string a field left out is cleared.
+// Sending both at once is refused. Only the body form lets nil mean
+// "unchanged", so that is the one this sends; nil opts sends an empty body,
+// which changes nothing. v0.13.0 sent the fields in the query string, where a
+// nil field was cleared despite this comment.
 func (c *Client) SetMyStatus(ctx context.Context, opts *SetMyStatusOptions) (*MyStatus, error) {
-	q := url.Values{}
+	body := SetMyStatusRequest{}
 	if opts != nil {
-		if opts.PresenceStatus != nil {
-			q.Set("presence_status", *opts.PresenceStatus)
-		}
-		if opts.CustomStatusText != nil {
-			q.Set("custom_status_text", *opts.CustomStatusText)
-		}
+		body.PresenceStatus = opts.PresenceStatus
+		body.CustomStatusText = opts.CustomStatusText
 	}
 	var resp MyStatus
-	if err := c.do(ctx, http.MethodPut, withQuery("/users/me/status", q), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/users/me/status", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
