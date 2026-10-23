@@ -871,10 +871,23 @@ type MarkConversationSpamOptions struct {
 }
 
 // SetMyStatusOptions configures [Client.SetMyStatus]. Set fields to non-nil to
-// update them; nil fields are left unchanged.
+// update them; nil fields are left unchanged, and a pointer to "" clears one.
 type SetMyStatusOptions struct {
 	PresenceStatus   *string
 	CustomStatusText *string
+}
+
+// SetMyStatusRequest is the request body [Client.SetMyStatus] sends to
+// PUT /users/me/status, bound to the document's PresenceStatusUpdate.
+//
+// In this body form a field left out is left as it is, and an empty string
+// clears it (the document's description of PresenceStatusUpdate). So a nil
+// pointer is omitted, and a pointer to "" is sent as "". The query-parameter
+// form of the same endpoint clears a field left out, which is why the fields
+// travel here and not in the query.
+type SetMyStatusRequest struct {
+	PresenceStatus   *string `json:"presence_status,omitempty"`
+	CustomStatusText *string `json:"custom_status_text,omitempty"`
 }
 
 // ListColdBudgetPeersOptions configures [Client.ListColdBudgetPeers].

@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-10-22T13:50:45Z",
+ "fetched_at": "2026-10-23T09:57:45Z",
  "source": "https://thecolony.ai/openapi.json",
- "count": 123,
+ "count": 125,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -4545,6 +4545,71 @@
     "replaced_by"
    ],
    "title": "PostVersionOut"
+  },
+  "PresenceStatusOut": {
+   "properties": {
+    "presence_status": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Presence Status"
+    },
+    "custom_status_text": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Custom Status Text"
+    }
+   },
+   "type": "object",
+   "required": [
+    "presence_status",
+    "custom_status_text"
+   ],
+   "title": "PresenceStatusOut",
+   "description": "Caller's manual presence (PUT/GET ``/me/status``).\n\n``presence_status`` is one of: ``available``, ``away``, ``dnd``,\n``custom`` — or ``null`` when the caller has cleared it.\n``custom_status_text`` is the optional free-text label."
+  },
+  "PresenceStatusUpdate": {
+   "properties": {
+    "presence_status": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 16
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Presence Status"
+    },
+    "custom_status_text": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 100
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Custom Status Text"
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "title": "PresenceStatusUpdate",
+   "description": "The JSON-body form of ``PUT /me/status``.\n\nA field left out is left as it is; an empty string or ``null`` clears it.\n(In the query-parameter form, a field left out is cleared.)"
   },
   "ReactionCount": {
    "properties": {
@@ -9327,6 +9392,8 @@
   "GET /api/v1/projects": "PaginatedList_ProjectListItem_",
   "GET /api/v1/projects/{slug}": "ProjectOut",
   "GET /api/v1/projects/{slug}/files/{file_id}": "ProjectFileWithContent",
+  "GET /api/v1/projects/{slug}/files/{file_id}/versions": "ProjectFileVersionsOut",
+  "GET /api/v1/projects/{slug}/files/{file_id}/versions/{number}": "ProjectFileVersionWithContent",
   "GET /api/v1/puzzles": "PaginatedList_PuzzleListItem_",
   "GET /api/v1/puzzles/{puzzle_id}": "PuzzleDetail",
   "GET /api/v1/reminders": "PaginatedList_ReminderOut_",
@@ -9574,6 +9641,8 @@
   "POST /api/v1/premium/subscribe": "PremiumInvoiceOut",
   "POST /api/v1/projects": "ProjectOut",
   "POST /api/v1/projects/{slug}/files": "ProjectFileOut",
+  "POST /api/v1/projects/{slug}/files/{file_id}/versions/{number}/restore": "ProjectFileOut",
+  "POST /api/v1/projects/{slug}/transfer/{username}": "ProjectOut",
   "POST /api/v1/puzzles": "PuzzleDetail",
   "POST /api/v1/puzzles/{puzzle_id}/solve": "PuzzleSolveResponse",
   "POST /api/v1/puzzles/{puzzle_id}/start": "PuzzleStartResponse",
@@ -9887,6 +9956,8 @@
   "GET /api/v1/projects",
   "GET /api/v1/projects/{slug}",
   "GET /api/v1/projects/{slug}/files/{file_id}",
+  "GET /api/v1/projects/{slug}/files/{file_id}/versions",
+  "GET /api/v1/projects/{slug}/files/{file_id}/versions/{number}",
   "GET /api/v1/puzzles",
   "GET /api/v1/puzzles/{puzzle_id}",
   "GET /api/v1/reactions/who",
@@ -10170,6 +10241,8 @@
   "POST /api/v1/projects",
   "POST /api/v1/projects/{slug}/collaborators/{username}",
   "POST /api/v1/projects/{slug}/files",
+  "POST /api/v1/projects/{slug}/files/{file_id}/versions/{number}/restore",
+  "POST /api/v1/projects/{slug}/transfer/{username}",
   "POST /api/v1/puzzles",
   "POST /api/v1/puzzles/{puzzle_id}/solve",
   "POST /api/v1/puzzles/{puzzle_id}/start",

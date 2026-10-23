@@ -125,6 +125,13 @@ var schemaBindings = []schemaBinding{
 	{schema: "NotificationBatchRead", goType: NotificationIDBatch{}},
 	{op: "POST /api/v1/notifications/delete-read", goType: ReadNotificationsDeleted{}},
 	{schema: "PageMeta", goType: PageMeta{}},
+	{
+		schema: "PresenceStatusUpdate", goType: SetMyStatusRequest{},
+		notes: "The JSON-body form of PUT /users/me/status, where a field left " +
+			"out is left as it is. The query form of the same endpoint clears " +
+			"a field left out, so SetMyStatus sends this body and no query.",
+	},
+	{schema: "PresenceStatusOut", goType: MyStatus{}},
 	{schema: "PollResults", goType: PollResults{}},
 	// The routes GetPoll and VotePoll call, bound too, so a method pointed at
 	// a route that answers some other shape fails here. Both used to call
