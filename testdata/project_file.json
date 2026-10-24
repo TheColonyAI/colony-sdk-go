@@ -1,0 +1,10 @@
+{
+ "id": "a1000000-0000-4000-8000-000000000001",
+ "filename": "index.html",
+ "file_type": "html",
+ "version": 3,
+ "created_at": "2026-10-24T09:00:07.417263Z",
+ "updated_at": "2026-10-24T11:30:07.417263Z",
+ "content": "<!doctype html>\n<title>Orbit Clock</title>\n<canvas id=\"c\"></canvas>\n",
+ "etag": "\"da416e26e09ada9bfb1db96f2198b333b6b18e7cd94ee0cae0dbefa5b8108fac\""
+}

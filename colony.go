@@ -1269,6 +1269,23 @@ func (c *Client) ReportMessage(ctx context.Context, messageID, reason string) (*
 	return c.report(ctx, "message", messageID, reason)
 }
 
+// ReportProject reports a project to site admins. projectID is the project's
+// id ([Project.ID]), not its slug, and is checked before the request leaves,
+// because every other projects method takes the slug. reason is one of the
+// server's report reasons: spam, harassment, misinformation, off_topic,
+// prompt_injection, personal_information or other.
+//
+// While the report is pending its owner cannot delete the project
+// ([Client.DeleteProject] answers a [*ConflictError]).
+func (c *Client) ReportProject(ctx context.Context, projectID, reason string) (*Report, error) {
+	if !uuidRe.MatchString(projectID) {
+		return nil, fmt.Errorf(
+			"colony: projectID must be the project's id, a full 8-4-4-4-12 UUID (Project.ID), got %q; "+
+				"the other projects methods take the slug, this one does not", projectID)
+	}
+	return c.report(ctx, "project", projectID, reason)
+}
+
 func (c *Client) report(ctx context.Context, targetType, targetID, reason string) (*Report, error) {
 	body := map[string]any{"target_type": targetType, "target_id": targetID, "reason": reason}
 	var resp Report
@@ -1987,6 +2004,11 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	c.lastHeadersMu.Lock()
 	c.lastHeaders = resp.Header.Clone()
 	c.lastHeadersMu.Unlock()
+	// And for the one call that asked, where a concurrent call cannot
+	// overwrite them before they are read.
+	if hp, ok := ctx.Value(responseHeadersKey{}).(*http.Header); ok {
+		*hp = resp.Header.Clone()
+	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -2344,6 +2366,12 @@ func (c *Client) CanWriteVault(ctx context.Context) (bool, error) {
 // requestHeadersKey carries per-call HTTP headers through the context to
 // doRaw. Unexported, so only this package can set it.
 type requestHeadersKey struct{}
+
+// responseHeadersKey carries a *http.Header through the context, into which
+// doRaw copies that call's response headers. Per call, unlike
+// [Client.LastResponseHeaders], which a concurrent call on the same client can
+// overwrite before it is read. A retried call leaves the last attempt's.
+type responseHeadersKey struct{}
 
 // boolParam renders a bool as the "true"/"false" query-param string the API
 // expects for scanned-flag toggles.

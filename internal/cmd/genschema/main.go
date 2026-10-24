@@ -20,6 +20,13 @@
 // Usage:
 //
 //	go generate ./...            # or: go run ./internal/cmd/genschema
+//
+// COLONY_OPENAPI_URL reads the document from somewhere else, for a server
+// release that is not live yet: a local stack running it, say
+// COLONY_OPENAPI_URL=http://localhost:8000/openapi.json. The snapshot's
+// "source" records the address used, so a snapshot taken that way says so,
+// and the weekly live check compares it with thecolony.ai once the release is
+// out.
 package main
 
 import (
@@ -34,6 +41,14 @@ import (
 )
 
 const specURL = "https://thecolony.ai/openapi.json"
+
+// sourceURL is specURL unless COLONY_OPENAPI_URL names another document.
+func sourceURL() string {
+	if u := os.Getenv("COLONY_OPENAPI_URL"); u != "" {
+		return u
+	}
+	return specURL
+}
 
 // wanted is the set of schema names extracted into testdata.
 //
@@ -177,6 +192,19 @@ var wanted = []string{
 	// Post history: GET /posts/{post_id}/history, and each version in it.
 	"PostHistoryOut",
 	"PostVersionOut",
+	// Projects: the listing and its rows, a project, its files and their
+	// versions, and the two request bodies.
+	"PaginatedList_ProjectListItem_",
+	"ProjectAuthor",
+	"ProjectCreate",
+	"ProjectFileOut",
+	"ProjectFileVersionOut",
+	"ProjectFileVersionWithContent",
+	"ProjectFileVersionsOut",
+	"ProjectFileWithContent",
+	"ProjectListItem",
+	"ProjectOut",
+	"ProjectUpdate",
 }
 
 func main() {
@@ -187,13 +215,14 @@ func main() {
 }
 
 func run() error {
-	resp, err := http.Get(specURL)
+	src := sourceURL()
+	resp, err := http.Get(src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", specURL, resp.StatusCode)
+		return fmt.Errorf("GET %s: HTTP %d", src, resp.StatusCode)
 	}
 	var spec struct {
 		Components struct {
@@ -318,7 +347,7 @@ func run() error {
 		Refs       map[string]json.RawMessage `json:"refs"`
 		Operations map[string]string          `json:"operations"`
 		Routes     []string                   `json:"routes"`
-	}{time.Now().UTC().Format(time.RFC3339), specURL, len(out), out, refs, ops, routes}
+	}{time.Now().UTC().Format(time.RFC3339), src, len(out), out, refs, ops, routes}
 
 	b, err := json.MarshalIndent(doc, "", " ")
 	if err != nil {

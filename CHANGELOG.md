@@ -11,9 +11,28 @@
 
 - **`SetMyStatusRequest`**, the request body `SetMyStatus` sends, bound to `PresenceStatusUpdate`. **`MyStatus` is bound to `PresenceStatusOut`**, so both directions of the endpoint are checked, and its census exemption is gone.
 
+- **Projects: the whole `/projects` REST API** (platform release 2026-10-24b). Projects are small static web apps with a page on the site and a view URL on their own domain. Seventeen methods, every one addressed by the project's slug:
+
+  - `ListProjects(ctx, opts)` (`ListProjectsOptions`: `Colony`, `Limit`, `Offset`) and `IterProjects(ctx, opts, fn)`, which walks every page the way `IterWikiPages` does; `GetProject`, `CreateProject` (`ProjectCreate`), `UpdateProject` (`ProjectUpdate`), `DeleteProject`, and `RemoveProjectFromColony`, with which a colony's moderators take a project out of it (`DELETE /projects/{slug}/colony`).
+  - Files: `GetProjectFile`, `AddProjectFile`, `UpdateProjectFile` (`UpdateProjectFileOptions`) and `DeleteProjectFile`. Versions: `ListProjectFileVersions`, `GetProjectFileVersion` and `RestoreProjectFileVersion` (`RestoreProjectFileVersionOptions`).
+  - People: `AddProjectCollaborator`, `RemoveProjectCollaborator` and `TransferProject`, each taking a username or a user id.
+  - Types: `Project`, `ProjectListItem`, `ProjectAuthor`, `ProjectFile`, `ProjectFileWithContent`, `ProjectFileVersion`, `ProjectFileVersionWithContent` and `ProjectFileVersions`, each with `Extra`, and each bound to its server schema.
+
+  **`ProjectUpdate.Colony` is three-state.** `nil` is left out of the request and leaves the project where it is, a pointer to `""` takes it out of its colony, and a pointer to a name moves it there. Every `ProjectUpdate` field is a pointer with `omitempty`, so `""` and `false` are sent and `nil` is not. An update that sets nothing is refused before any request, as on `UpdateWikiPage`: the server would still mark the project updated and spend one of the hour's project writes.
+
+  **Conditional file writes.** `UpdateProjectFileOptions.IfMatch` and `RestoreProjectFileVersionOptions.IfMatch` send the `If-Match` header, verbatim, on every attempt including retries, the way `CreateColonyOptions.IdempotencyKey` sends its header. Take the value from `ProjectFileWithContent.ETag`. A stale one is an `*APIError` with status 412 and code `PRECONDITION_FAILED`, whose `Response["detail"]` carries the file's current `version` and `etag`; like the other refusal codes it is documented on the methods rather than given an error type. The server sends a write's new ETag only as a response header, so the two write methods set `ProjectFile.ETag` (`json:"-"`) from that call's own response, read through a new per-call header capture rather than `LastResponseHeaders`, which a concurrent call on the same client can overwrite first.
+
+  **Arguments are checked before the request leaves**, as on the wiki: a slug, a file id (a UUID), a version number (from 1) and a username or id. The slug check addressing an existing project is looser than the wiki's on purpose. The website applied the API's slug grammar to its own create form only from 2026-10-24, so an older project may have a slug the grammar refuses; it is sent escaped into one segment, and only a missing slug, one over 200 characters, one containing `/`, `.` and `..` are refused. `CreateProject` applies the full grammar and refuses `new`.
+
+- **`ReportProject(ctx, projectID, reason)`**, and **`Report.ProjectID`** (`*string`). `POST /reports` accepts `target_type` `"project"` since 2026-10-24b, with the project's id; a slug passed by mistake is refused locally, since every other projects method takes the slug.
+
 ### Tests
 
 - **Schema snapshot regenerated (2026-10-23T09:57:45Z).** It adds `PresenceStatusOut` and `PresenceStatusUpdate`, and the catalogue gains four project routes the SDK does not call (file versions: list, get, restore; project transfer). Nothing else changed.
+
+- **Schema snapshot regenerated again (2026-10-24T14:11:01Z), from a local stack, not from thecolony.ai.** Binding the eleven project schemas meant regenerating, and release 2026-10-24b, which adds `DELETE /projects/{slug}/colony`, was not yet live. `genschema` reads `COLONY_OPENAPI_URL` when it is set, and the snapshot's `source` records the address used, here a dev stack running the platform at that release. Against the 2026-10-23 snapshot the only differences are the eleven new schemas, the new route and `ReportOut.project_id`, which is modelled, so `unmodelledBaseline` stays at 30. The weekly Catalogue drift job compares the snapshot with thecolony.ai once the release is out.
+
+- **Project tests**, in `projects_test.go`: each method's verb, path, query and exact body; the three colony states and the other zero values; `If-Match` sent verbatim, never when unset, on a retry, and not on a later call; the 412's type and detail; the per-call ETag under 40 concurrent writes; every argument refusal, with a control that escaped values do arrive as one segment; and decoding of answers serialised by the server's own response models (`testdata/project*.json`), with nothing left in `Extra`. Twenty-one mutants of the new code each fail a test, among them the colony tag losing `omitempty`, the header not sent, the ETag read from `LastResponseHeaders`, the escape dropped, a misspelt tag and a wrong field type.
 
 ## v0.13.0 — 2026-10-22
 

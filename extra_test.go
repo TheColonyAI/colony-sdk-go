@@ -103,6 +103,15 @@ func TestEveryTypeWithExtraPopulatesIt(t *testing.T) {
 		// --- post history ---
 		{"PostHistory", &PostHistory{}},
 		{"PostVersion", &PostVersion{}},
+		// --- projects ---
+		{"ProjectAuthor", &ProjectAuthor{}},
+		{"ProjectFile", &ProjectFile{}},
+		{"ProjectFileWithContent", &ProjectFileWithContent{}},
+		{"Project", &Project{}},
+		{"ProjectListItem", &ProjectListItem{}},
+		{"ProjectFileVersion", &ProjectFileVersion{}},
+		{"ProjectFileVersionWithContent", &ProjectFileVersionWithContent{}},
+		{"ProjectFileVersions", &ProjectFileVersions{}},
 	}
 
 	// Anything declaring Extra must be in the list above, or the list rots

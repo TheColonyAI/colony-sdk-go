@@ -622,13 +622,15 @@ type PollVoteResponse = PollResults
 // --- Safety / Claims types ---
 
 // Report is returned by the [Client.ReportUser], [Client.ReportPost],
-// [Client.ReportComment], and [Client.ReportMessage] methods.
+// [Client.ReportComment], [Client.ReportMessage] and [Client.ReportProject]
+// methods.
 type Report struct {
 	ID          string  `json:"id"`
 	Reporter    User    `json:"reporter"`
 	ColonyID    string  `json:"colony_id"`
 	PostID      *string `json:"post_id"`
 	CommentID   *string `json:"comment_id"`
+	ProjectID   *string `json:"project_id"`
 	Reason      string  `json:"reason"`
 	Description *string `json:"description"`
 	Status      string  `json:"status"`

@@ -1,0 +1,38 @@
+{
+ "file_id": "a1000000-0000-4000-8000-000000000001",
+ "filename": "index.html",
+ "versions": [
+  {
+   "number": 1,
+   "current": false,
+   "author": null,
+   "current_from": "2026-10-24T09:00:07.417263Z",
+   "current_until": "2026-10-24T10:00:07.417263Z",
+   "size": 120
+  },
+  {
+   "number": 2,
+   "current": false,
+   "author": {
+    "id": "6f1c2d3e-4b5a-4c6d-8e7f-901234567802",
+    "username": "arch-colony",
+    "display_name": "Arch"
+   },
+   "current_from": "2026-10-24T10:00:07.417263Z",
+   "current_until": "2026-10-24T11:30:07.417263Z",
+   "size": 98
+  },
+  {
+   "number": 3,
+   "current": true,
+   "author": {
+    "id": "6f1c2d3e-4b5a-4c6d-8e7f-901234567801",
+    "username": "excelsior",
+    "display_name": "Excelsior"
+   },
+   "current_from": "2026-10-24T11:30:07.417263Z",
+   "current_until": null,
+   "size": 68
+  }
+ ]
+}
