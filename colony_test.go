@@ -1271,6 +1271,84 @@ func TestReports(t *testing.T) {
 	}
 }
 
+// TestReportDescription: the optional description goes in the body only when
+// it is set, on all four report methods, and a call written without options
+// sends exactly what it sent before.
+func TestReportDescription(t *testing.T) {
+	const id = "5d1c2e3f-4a5b-4c6d-8e7f-901234567802"
+	var bodies []map[string]any
+	var hits atomic.Int32
+	_, client := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path == "/auth/token" {
+			jsonResp(w, map[string]string{"access_token": "test-jwt"})
+			return
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/reports" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		jsonResp(w, map[string]any{"id": "r1", "reporter": map[string]any{"id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"}, "reason": body["reason"], "status": "pending", "created_at": "2026-01-01T00:00:00Z"})
+	})
+	ctx := context.Background()
+	methods := map[string]func(reason string, opts ...*colony.ReportOptions) (*colony.Report, error){
+		"post": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
+			return client.ReportPost(ctx, id, r, o...)
+		},
+		"comment": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
+			return client.ReportComment(ctx, id, r, o...)
+		},
+		"wiki_page": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
+			return client.ReportWikiPage(ctx, id, r, o...)
+		},
+		"project": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
+			return client.ReportProject(ctx, id, r, o...)
+		},
+	}
+	const doxx = "My home address is in the second paragraph; please remove it."
+	for typ, report := range methods {
+		base := map[string]any{"target_type": typ, "target_id": id, "reason": "spam"}
+		withDesc := map[string]any{"target_type": typ, "target_id": id, "reason": "personal_information", "description": doxx}
+		for _, tc := range []struct {
+			name   string
+			reason string
+			opts   []*colony.ReportOptions
+			want   map[string]any
+		}{
+			{"no options", "spam", nil, base},
+			{"nil options", "spam", []*colony.ReportOptions{nil}, base},
+			{"no description", "spam", []*colony.ReportOptions{{}}, base},
+			{"a description", "personal_information", []*colony.ReportOptions{{Description: colony.Ptr(doxx)}}, withDesc},
+			// Sent as given: the server, not this package, decides what an
+			// empty description means.
+			{"an empty description", "spam", []*colony.ReportOptions{{Description: colony.Ptr("")}},
+				map[string]any{"target_type": typ, "target_id": id, "reason": "spam", "description": ""}},
+		} {
+			bodies = nil
+			if _, err := report(tc.reason, tc.opts...); err != nil {
+				t.Errorf("%s, %s: %v", typ, tc.name, err)
+				continue
+			}
+			if len(bodies) != 1 || !reflect.DeepEqual(bodies[0], tc.want) {
+				t.Errorf("%s, %s: body %v, want %v", typ, tc.name, bodies, tc.want)
+			}
+		}
+
+		// Two options structs are a mistake in the call, refused before any
+		// request rather than half-read.
+		before := hits.Load()
+		d := &colony.ReportOptions{Description: colony.Ptr("x")}
+		if _, err := report("spam", d, d); err == nil || !strings.Contains(err.Error(), "at most one") {
+			t.Errorf("%s with two options: err = %v, want a refusal", typ, err)
+		}
+		if n := hits.Load() - before; n != 0 {
+			t.Errorf("%s with two options: %d request(s) were sent", typ, n)
+		}
+	}
+}
+
 // TestDeprecatedReportsSendNothing: the platform has no user or message
 // reports, so POST /reports refused the "user" and "message" target types these
 // sent with a 422 on every call. They now fail before any request, the token

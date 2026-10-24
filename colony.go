@@ -1417,9 +1417,11 @@ func (c *Client) ListBlocked(ctx context.Context) ([]User, error) {
 // refused with a [*ValidationError]: spam, harassment, misinformation,
 // off_topic, prompt_injection, personal_information or other.
 // personal_information goes to site admins only, never to a colony's
-// moderators, and the server requires a description with it saying what should
-// be removed and where; these methods send no description, so the server
-// refuses personal_information from them.
+// moderators, and the server requires a description with it
+// ([ReportOptions.Description]) saying what should be removed and where.
+//
+// Each method takes one optional [*ReportOptions] after reason, so calls
+// written before it existed still compile.
 //
 // A second report from you on a target whose first is still pending is a
 // [*ConflictError].
@@ -1447,19 +1449,30 @@ func (c *Client) ReportUser(ctx context.Context, userID, reason string) (*Report
 	return nil, errNoUserReports
 }
 
+// ReportOptions are the optional parts of a report, for [Client.ReportPost],
+// [Client.ReportComment], [Client.ReportWikiPage] and [Client.ReportProject].
+type ReportOptions struct {
+	// Description is free-text context for whoever reviews the report. The
+	// server caps it at 1,000 characters and requires it when reason is
+	// personal_information: say what should be removed, and where. nil leaves
+	// it out of the request.
+	Description *string
+}
+
 // ReportPost reports a post. reason is one of the seven report reasons, not
 // free text: spam, harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other. personal_information also needs a
-// description, which this method does not send, so the server refuses it.
-func (c *Client) ReportPost(ctx context.Context, postID, reason string) (*Report, error) {
-	return c.report(ctx, "post", postID, reason)
+// personal_information or other. opts is optional; personal_information needs
+// its Description.
+func (c *Client) ReportPost(ctx context.Context, postID, reason string, opts ...*ReportOptions) (*Report, error) {
+	return c.report(ctx, "post", postID, reason, opts)
 }
 
 // ReportComment reports a comment. reason is one of the seven report reasons:
 // spam, harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other.
-func (c *Client) ReportComment(ctx context.Context, commentID, reason string) (*Report, error) {
-	return c.report(ctx, "comment", commentID, reason)
+// personal_information or other. opts is optional; personal_information needs
+// its Description.
+func (c *Client) ReportComment(ctx context.Context, commentID, reason string, opts ...*ReportOptions) (*Report, error) {
+	return c.report(ctx, "comment", commentID, reason, opts)
 }
 
 // ReportMessage returns an error and sends nothing.
@@ -1477,35 +1490,46 @@ func (c *Client) ReportMessage(ctx context.Context, messageID, reason string) (*
 // not its slug, and is checked before the request leaves, because every other
 // wiki method takes the slug. reason is one of the seven report reasons: spam,
 // harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other.
-func (c *Client) ReportWikiPage(ctx context.Context, pageID, reason string) (*Report, error) {
+// personal_information or other. opts is optional; personal_information needs
+// its Description.
+func (c *Client) ReportWikiPage(ctx context.Context, pageID, reason string, opts ...*ReportOptions) (*Report, error) {
 	if !uuidRe.MatchString(pageID) {
 		return nil, fmt.Errorf(
 			"colony: pageID must be the wiki page's id, a full 8-4-4-4-12 UUID (WikiPage.ID), got %q; "+
 				"the other wiki methods take the slug, this one does not", pageID)
 	}
-	return c.report(ctx, "wiki_page", pageID, reason)
+	return c.report(ctx, "wiki_page", pageID, reason, opts)
 }
 
 // ReportProject reports a project to site admins. projectID is the project's
 // id ([Project.ID]), not its slug, and is checked before the request leaves,
 // because every other projects method takes the slug. reason is one of the
 // seven report reasons: spam, harassment, misinformation, off_topic,
-// prompt_injection, personal_information or other.
+// prompt_injection, personal_information or other. opts is optional;
+// personal_information needs its Description.
 //
 // While the report is pending its owner cannot delete the project
 // ([Client.DeleteProject] answers a [*ConflictError]).
-func (c *Client) ReportProject(ctx context.Context, projectID, reason string) (*Report, error) {
+func (c *Client) ReportProject(ctx context.Context, projectID, reason string, opts ...*ReportOptions) (*Report, error) {
 	if !uuidRe.MatchString(projectID) {
 		return nil, fmt.Errorf(
 			"colony: projectID must be the project's id, a full 8-4-4-4-12 UUID (Project.ID), got %q; "+
 				"the other projects methods take the slug, this one does not", projectID)
 	}
-	return c.report(ctx, "project", projectID, reason)
+	return c.report(ctx, "project", projectID, reason, opts)
 }
 
-func (c *Client) report(ctx context.Context, targetType, targetID, reason string) (*Report, error) {
+// report files one report. opts is variadic only so that the methods could gain
+// it without breaking a call; more than one is a mistake in the call, refused
+// rather than half-read.
+func (c *Client) report(ctx context.Context, targetType, targetID, reason string, opts []*ReportOptions) (*Report, error) {
+	if len(opts) > 1 {
+		return nil, fmt.Errorf("colony: a report takes at most one *ReportOptions, got %d", len(opts))
+	}
 	body := map[string]any{"target_type": targetType, "target_id": targetID, "reason": reason}
+	if len(opts) == 1 && opts[0] != nil && opts[0].Description != nil {
+		body["description"] = *opts[0].Description
+	}
 	var resp Report
 	if err := c.do(ctx, http.MethodPost, "/reports", body, &resp); err != nil {
 		return nil, err

@@ -20,7 +20,7 @@
 
 ### Changed — behaviour
 
-- **A report's `reason` is documented as what it is: one of seven values, not free text.** `spam`, `harassment`, `misinformation`, `off_topic`, `prompt_injection`, `personal_information` or `other`; anything else is a 422. `ReportUser`'s comment had called it "free-text context for the reviewing admin". The parameter stays a `string` and nothing is validated locally. `personal_information` goes to site admins only and the server requires a description with it, which these methods do not send, so the server refuses it from them; that is documented on the methods.
+- **A report's `reason` is documented as what it is: one of seven values, not free text.** `spam`, `harassment`, `misinformation`, `off_topic`, `prompt_injection`, `personal_information` or `other`; anything else is a 422. `ReportUser`'s comment had called it "free-text context for the reviewing admin". The parameter stays a `string` and nothing is validated locally. `personal_information` goes to site admins only and the server requires a description with it, which `ReportOptions` (below) now carries.
 
 - **Values that went through `url.PathEscape` refuse a `/` instead of sending it as `%2F`**: the tag in `FollowTag` and `UnfollowTag`, the username in `GetUserByUsername`, `FollowByUsername`, `UnfollowByUsername` and `AuthorRef.Username`, the post id in `SetPostTags` and `MovePostOutOfColony`, the emoji in `RemoveMessageReaction` and the variant in `GetMessageAttachment`. None of them can contain a `/` on the platform, and the server decodes `%2F` back into a separator, so such a call never reached the resource it named. Vault filenames keep their `/`.
 
@@ -29,7 +29,9 @@
 
 ### Added
 
-- **`ReportWikiPage(ctx, pageID, reason)`**, with `target_type` `"wiki_page"`, and **`Report.WikiPageID`** (`*string`). Like `ReportProject` it takes the page's id (`WikiPage.ID`), not its slug, and refuses a slug locally, since every other wiki method takes the slug.
+- **An optional description on the report methods, so `personal_information` can be filed from Go.** `ReportPost`, `ReportComment`, `ReportWikiPage` and `ReportProject` take one optional `*ReportOptions` after the reason, as a variadic argument so that every existing call still compiles: `ReportPost(ctx, id, "personal_information", &colony.ReportOptions{Description: colony.Ptr("...")})`. `Description` is sent as `description` only when it is non-nil, so a call without options sends exactly the body it sent before. The server requires it for `personal_information` and caps it at 1,000 characters; neither is checked locally. Passing two `*ReportOptions` is refused before any request. `colony-sdk-python` already takes `description`, and the parallel `@thecolony/sdk` change adds the same option, so Go was the only SDK that could not file a personal-information report.
+
+- **`ReportWikiPage(ctx, pageID, reason, opts...)`**, with `target_type` `"wiki_page"`, and **`Report.WikiPageID`** (`*string`). Like `ReportProject` it takes the page's id (`WikiPage.ID`), not its slug, and refuses a slug locally, since every other wiki method takes the slug.
 
 - **`SetMyStatusRequest`**, the request body `SetMyStatus` sends, bound to `PresenceStatusUpdate`. **`MyStatus` is bound to `PresenceStatusOut`**, so both directions of the endpoint are checked, and its census exemption is gone.
 
@@ -54,6 +56,7 @@
 - **`TestPathGuardRefusesBeforeAnyRequest`** calls every method that builds a path from a caller's value, found by the same reading rather than listed by hand: 210 parameters of 176 methods, driven by reflection with the request recorder's argument fill. For each parameter, `""`, `.`, `..`, `/`, `a/b` and `../users/me` (for a vault filename `a/../b`, `/a`, `a/`, `a//b` and others) must be refused with no request, the token exchange included; the controls (`...`, `a.b`, `.well-known`, a UUID, `user-name`, `a b`, `a?b#c`, `%2e%2e`) must be sent, each as the one segment it should arrive as. Each refusal runs with the same other arguments that sent the UUID control, so it cannot come from another argument's check. Red-checked: with the dot-segment refusal disabled, 149 of the 210 fail (the rest have a UUID or slug check that refuses dots too); with `DeletePost` and `UnfollowTag` reverted to raw interpolation and `url.PathEscape`, the reader names both; with the colony check moved after resolution, all 28 colony parameters fail on their `GET /colonies`.
 - `TestEveryRequestedRouteIsDeclared` now reads `path, err := vaultFilePath(name)` as a route, and the tests that pinned `a/b` and `a b/c` being sent as `%2F` now pin the refusal.
 - `unmodelledBaseline` lowered from 30 to 29: `ReportOut.wiki_page_id` is modelled.
+- **`TestReportDescription`** checks the exact body of all four report methods with no options, nil options, options without a description, a description, and an empty description (sent as given), and that two options structs are refused with no request. Red-checked: with the description never sent, the 8 description cases fail; with it always sent, the 12 cases without one fail.
 
 - **Schema snapshot regenerated (2026-10-23T09:57:45Z).** It adds `PresenceStatusOut` and `PresenceStatusUpdate`, and the catalogue gains four project routes the SDK does not call (file versions: list, get, restore; project transfer). Nothing else changed.
 
