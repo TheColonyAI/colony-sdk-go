@@ -173,7 +173,11 @@ func (c *Client) GetEchoes(ctx context.Context, opts *GetEchoesOptions) (*EchoLi
 // echoID is the echo's own id — the ID on a [Client.CreateEcho] response or a
 // [Client.GetEchoes] item — NOT the id of the post that was echoed.
 func (c *Client) DeleteEcho(ctx context.Context, echoID string) error {
-	return c.do(ctx, http.MethodDelete, "/echoes/"+echoID, nil, nil)
+	echoIDSeg, err := pathSegment("echoID", echoID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/echoes/"+echoIDSeg, nil, nil)
 }
 
 // IterEchoesOptions controls [Client.IterEchoes].

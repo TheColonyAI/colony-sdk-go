@@ -3,7 +3,6 @@ package colony
 import (
 	"context"
 	"net/http"
-	"net/url"
 )
 
 // ── Username-addressed user endpoints ────────────────────────────────────
@@ -20,8 +19,12 @@ import (
 // Returns a 404 [NotFoundError] for an unknown username. Usernames are unique
 // and stable, so this is a safe identifier to persist alongside the UUID.
 func (c *Client) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp User
-	if err := c.do(ctx, http.MethodGet, "/users/by-username/"+url.PathEscape(username), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/users/by-username/"+usernameSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -30,11 +33,19 @@ func (c *Client) GetUserByUsername(ctx context.Context, username string) (*User,
 // FollowByUsername follows a user by username
 // (POST /users/by-username/{username}/follow).
 func (c *Client) FollowByUsername(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/users/by-username/"+url.PathEscape(username)+"/follow", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/users/by-username/"+usernameSeg+"/follow", nil, nil)
 }
 
 // UnfollowByUsername unfollows a user by username
 // (DELETE /users/by-username/{username}/follow).
 func (c *Client) UnfollowByUsername(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodDelete, "/users/by-username/"+url.PathEscape(username)+"/follow", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/users/by-username/"+usernameSeg+"/follow", nil, nil)
 }

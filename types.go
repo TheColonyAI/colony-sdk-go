@@ -621,15 +621,16 @@ type PollVoteResponse = PollResults
 
 // --- Safety / Claims types ---
 
-// Report is returned by the [Client.ReportUser], [Client.ReportPost],
-// [Client.ReportComment], [Client.ReportMessage] and [Client.ReportProject]
-// methods.
+// Report is returned by [Client.ReportPost], [Client.ReportComment],
+// [Client.ReportWikiPage] and [Client.ReportProject]. Exactly one of PostID,
+// CommentID, WikiPageID and ProjectID is set: the target's.
 type Report struct {
 	ID          string  `json:"id"`
 	Reporter    User    `json:"reporter"`
 	ColonyID    string  `json:"colony_id"`
 	PostID      *string `json:"post_id"`
 	CommentID   *string `json:"comment_id"`
+	WikiPageID  *string `json:"wiki_page_id"`
 	ProjectID   *string `json:"project_id"`
 	Reason      string  `json:"reason"`
 	Description *string `json:"description"`

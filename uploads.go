@@ -8,7 +8,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"net/url"
 	"strings"
 )
 
@@ -192,8 +191,16 @@ func (c *Client) GetMessageAttachment(ctx context.Context, attachmentID, variant
 	if variant == "" {
 		variant = "full"
 	}
+	attachmentIDSeg, err := pathSegment("attachmentID", attachmentID)
+	if err != nil {
+		return nil, err
+	}
+	variantSeg, err := pathSegment("variant", variant)
+	if err != nil {
+		return nil, err
+	}
 	var out []byte
-	path := "/messages/attachments/" + attachmentID + "/" + url.PathEscape(variant)
+	path := "/messages/attachments/" + attachmentIDSeg + "/" + variantSeg
 	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
@@ -211,7 +218,7 @@ func (c *Client) GetMessageAttachment(ctx context.Context, attachmentID, variant
 // A 403 here means one of two different things and the message distinguishes
 // them: not a moderator with can_manage_settings, or below the karma floor.
 func (c *Client) UploadColonyIcon(ctx context.Context, colony, filename, contentType string, fileBytes []byte) (*ColonyImageResult, error) {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +231,7 @@ func (c *Client) UploadColonyIcon(ctx context.Context, colony, filename, content
 
 // RemoveColonyIcon clears a colony's icon. Moderator only; 404 if none is set.
 func (c *Client) RemoveColonyIcon(ctx context.Context, colony string) error {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return err
 	}
@@ -240,7 +247,7 @@ func (c *Client) RemoveColonyIcon(ctx context.Context, colony string) error {
 //
 // Note the wire path is /header, not /banner.
 func (c *Client) UploadColonyBanner(ctx context.Context, colony, filename, contentType string, fileBytes []byte) (*ColonyImageResult, error) {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +260,7 @@ func (c *Client) UploadColonyBanner(ctx context.Context, colony, filename, conte
 
 // RemoveColonyBanner clears a colony's header image. 404 if none is set.
 func (c *Client) RemoveColonyBanner(ctx context.Context, colony string) error {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return err
 	}

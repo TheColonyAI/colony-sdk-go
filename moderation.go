@@ -240,7 +240,7 @@ func (o *ModQueueOptions) query() url.Values {
 // colony is a slug or a UUID, resolved the same way [Client.JoinColony]
 // resolves it. Requires moderator authority in that colony; 403 otherwise.
 func (c *Client) GetModQueue(ctx context.Context, colony string, opts *ModQueueOptions) (*ModQueueList, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ type ModQueueActionResult struct {
 // field by field is one where a wrong Action and a right SourceID look the
 // same at the call site.
 func (c *Client) ModQueueAction(ctx context.Context, colony string, req ModQueueActionRequest) (*ModQueueActionResult, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +391,7 @@ type ModQueueBulkResult struct {
 //
 // See [ModQueueBulkResult] on why the error return is not the whole answer.
 func (c *Client) ModQueueBulkAction(ctx context.Context, colony string, req ModQueueBulkRequest) (*ModQueueBulkResult, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +468,7 @@ func (o *ListBansOptions) query() url.Values {
 
 // ListColonyBans lists a colony's bans. Moderator only.
 func (c *Client) ListColonyBans(ctx context.Context, colony string, opts *ListBansOptions) ([]ColonyBan, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -515,10 +515,11 @@ type BanResult struct {
 // The ban is visible to the user, who may appeal it with
 // [Client.SubmitBanAppeal]; you resolve that with [Client.ResolveBanAppeal].
 func (c *Client) BanColonyMember(ctx context.Context, colony, userID string, opts *BanOptions) (*BanResult, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +537,7 @@ func (c *Client) BanColonyMember(ctx context.Context, colony, userID string, opt
 		body = opts
 	}
 	var out BanResult
-	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/bans/"+userID, body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/bans/"+userIDSeg, body, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -548,14 +549,15 @@ func (c *Client) BanColonyMember(ctx context.Context, colony, userID string, opt
 // they have to join again. An unban is therefore not a full undo, and telling
 // somebody "you are unbanned" is not the same as them being back.
 func (c *Client) UnbanColonyMember(ctx context.Context, colony, userID string) error {
-	if err := requireUUIDArg("userID", userID); err != nil {
-		return err
-	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	userIDSeg, err := uuidSegment("userID", userID)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, "/colonies/"+colonyID+"/bans/"+userID, nil, nil)
+	colonyID, err := c.colonySegment(ctx, colony)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/colonies/"+colonyID+"/bans/"+userIDSeg, nil, nil)
 }
 
 // --- Appeals -----------------------------------------------------------
@@ -619,7 +621,7 @@ type MyBanStatus struct {
 // One of the two endpoints here that need no moderator authority — it is about
 // you. Safe to call for any colony you can see.
 func (c *Client) GetMyBanStatus(ctx context.Context, colony string) (*MyBanStatus, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +637,7 @@ func (c *Client) GetMyBanStatus(ctx context.Context, colony string) (*MyBanStatu
 // One pending appeal per colony: 404 if you have no active ban, 409 if an
 // appeal is already open. body is 1 to 2000 characters.
 func (c *Client) SubmitBanAppeal(ctx context.Context, colony, body string) (*BanAppeal, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +673,7 @@ type PendingAppeal struct {
 // ListBanAppeals lists a colony's pending ban appeals, oldest first. Moderator
 // only.
 func (c *Client) ListBanAppeals(ctx context.Context, colony string) ([]PendingAppeal, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -703,10 +705,11 @@ type AppealResolution struct {
 // person on the other end receives, and nil means they are told no with no
 // reason at all. Max 1000 characters.
 func (c *Client) ResolveBanAppeal(ctx context.Context, colony, appealID string, accept bool, note *string) (*AppealResolution, error) {
-	if err := requireUUIDArg("appealID", appealID); err != nil {
+	appealIDSeg, err := uuidSegment("appealID", appealID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -715,7 +718,7 @@ func (c *Client) ResolveBanAppeal(ctx context.Context, colony, appealID string, 
 		Note   *string `json:"note,omitempty"`
 	}{accept, note}
 	var out AppealResolution
-	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/appeals/"+appealID+"/resolve", req, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/appeals/"+appealIDSeg+"/resolve", req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -785,7 +788,7 @@ func (o *ListMembersOptions) query() url.Values {
 //
 // The other endpoint here that does not need moderator authority.
 func (c *Client) ListColonyMembers(ctx context.Context, colony string, opts *ListMembersOptions) ([]ColonyMember, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -820,14 +823,15 @@ func (c *Client) RemoveColonyMember(ctx context.Context, colony, userID string) 
 }
 
 func (c *Client) memberAction(ctx context.Context, colony, userID, verb, method string) error {
-	if err := requireUUIDArg("userID", userID); err != nil {
-		return err
-	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	userIDSeg, err := uuidSegment("userID", userID)
 	if err != nil {
 		return err
 	}
-	path := "/colonies/" + colonyID + "/members/" + userID
+	colonyID, err := c.colonySegment(ctx, colony)
+	if err != nil {
+		return err
+	}
+	path := "/colonies/" + colonyID + "/members/" + userIDSeg
 	if verb != "" {
 		path += "/" + verb
 	}
@@ -913,15 +917,16 @@ type MemberModHistory struct {
 // GetMemberModHistory fetches one member's full moderation record in a colony.
 // Moderator only.
 func (c *Client) GetMemberModHistory(ctx context.Context, colony, userID string) (*MemberModHistory, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
 	var out MemberModHistory
-	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userID+"/history", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userIDSeg+"/history", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -952,15 +957,16 @@ type MemberNoteList struct {
 // ListMemberNotes lists the mod-private notes on a colony member. Moderator
 // only.
 func (c *Client) ListMemberNotes(ctx context.Context, colony, userID string) (*MemberNoteList, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
 	var out MemberNoteList
-	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userID+"/notes", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userIDSeg+"/notes", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -968,10 +974,11 @@ func (c *Client) ListMemberNotes(ctx context.Context, colony, userID string) (*M
 
 // AddMemberNote adds a mod-private note to a member's running log.
 func (c *Client) AddMemberNote(ctx context.Context, colony, userID, body string) (*MemberNote, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -982,7 +989,7 @@ func (c *Client) AddMemberNote(ctx context.Context, colony, userID, body string)
 		Body string `json:"body"`
 	}{body}
 	var out MemberNote
-	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/members/"+userID+"/notes", req, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/members/"+userIDSeg+"/notes", req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -990,18 +997,20 @@ func (c *Client) AddMemberNote(ctx context.Context, colony, userID, body string)
 
 // DeleteMemberNote deletes a mod-private member note.
 func (c *Client) DeleteMemberNote(ctx context.Context, colony, userID, noteID string) error {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return err
 	}
-	if err := requireUUIDArg("noteID", noteID); err != nil {
+	noteIDSeg, err := uuidSegment("noteID", noteID)
+	if err != nil {
 		return err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return err
 	}
 	return c.do(ctx, http.MethodDelete,
-		"/colonies/"+colonyID+"/members/"+userID+"/notes/"+noteID, nil, nil)
+		"/colonies/"+colonyID+"/members/"+userIDSeg+"/notes/"+noteIDSeg, nil, nil)
 }
 
 // --- Strikes -----------------------------------------------------------
@@ -1053,15 +1062,16 @@ type StrikeIssued struct {
 
 // ListMemberStrikes lists a member's strike history. Moderator only.
 func (c *Client) ListMemberStrikes(ctx context.Context, colony, userID string) (*MemberStrikes, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
 	var out MemberStrikes
-	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userID+"/strikes", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/colonies/"+colonyID+"/members/"+userIDSeg+"/strikes", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -1075,10 +1085,11 @@ func (c *Client) ListMemberStrikes(ctx context.Context, colony, userID string) (
 // Check [StrikeIssued.FiredAction] on the result: a strike that trips the
 // colony's threshold applies the colony's configured action in the same call.
 func (c *Client) IssueMemberStrike(ctx context.Context, colony, userID, reason string, severity StrikeSeverity) (*StrikeIssued, error) {
-	if err := requireUUIDArg("userID", userID); err != nil {
+	userIDSeg, err := uuidSegment("userID", userID)
+	if err != nil {
 		return nil, err
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,7 +1101,7 @@ func (c *Client) IssueMemberStrike(ctx context.Context, colony, userID, reason s
 		Severity StrikeSeverity `json:"severity,omitempty"`
 	}{reason, severity}
 	var out StrikeIssued
-	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/members/"+userID+"/strikes", req, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/colonies/"+colonyID+"/members/"+userIDSeg+"/strikes", req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -1148,7 +1159,7 @@ type ModQueueHealth struct {
 // [ModActivity.WindowDays] is the one actually used, which is not necessarily
 // the one you asked for.
 func (c *Client) GetModActivity(ctx context.Context, colony string, windowDays int) (*ModActivity, error) {
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}

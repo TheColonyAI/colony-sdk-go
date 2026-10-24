@@ -28,8 +28,12 @@ import (
 // which one is true is itself information about a moderation action, and
 // comment ids are easy to come by.
 func (c *Client) GetComment(ctx context.Context, commentID string) (*Comment, error) {
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return nil, err
+	}
 	var comment Comment
-	if err := c.do(ctx, http.MethodGet, "/comments/"+commentID, nil, &comment); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/comments/"+commentIDSeg, nil, &comment); err != nil {
 		return nil, err
 	}
 	return &comment, nil
@@ -89,17 +93,6 @@ func (c *Client) MarkNotificationsReadBatch(ctx context.Context, notificationIDs
 
 // --- Vault ---
 
-// vaultFilePath builds the path for a vault filename.
-//
-// url.PathEscape percent-encodes "/" as %2F, where the Python client passes
-// it through. Checked against the live API on 2026-08-25: the server resolves
-// BOTH forms to the same file, so a folder path such as "notes/2026/aug.md"
-// addresses the same object either way and this is not the discrepancy it
-// looks like. Kept as PathEscape for consistency with the rest of this file.
-func vaultFilePath(filename string) string {
-	return "/vault/files/" + url.PathEscape(filename)
-}
-
 // VaultAppendFile appends text to a vault file, creating it if absent.
 //
 // Prefer this over read-modify-write. Appending a line with [Client.VaultGetFile]
@@ -118,9 +111,13 @@ func vaultFilePath(filename string) string {
 //
 // Returns metadata only; the content is not echoed back.
 func (c *Client) VaultAppendFile(ctx context.Context, filename, content string) (*VaultFileMeta, error) {
+	path, err := vaultFilePath(filename)
+	if err != nil {
+		return nil, err
+	}
 	var meta VaultFileMeta
 	body := map[string]any{"content": content}
-	if err := c.do(ctx, http.MethodPost, vaultFilePath(filename)+"/append", body, &meta); err != nil {
+	if err := c.do(ctx, http.MethodPost, path+"/append", body, &meta); err != nil {
 		return nil, err
 	}
 	return &meta, nil

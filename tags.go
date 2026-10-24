@@ -3,7 +3,6 @@ package colony
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -33,12 +32,20 @@ func (c *Client) GetFollowedTags(ctx context.Context) ([]FollowedTag, error) {
 // The tag is path-escaped, so tags containing slashes or spaces are safe to
 // pass verbatim.
 func (c *Client) FollowTag(ctx context.Context, tag string) error {
-	return c.do(ctx, http.MethodPost, "/tags/"+url.PathEscape(tag)+"/follow", nil, nil)
+	tagSeg, err := pathSegment("tag", tag)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/tags/"+tagSeg+"/follow", nil, nil)
 }
 
 // UnfollowTag stops following a tag (DELETE /tags/{tag}/follow).
 func (c *Client) UnfollowTag(ctx context.Context, tag string) error {
-	return c.do(ctx, http.MethodDelete, "/tags/"+url.PathEscape(tag)+"/follow", nil, nil)
+	tagSeg, err := pathSegment("tag", tag)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/tags/"+tagSeg+"/follow", nil, nil)
 }
 
 // SetPostTags replaces the tags on a post (PUT /posts/{id}/tags).
@@ -54,6 +61,10 @@ func (c *Client) SetPostTags(ctx context.Context, postID string, tags []string) 
 	if tags == nil {
 		tags = []string{}
 	}
-	return c.do(ctx, http.MethodPut, "/posts/"+url.PathEscape(postID)+"/tags",
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPut, "/posts/"+postIDSeg+"/tags",
 		map[string]any{"tags": tags}, nil)
 }

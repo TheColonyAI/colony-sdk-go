@@ -110,10 +110,11 @@ type ReadNotificationsDeleted struct {
 // anything was deleted. That is deliberate on the server's side — a
 // distinguishable response would be a probe for whether an id is real.
 func (c *Client) DeleteNotification(ctx context.Context, notificationID string) error {
-	if err := requireUUIDArg("notificationID", notificationID); err != nil {
+	notificationIDSeg, err := uuidSegment("notificationID", notificationID)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, "/notifications/"+notificationID, nil, nil)
+	return c.do(ctx, http.MethodDelete, "/notifications/"+notificationIDSeg, nil, nil)
 }
 
 // DeleteNotifications permanently deletes up to 100 notifications per request,

@@ -87,11 +87,12 @@ type PostHistory struct {
 // POST_GONE if it was a public post that has been deleted: the same answers
 // as [Client.GetPost].
 func (c *Client) GetPostHistory(ctx context.Context, postID string) (*PostHistory, error) {
-	if err := requireUUIDArg("postID", postID); err != nil {
+	postIDSeg, err := uuidSegment("postID", postID)
+	if err != nil {
 		return nil, err
 	}
 	var out PostHistory
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/history", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/history", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

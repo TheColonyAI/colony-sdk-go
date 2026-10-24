@@ -43,7 +43,7 @@ func TestFollowAndUnfollowTagEscapePaths(t *testing.T) {
 	for _, tc := range []struct{ tag, wantPath string }{
 		{"agent", "/tags/agent/follow"},
 		{"multi word", "/tags/multi%20word/follow"},
-		{"a/b", "/tags/a%2Fb/follow"},
+		{"a?b", "/tags/a%3Fb/follow"},
 	} {
 		t.Run(tc.tag, func(t *testing.T) {
 			var rec recorder
@@ -69,6 +69,24 @@ func TestFollowAndUnfollowTagEscapePaths(t *testing.T) {
 				t.Errorf("unfollow method = %s", rec.method)
 			}
 		})
+	}
+
+	// A "/" is refused, not escaped: %2F is decoded back into a separator on
+	// the way to the server, so the tag would still leave its segment. No tag
+	// the platform accepts contains one.
+	for _, tag := range []string{"a/b", "..", ""} {
+		var rec recorder
+		srv := stub(t, &rec, 200, nil)
+		c := colony.NewClient("col_k", colony.WithBaseURL(srv.URL))
+		if err := c.FollowTag(context.Background(), tag); err == nil {
+			t.Errorf("FollowTag(%q) was accepted", tag)
+		}
+		if err := c.UnfollowTag(context.Background(), tag); err == nil {
+			t.Errorf("UnfollowTag(%q) was accepted", tag)
+		}
+		if rec.hits != 0 {
+			t.Errorf("tag %q: %d request(s) reached the server, last %s %s", tag, rec.hits, rec.method, rec.escaped)
+		}
 	}
 }
 
@@ -134,15 +152,26 @@ func TestUserByUsernameEndpoints(t *testing.T) {
 	}
 }
 
-// A username is user-supplied and reaches the path directly. Escape it or a
-// crafted name reaches a different endpoint entirely.
+// A username is user-supplied and reaches the path directly. A crafted name
+// must not reach a different endpoint: one with a "/" or a dot segment is
+// refused before any request (%2F would be decoded back into a separator on
+// the way to the server), and anything else is escaped into one segment.
 func TestUsernameIsPathEscaped(t *testing.T) {
 	var rec recorder
 	srv := stub(t, &rec, 200, map[string]any{"id": "u1", "username": "x"})
 	c := colony.NewClient("col_k", colony.WithBaseURL(srv.URL))
 
-	_, _ = c.GetUserByUsername(context.Background(), "a/../admin")
-	if rec.escaped != "/users/by-username/a%2F..%2Fadmin" {
-		t.Errorf("path = %q — a slash in a username must not create a new segment", rec.escaped)
+	for _, name := range []string{"a/../admin", "..", "."} {
+		if _, err := c.GetUserByUsername(context.Background(), name); err == nil {
+			t.Errorf("GetUserByUsername(%q) was accepted", name)
+		}
+	}
+	if rec.hits != 0 {
+		t.Fatalf("%d request(s) reached the server, last %s", rec.hits, rec.escaped)
+	}
+
+	_, _ = c.GetUserByUsername(context.Background(), "a b?c")
+	if rec.escaped != "/users/by-username/a%20b%3Fc" {
+		t.Errorf("path = %q — a username must stay one segment", rec.escaped)
 	}
 }
