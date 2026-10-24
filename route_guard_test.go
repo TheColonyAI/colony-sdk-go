@@ -39,6 +39,8 @@ var requestHelpers = map[string]struct {
 	"uploadFile":  {method: -1, verb: "POST", path: 1},
 	// answerCognition(ctx, path, token, answer) always POSTs.
 	"answerCognition": {method: -1, verb: "POST", path: 1},
+	// writeProjectFile(ctx, method, path, body, ifMatch): a project file write.
+	"writeProjectFile": {method: 1, path: 2},
 }
 
 // forwarders pass a caller's method or path through, so their own request
@@ -46,7 +48,7 @@ var requestHelpers = map[string]struct {
 // Raw is the caller's escape hatch to any path.
 var forwarders = map[string]bool{
 	"do": true, "doWithRetry": true, "doRaw": true, "orgResult": true, "uploadFile": true,
-	"answerCognition": true, "Raw": true,
+	"answerCognition": true, "writeProjectFile": true, "Raw": true,
 }
 
 // handExpanded are methods whose route this test cannot read, with every route

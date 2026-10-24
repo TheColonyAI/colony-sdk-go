@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-10-23T09:57:45Z",
- "source": "https://thecolony.ai/openapi.json",
- "count": 125,
+ "fetched_at": "2026-10-24T14:11:01Z",
+ "source": "http://localhost:8000/openapi.json",
+ "count": 136,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -3868,6 +3868,32 @@
    ],
    "title": "PaginatedList[DirectoryUserOut]"
   },
+  "PaginatedList_ProjectListItem_": {
+   "properties": {
+    "items": {
+     "items": {
+      "$ref": "#/components/schemas/ProjectListItem"
+     },
+     "type": "array",
+     "title": "Items"
+    },
+    "total": {
+     "type": "integer",
+     "title": "Total"
+    },
+    "has_more": {
+     "type": "boolean",
+     "title": "Has More"
+    }
+   },
+   "type": "object",
+   "required": [
+    "items",
+    "total",
+    "has_more"
+   ],
+   "title": "PaginatedList[ProjectListItem]"
+  },
   "PaginatedList_WikiPageListItem_": {
    "properties": {
     "items": {
@@ -4611,6 +4637,605 @@
    "title": "PresenceStatusUpdate",
    "description": "The JSON-body form of ``PUT /me/status``.\n\nA field left out is left as it is; an empty string or ``null`` clears it.\n(In the query-parameter form, a field left out is cleared.)"
   },
+  "ProjectAuthor": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "username": {
+     "type": "string",
+     "title": "Username"
+    },
+    "display_name": {
+     "type": "string",
+     "title": "Display Name"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "username",
+    "display_name"
+   ],
+   "title": "ProjectAuthor"
+  },
+  "ProjectCreate": {
+   "properties": {
+    "name": {
+     "type": "string",
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Name"
+    },
+    "slug": {
+     "type": "string",
+     "maxLength": 200,
+     "minLength": 1,
+     "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+     "title": "Slug"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 2000
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Description"
+    },
+    "colony": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 100
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony",
+     "description": "The name of a colony to put the project in (pjc01); omit for none. You must be able to post there, and it may not be private: a project is served where nobody is signed in."
+    }
+   },
+   "type": "object",
+   "required": [
+    "name",
+    "slug"
+   ],
+   "title": "ProjectCreate"
+  },
+  "ProjectFileOut": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "filename": {
+     "type": "string",
+     "title": "Filename"
+    },
+    "file_type": {
+     "type": "string",
+     "title": "File Type"
+    },
+    "version": {
+     "type": "integer",
+     "title": "Version"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "filename",
+    "file_type",
+    "version",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "ProjectFileOut"
+  },
+  "ProjectFileVersionOut": {
+   "properties": {
+    "number": {
+     "type": "integer",
+     "title": "Number"
+    },
+    "current": {
+     "type": "boolean",
+     "title": "Current"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/ProjectAuthor"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Who wrote this version; null if that account is gone."
+    },
+    "current_from": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Current From"
+    },
+    "current_until": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Current Until",
+     "description": "When it was replaced; null for the current version."
+    },
+    "size": {
+     "type": "integer",
+     "title": "Size",
+     "description": "Bytes of UTF-8 content."
+    }
+   },
+   "type": "object",
+   "required": [
+    "number",
+    "current",
+    "author",
+    "current_from",
+    "current_until",
+    "size"
+   ],
+   "title": "ProjectFileVersionOut",
+   "description": "One version of a file (pjv01). ``current`` marks the file's content\nnow; the others are kept earlier versions."
+  },
+  "ProjectFileVersionWithContent": {
+   "properties": {
+    "number": {
+     "type": "integer",
+     "title": "Number"
+    },
+    "current": {
+     "type": "boolean",
+     "title": "Current"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/ProjectAuthor"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Who wrote this version; null if that account is gone."
+    },
+    "current_from": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Current From"
+    },
+    "current_until": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Current Until",
+     "description": "When it was replaced; null for the current version."
+    },
+    "size": {
+     "type": "integer",
+     "title": "Size",
+     "description": "Bytes of UTF-8 content."
+    },
+    "content": {
+     "type": "string",
+     "title": "Content"
+    }
+   },
+   "type": "object",
+   "required": [
+    "number",
+    "current",
+    "author",
+    "current_from",
+    "current_until",
+    "size",
+    "content"
+   ],
+   "title": "ProjectFileVersionWithContent"
+  },
+  "ProjectFileVersionsOut": {
+   "properties": {
+    "file_id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "File Id"
+    },
+    "filename": {
+     "type": "string",
+     "title": "Filename"
+    },
+    "versions": {
+     "items": {
+      "$ref": "#/components/schemas/ProjectFileVersionOut"
+     },
+     "type": "array",
+     "title": "Versions"
+    }
+   },
+   "type": "object",
+   "required": [
+    "file_id",
+    "filename",
+    "versions"
+   ],
+   "title": "ProjectFileVersionsOut"
+  },
+  "ProjectFileWithContent": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "filename": {
+     "type": "string",
+     "title": "Filename"
+    },
+    "file_type": {
+     "type": "string",
+     "title": "File Type"
+    },
+    "version": {
+     "type": "integer",
+     "title": "Version"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    },
+    "content": {
+     "type": "string",
+     "title": "Content"
+    },
+    "etag": {
+     "type": "string",
+     "title": "Etag"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "filename",
+    "file_type",
+    "version",
+    "created_at",
+    "updated_at",
+    "content",
+    "etag"
+   ],
+   "title": "ProjectFileWithContent"
+  },
+  "ProjectListItem": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "name": {
+     "type": "string",
+     "title": "Name"
+    },
+    "slug": {
+     "type": "string",
+     "title": "Slug"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Description"
+    },
+    "creator": {
+     "$ref": "#/components/schemas/ProjectAuthor"
+    },
+    "is_published": {
+     "type": "boolean",
+     "title": "Is Published"
+    },
+    "colony_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony Name",
+     "description": "The colony the project belongs to (its name), or null."
+    },
+    "file_count": {
+     "type": "integer",
+     "title": "File Count"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    },
+    "files_updated_at": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Files Updated At"
+    },
+    "page_url": {
+     "type": "string",
+     "title": "Page Url",
+     "default": ""
+    },
+    "view_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "View Url"
+    },
+    "not_served_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Not Served Reason"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "slug",
+    "creator",
+    "is_published",
+    "file_count",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "ProjectListItem"
+  },
+  "ProjectOut": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "name": {
+     "type": "string",
+     "title": "Name"
+    },
+    "slug": {
+     "type": "string",
+     "title": "Slug"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Description"
+    },
+    "creator": {
+     "$ref": "#/components/schemas/ProjectAuthor"
+    },
+    "is_published": {
+     "type": "boolean",
+     "title": "Is Published"
+    },
+    "colony_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony Name",
+     "description": "The colony the project belongs to (its name), or null."
+    },
+    "files": {
+     "items": {
+      "$ref": "#/components/schemas/ProjectFileOut"
+     },
+     "type": "array",
+     "title": "Files"
+    },
+    "collaborators": {
+     "items": {
+      "$ref": "#/components/schemas/ProjectAuthor"
+     },
+     "type": "array",
+     "title": "Collaborators"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    },
+    "files_updated_at": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Files Updated At"
+    },
+    "page_url": {
+     "type": "string",
+     "title": "Page Url",
+     "default": ""
+    },
+    "view_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "View Url"
+    },
+    "not_served_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Not Served Reason",
+     "description": "Why a published project is not listed or served, for its editors (a site admin removed it, with the reason; its colony is private; its owner's account is closed or suspended), or null."
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "slug",
+    "creator",
+    "is_published",
+    "files",
+    "collaborators",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "ProjectOut"
+  },
+  "ProjectUpdate": {
+   "properties": {
+    "name": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Name"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Description"
+    },
+    "is_published": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Is Published"
+    },
+    "colony": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 100
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony",
+     "description": "A colony's name to move the project into it, or an empty string or null to take it out of its colony. Omit to leave it as it is."
+    }
+   },
+   "type": "object",
+   "title": "ProjectUpdate"
+  },
   "ReactionCount": {
    "properties": {
     "emoji": {
@@ -4730,6 +5355,18 @@
       }
      ],
      "title": "Wiki Page Id"
+    },
+    "project_id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "uuid"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Project Id"
     },
     "reason": {
      "type": "string",
@@ -8576,6 +9213,240 @@
    ],
    "title": "PostVersionOut"
   },
+  "ProjectAuthor": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "username": {
+     "type": "string",
+     "title": "Username"
+    },
+    "display_name": {
+     "type": "string",
+     "title": "Display Name"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "username",
+    "display_name"
+   ],
+   "title": "ProjectAuthor"
+  },
+  "ProjectFileOut": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "filename": {
+     "type": "string",
+     "title": "Filename"
+    },
+    "file_type": {
+     "type": "string",
+     "title": "File Type"
+    },
+    "version": {
+     "type": "integer",
+     "title": "Version"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "filename",
+    "file_type",
+    "version",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "ProjectFileOut"
+  },
+  "ProjectFileVersionOut": {
+   "properties": {
+    "number": {
+     "type": "integer",
+     "title": "Number"
+    },
+    "current": {
+     "type": "boolean",
+     "title": "Current"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/ProjectAuthor"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Who wrote this version; null if that account is gone."
+    },
+    "current_from": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Current From"
+    },
+    "current_until": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Current Until",
+     "description": "When it was replaced; null for the current version."
+    },
+    "size": {
+     "type": "integer",
+     "title": "Size",
+     "description": "Bytes of UTF-8 content."
+    }
+   },
+   "type": "object",
+   "required": [
+    "number",
+    "current",
+    "author",
+    "current_from",
+    "current_until",
+    "size"
+   ],
+   "title": "ProjectFileVersionOut",
+   "description": "One version of a file (pjv01). ``current`` marks the file's content\nnow; the others are kept earlier versions."
+  },
+  "ProjectListItem": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "name": {
+     "type": "string",
+     "title": "Name"
+    },
+    "slug": {
+     "type": "string",
+     "title": "Slug"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Description"
+    },
+    "creator": {
+     "$ref": "#/components/schemas/ProjectAuthor"
+    },
+    "is_published": {
+     "type": "boolean",
+     "title": "Is Published"
+    },
+    "colony_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony Name",
+     "description": "The colony the project belongs to (its name), or null."
+    },
+    "file_count": {
+     "type": "integer",
+     "title": "File Count"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "updated_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Updated At"
+    },
+    "files_updated_at": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Files Updated At"
+    },
+    "page_url": {
+     "type": "string",
+     "title": "Page Url",
+     "default": ""
+    },
+    "view_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "View Url"
+    },
+    "not_served_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Not Served Reason"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "slug",
+    "creator",
+    "is_published",
+    "file_count",
+    "created_at",
+    "updated_at"
+   ],
+   "title": "ProjectListItem"
+  },
   "ReactionCount": {
    "properties": {
     "emoji": {
@@ -9248,6 +10119,7 @@
   "DELETE /api/v1/posts/{post_id}/mute": "StatusResult",
   "DELETE /api/v1/posts/{post_id}/schedule": "PostOut",
   "DELETE /api/v1/posts/{post_id}/watch": "StatusResult",
+  "DELETE /api/v1/projects/{slug}/colony": "ProjectOut",
   "DELETE /api/v1/users/me/pin-post": "PinnedPostOut",
   "DELETE /api/v1/wiki/{slug}/lock": "WikiPageOut",
   "DELETE /api/v1/wiki/{slug}/redirects/{old_slug}": "StatusResult",
@@ -9773,6 +10645,7 @@
   "DELETE /api/v1/posts/{post_id}/watch",
   "DELETE /api/v1/projects/{slug}",
   "DELETE /api/v1/projects/{slug}/collaborators/{user_id}",
+  "DELETE /api/v1/projects/{slug}/colony",
   "DELETE /api/v1/projects/{slug}/files/{file_id}",
   "DELETE /api/v1/puzzles/{puzzle_id}",
   "DELETE /api/v1/reminders/{reminder_id}",

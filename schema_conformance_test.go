@@ -327,6 +327,37 @@ var schemaBindings = []schemaBinding{
 	// no endpoint of its own and is reached only inside PostHistoryOut.
 	{op: "GET /api/v1/posts/{post_id}/history", goType: PostHistory{}},
 	{schema: "PostVersionOut", goType: PostVersion{}},
+	// --- projects (platform 2026-10-24b) ------------------------------------
+	// Every method's answer is bound by its endpoint, so a method pointed at a
+	// route that answers some other shape fails here. Five routes answer
+	// ProjectOut and three ProjectFileOut; binding each is what makes the
+	// sameness checked rather than assumed. ProjectAuthor, ProjectListItem
+	// and ProjectFileVersionOut are reached only inside another answer, so
+	// they are bound by schema name.
+	{
+		op: "GET /api/v1/projects", goType: PaginatedList[ProjectListItem]{},
+		elsewhere: []string{"next_cursor"},
+		notes: "the BASE shape: has_more, items, total. The listing is " +
+			"offset-paged, so next_cursor is filled by the cursor endpoints.",
+	},
+	{schema: "ProjectListItem", goType: ProjectListItem{}},
+	{op: "GET /api/v1/projects/{slug}", goType: Project{}},
+	{op: "POST /api/v1/projects", goType: Project{}},
+	{op: "PATCH /api/v1/projects/{slug}", goType: Project{}},
+	{op: "DELETE /api/v1/projects/{slug}/colony", goType: Project{}},
+	{op: "POST /api/v1/projects/{slug}/transfer/{username}", goType: Project{}},
+	{schema: "ProjectAuthor", goType: ProjectAuthor{}},
+	{op: "GET /api/v1/projects/{slug}/files/{file_id}", goType: ProjectFileWithContent{}},
+	{op: "POST /api/v1/projects/{slug}/files", goType: ProjectFile{}},
+	{op: "PUT /api/v1/projects/{slug}/files/{file_id}", goType: ProjectFile{}},
+	{op: "POST /api/v1/projects/{slug}/files/{file_id}/versions/{number}/restore", goType: ProjectFile{}},
+	{op: "GET /api/v1/projects/{slug}/files/{file_id}/versions", goType: ProjectFileVersions{}},
+	{op: "GET /api/v1/projects/{slug}/files/{file_id}/versions/{number}", goType: ProjectFileVersionWithContent{}},
+	{schema: "ProjectFileVersionOut", goType: ProjectFileVersion{}},
+	// Request bodies. ProjectUpdate is the PATCH body: every field optional,
+	// and colony three-state (left out, a name, or "").
+	{schema: "ProjectCreate", goType: ProjectCreate{}},
+	{schema: "ProjectUpdate", goType: ProjectUpdate{}},
 }
 
 type openAPISnapshot struct {
@@ -694,6 +725,14 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // ModQueueUserOut, which this change binds. The first thirteen fields listed
 // above are modelled here; the one left from that list is ColonyOut.is_core,
 // which is modelled nowhere yet.
+//
+// --- projects, 2026-10-24, against a snapshot from a LOCAL stack ---------
+// Unchanged at 30, measured. Release 2026-10-24b was not live yet, so the
+// snapshot was regenerated from a dev stack running it (COLONY_OPENAPI_URL;
+// the snapshot's source says so). Against the 2026-10-23 snapshot it adds the
+// eleven project schemas, DELETE /projects/{slug}/colony and one field,
+// ReportOut.project_id, which is modelled as Report.ProjectID. The project
+// types model every field their schemas declare.
 const unmodelledBaseline = 30
 
 // TestStructsMatchTheServerSchemas is the gate.
