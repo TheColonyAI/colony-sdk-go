@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -58,31 +57,6 @@ import (
 // lowercase letters and digits joined by single hyphens.
 var projectSlugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// pathSegment returns value escaped as ONE path segment, or a local error
-// before any request is made. Every value that goes into a projects path
-// passes through it: the slug, the file id and the user.
-//
-// url.PathEscape alone is not enough, because it leaves dots alone. "." and
-// ".." would go out as dot segments, which nginx and URL resolution remove
-// together with the segment before them, so the authenticated request would
-// reach a different endpoint: DeleteProject("..") would send DELETE to
-// /api/v1/. A "/" would be escaped to %2F, which the server decodes back into
-// a separator, so it is refused too; and an empty value would leave an empty
-// segment.
-func pathSegment(name, value string) (string, error) {
-	switch {
-	case value == "":
-		return "", errRequired(name)
-	case value == "." || value == "..":
-		return "", fmt.Errorf(
-			"colony: %s %q is a dot segment; sent, it would address a different endpoint", name, value)
-	case strings.Contains(value, "/"):
-		return "", fmt.Errorf(
-			"colony: %s %q contains \"/\"; it goes into the request path as a single segment", name, value)
-	}
-	return url.PathEscape(value), nil
-}
-
 // projectSlugSegment checks a slug that addresses an existing project, and
 // returns it escaped for the path.
 //
@@ -102,10 +76,7 @@ func projectSlugSegment(slug string) (string, error) {
 // fileIDSegment checks a file id, which is always a UUID, and returns it for
 // the path.
 func fileIDSegment(fileID string) (string, error) {
-	if err := requireUUIDArg("fileID", fileID); err != nil {
-		return "", err
-	}
-	return pathSegment("fileID", fileID)
+	return uuidSegment("fileID", fileID)
 }
 
 // userSegment checks a username or user id, 1-64 characters on the server,

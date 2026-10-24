@@ -1231,39 +1231,84 @@ func TestBlockAndUnblock(t *testing.T) {
 }
 
 func TestReports(t *testing.T) {
+	const pageID = "5d1c2e3f-4a5b-4c6d-8e7f-901234567802"
 	calls := map[string]string{}
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
 		"POST /reports": func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
 			json.NewDecoder(r.Body).Decode(&body)
-			if body["reason"] != "abuse" {
-				t.Errorf("expected reason abuse, got %v", body["reason"])
+			if body["reason"] != "spam" {
+				t.Errorf("expected reason spam, got %v", body["reason"])
+			}
+			if len(body) != 3 {
+				t.Errorf("body = %v, want exactly target_type, target_id and reason", body)
 			}
 			calls[body["target_type"].(string)] = body["target_id"].(string)
-			jsonResp(w, map[string]any{"id": "r1", "reporter": map[string]any{"id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"}, "reason": "abuse", "status": "open", "created_at": "2026-01-01T00:00:00Z"})
+			jsonResp(w, map[string]any{"id": "r1", "reporter": map[string]any{"id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"}, "wiki_page_id": pageID, "reason": "spam", "status": "pending", "created_at": "2026-01-01T00:00:00Z"})
 		},
 	}))
 	ctx := context.Background()
-	if _, err := client.ReportUser(ctx, "u9", "abuse"); err != nil {
+	if _, err := client.ReportPost(ctx, "p9", "spam"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.ReportPost(ctx, "p9", "abuse"); err != nil {
+	if _, err := client.ReportComment(ctx, "c9", "spam"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.ReportComment(ctx, "c9", "abuse"); err != nil {
-		t.Fatal(err)
-	}
-	rep, err := client.ReportMessage(ctx, "m9", "abuse")
+	rep, err := client.ReportWikiPage(ctx, pageID, "spam")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.ID != "r1" || rep.Status != "open" {
+	if rep.ID != "r1" || rep.Status != "pending" || rep.WikiPageID == nil || *rep.WikiPageID != pageID {
 		t.Errorf("unexpected report: %+v", rep)
 	}
-	for typ, wantID := range map[string]string{"user": "u9", "post": "p9", "comment": "c9", "message": "m9"} {
+	for typ, wantID := range map[string]string{"post": "p9", "comment": "c9", "wiki_page": pageID} {
 		if calls[typ] != wantID {
 			t.Errorf("report %s: expected target %s, got %q", typ, wantID, calls[typ])
 		}
+	}
+	if len(calls) != 3 {
+		t.Errorf("target types sent: %v", calls)
+	}
+}
+
+// TestDeprecatedReportsSendNothing: the platform has no user or message
+// reports, so POST /reports refused the "user" and "message" target types these
+// sent with a 422 on every call. They now fail before any request, the token
+// exchange included, and say what to do instead.
+func TestDeprecatedReportsSendNothing(t *testing.T) {
+	var hits atomic.Int32
+	_, client := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		t.Errorf("a request was sent: %s %s", r.Method, r.URL.Path)
+	})
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		call func() (*colony.Report, error)
+		want []string
+	}{
+		{"ReportUser", func() (*colony.Report, error) { return client.ReportUser(ctx, "u9", "spam") },
+			[]string{"no user reports", "ReportPost", "ReportComment", "BlockUser"}},
+		{"ReportMessage", func() (*colony.Report, error) { return client.ReportMessage(ctx, "m9", "spam") },
+			[]string{"no direct-message reports", "MarkConversationSpam", "BlockUser"}},
+	} {
+		rep, err := tc.call()
+		if err == nil || rep != nil {
+			t.Errorf("%s = %v, %v; want a nil report and an error", tc.name, rep, err)
+			continue
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("%s error %q does not mention %q", tc.name, err, w)
+			}
+		}
+	}
+	// ReportWikiPage takes the page's id; a slug is refused before any request.
+	if _, err := client.ReportWikiPage(ctx, "getting-started", "spam"); err == nil || !strings.Contains(err.Error(), "WikiPage.ID") {
+		t.Errorf("ReportWikiPage with a slug: err = %v, want a refusal naming WikiPage.ID", err)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("%d request(s) reached the server", n)
 	}
 }
 
@@ -1580,10 +1625,8 @@ func TestV050ErrorPaths(t *testing.T) {
 		func() error { return client.BlockUser(ctx, "u1") },
 		func() error { return client.UnblockUser(ctx, "u1") },
 		func() error { _, e := client.ListBlocked(ctx); return e },
-		func() error { _, e := client.ReportUser(ctx, "u1", "r"); return e },
 		func() error { _, e := client.ReportPost(ctx, "p1", "r"); return e },
 		func() error { _, e := client.ReportComment(ctx, "c1", "r"); return e },
-		func() error { _, e := client.ReportMessage(ctx, "m1", "r"); return e },
 		func() error { _, e := client.MarkConversationSpam(ctx, "a", nil); return e },
 		func() error { _, e := client.UnmarkConversationSpam(ctx, "a"); return e },
 		func() error { _, e := client.ListClaims(ctx); return e },

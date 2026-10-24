@@ -276,11 +276,12 @@ func withQuery(path string, q url.Values) string {
 //
 // colony scopes the lookup to one colony's wiki; empty means the global wiki.
 func (c *Client) GetWikiPage(ctx context.Context, slug, colony string) (*WikiPage, error) {
-	if err := requireWikiSlug(slug); err != nil {
+	slugSeg, err := wikiSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	var out WikiPage
-	if err := c.do(ctx, http.MethodGet, withQuery("/wiki/"+slug, colonyQuery(colony)), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, withQuery("/wiki/"+slugSeg, colonyQuery(colony)), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -370,7 +371,8 @@ type WikiPageUpdate struct {
 // every edit is refused regardless of who is asking. Returns a 409 if
 // [WikiPageUpdate.BaseRevision] is set and the page has moved on.
 func (c *Client) UpdateWikiPage(ctx context.Context, slug string, edit WikiPageUpdate, colony string) (*WikiPage, error) {
-	if err := requireWikiSlug(slug); err != nil {
+	slugSeg, err := wikiSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	if edit == (WikiPageUpdate{}) {
@@ -385,7 +387,7 @@ func (c *Client) UpdateWikiPage(ctx context.Context, slug string, edit WikiPageU
 			*edit.BaseRevision)
 	}
 	var out WikiPage
-	if err := c.do(ctx, http.MethodPut, withQuery("/wiki/"+slug, colonyQuery(colony)), edit, &out); err != nil {
+	if err := c.do(ctx, http.MethodPut, withQuery("/wiki/"+slugSeg, colonyQuery(colony)), edit, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -396,10 +398,11 @@ func (c *Client) UpdateWikiPage(ctx context.Context, slug string, edit WikiPageU
 // No Python counterpart. The slug is NOT released by the deletion, so a later
 // create under the same slug still collides.
 func (c *Client) DeleteWikiPage(ctx context.Context, slug, colony string) error {
-	if err := requireWikiSlug(slug); err != nil {
+	slugSeg, err := wikiSlugSegment(slug)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, withQuery("/wiki/"+slug, colonyQuery(colony)), nil, nil)
+	return c.do(ctx, http.MethodDelete, withQuery("/wiki/"+slugSeg, colonyQuery(colony)), nil, nil)
 }
 
 // WikiHistoryOptions pages [Client.GetWikiHistory].
@@ -435,11 +438,12 @@ func (o *WikiHistoryOptions) query() url.Values {
 // A bare list, not a paginated envelope — there is no total and no has_more,
 // so a short page is the only signal that you have reached the end.
 func (c *Client) GetWikiHistory(ctx context.Context, slug string, opts *WikiHistoryOptions) ([]WikiRevisionListItem, error) {
-	if err := requireWikiSlug(slug); err != nil {
+	slugSeg, err := wikiSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	var out []WikiRevisionListItem
-	if err := c.do(ctx, http.MethodGet, withQuery("/wiki/"+slug+"/history", opts.query()), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, withQuery("/wiki/"+slugSeg+"/history", opts.query()), nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -451,14 +455,16 @@ func (c *Client) GetWikiHistory(ctx context.Context, slug string, opts *WikiHist
 // id belonging to a different page is a 404 rather than that page's content.
 // Revision ids are not probeable across the wiki.
 func (c *Client) GetWikiRevision(ctx context.Context, slug, revisionID, colony string) (*WikiRevision, error) {
-	if err := requireWikiSlug(slug); err != nil {
+	slugSeg, err := wikiSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("revisionID", revisionID); err != nil {
+	revisionIDSeg, err := uuidSegment("revisionID", revisionID)
+	if err != nil {
 		return nil, err
 	}
 	var out WikiRevision
-	path := "/wiki/" + slug + "/revision/" + revisionID
+	path := "/wiki/" + slugSeg + "/revision/" + revisionIDSeg
 	if err := c.do(ctx, http.MethodGet, withQuery(path, colonyQuery(colony)), nil, &out); err != nil {
 		return nil, err
 	}

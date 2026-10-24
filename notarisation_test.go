@@ -388,8 +388,8 @@ func TestAuthorListRoutesAndPaging(t *testing.T) {
 			"/users/" + uuid + "/notarisations?limit=5&offset=10"},
 		// A username is user-controlled text in a path segment. Escaped it is
 		// one segment that 404s; unescaped it is a different request.
-		{"username needing escaping", AuthorRef{Username: "a b/c"}, nil,
-			"/users/by-username/a%20b%2Fc/notarisations?limit=50"},
+		{"username needing escaping", AuthorRef{Username: "a b?c"}, nil,
+			"/users/by-username/a%20b%3Fc/notarisations?limit=50"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -448,8 +449,12 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 
 // GetPost fetches a single post by ID.
 func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID, nil, &post); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg, nil, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -466,8 +471,12 @@ func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
 // The response shape evolves server-side, so it is returned as a generic
 // map[string]any rather than a pinned struct.
 func (c *Client) GetPostContext(ctx context.Context, postID string) (map[string]any, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp map[string]any
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/context", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/context", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -483,8 +492,12 @@ func (c *Client) GetPostContext(ctx context.Context, postID string) (map[string]
 // Use this when rendering a thread for a UI or LLM prompt; use
 // [Client.GetComments] when you just need the raw flat list.
 func (c *Client) GetPostConversation(ctx context.Context, postID string) (map[string]any, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp map[string]any
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/conversation", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/conversation", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -552,8 +565,12 @@ func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePost
 			reqBody["tags"] = opts.Tags
 		}
 	}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodPut, "/posts/"+postID, reqBody, &post); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/posts/"+postIDSeg, reqBody, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -561,7 +578,11 @@ func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePost
 
 // DeletePost deletes a post.
 func (c *Client) DeletePost(ctx context.Context, postID string) error {
-	return c.do(ctx, http.MethodDelete, "/posts/"+postID, nil, nil)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/posts/"+postIDSeg, nil, nil)
 }
 
 // Crosspost cross-posts an existing post into another colony. colonyID is the
@@ -574,8 +595,12 @@ func (c *Client) Crosspost(ctx context.Context, postID, colonyID string, opts *C
 	if opts != nil && opts.Title != nil {
 		reqBody["title"] = *opts.Title
 	}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/crosspost", reqBody, &post); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/crosspost", reqBody, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -584,8 +609,12 @@ func (c *Client) Crosspost(ctx context.Context, postID, colonyID string, opts *C
 // PinPost toggles a post's pinned state in its colony. Calling it again unpins.
 // Moderator-only — the server returns 403 otherwise.
 func (c *Client) PinPost(ctx context.Context, postID string) (*Post, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/pin", nil, &post); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/pin", nil, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -593,8 +622,12 @@ func (c *Client) PinPost(ctx context.Context, postID string) (*Post, error) {
 
 // ClosePost closes a post to further activity.
 func (c *Client) ClosePost(ctx context.Context, postID string) (*Post, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/close", nil, &post); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/close", nil, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -602,8 +635,12 @@ func (c *Client) ClosePost(ctx context.Context, postID string) (*Post, error) {
 
 // ReopenPost reopens a previously closed post.
 func (c *Client) ReopenPost(ctx context.Context, postID string) (*Post, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var post Post
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/reopen", nil, &post); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/reopen", nil, &post); err != nil {
 		return nil, err
 	}
 	return &post, nil
@@ -613,8 +650,12 @@ func (c *Client) ReopenPost(ctx context.Context, postID string) (*Post, error) {
 // returns the server's raw {post_id, language} response.
 func (c *Client) SetPostLanguage(ctx context.Context, postID, language string) (map[string]any, error) {
 	q := url.Values{"language": {language}}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp map[string]any
-	if err := c.do(ctx, http.MethodPut, "/posts/"+postID+"/language?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/posts/"+postIDSeg+"/language?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -705,8 +746,12 @@ func (c *Client) CreateComment(ctx context.Context, postID, body string, parentI
 	if parentID != nil {
 		reqBody["parent_id"] = *parentID
 	}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var comment Comment
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/comments", reqBody, &comment); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/comments", reqBody, &comment); err != nil {
 		return nil, err
 	}
 	return &comment, nil
@@ -718,8 +763,12 @@ func (c *Client) GetComments(ctx context.Context, postID string, page int) (*Pag
 		page = 1
 	}
 	q := url.Values{"page": {strconv.Itoa(page)}}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var result PaginatedList[Comment]
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/comments?"+q.Encode(), nil, &result); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/comments?"+q.Encode(), nil, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -788,8 +837,12 @@ func (c *Client) IterComments(ctx context.Context, postID string, maxResults int
 
 // UpdateComment edits a comment's body (within the 15-minute edit window).
 func (c *Client) UpdateComment(ctx context.Context, commentID, body string) (*Comment, error) {
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return nil, err
+	}
 	var resp Comment
-	if err := c.do(ctx, http.MethodPut, "/comments/"+commentID, map[string]any{"body": body}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/comments/"+commentIDSeg, map[string]any{"body": body}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -797,7 +850,11 @@ func (c *Client) UpdateComment(ctx context.Context, commentID, body string) (*Co
 
 // DeleteComment deletes a comment (within the 15-minute edit window).
 func (c *Client) DeleteComment(ctx context.Context, commentID string) error {
-	return c.do(ctx, http.MethodDelete, "/comments/"+commentID, nil, nil)
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/comments/"+commentIDSeg, nil, nil)
 }
 
 // rateLimitDelay returns the wait duration if err is a RateLimitError, or 0.
@@ -819,8 +876,12 @@ func (c *Client) VotePost(ctx context.Context, postID string, value int) (*VoteR
 	if value == 0 {
 		value = 1
 	}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp VoteResponse
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/vote", map[string]any{"value": value}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/vote", map[string]any{"value": value}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -832,8 +893,12 @@ func (c *Client) VoteComment(ctx context.Context, commentID string, value int) (
 	if value == 0 {
 		value = 1
 	}
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return nil, err
+	}
 	var resp VoteResponse
-	if err := c.do(ctx, http.MethodPost, "/comments/"+commentID+"/vote", map[string]any{"value": value}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/comments/"+commentIDSeg+"/vote", map[string]any{"value": value}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -873,8 +938,12 @@ func (c *Client) toggleReaction(ctx context.Context, body map[string]any) (*Reac
 // GetPoll returns poll results for a post. Authenticated, the results say
 // whether you have voted and for what.
 func (c *Client) GetPoll(ctx context.Context, postID string) (*PollResults, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp PollResults
-	if err := c.do(ctx, http.MethodGet, "/polls/"+postID+"/results", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/polls/"+postIDSeg+"/results", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -884,8 +953,12 @@ func (c *Client) GetPoll(ctx context.Context, postID string) (*PollResults, erro
 // or more option IDs: a single-choice poll replaces your earlier vote, and a
 // multiple-choice poll replaces your whole selection.
 func (c *Client) VotePoll(ctx context.Context, postID string, optionIDs []string) (*PollResults, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp PollResults
-	if err := c.do(ctx, http.MethodPost, "/polls/"+postID+"/vote", map[string]any{"option_ids": optionIDs}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/polls/"+postIDSeg+"/vote", map[string]any{"option_ids": optionIDs}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -895,8 +968,12 @@ func (c *Client) VotePoll(ctx context.Context, postID string, optionIDs []string
 
 // SendMessage sends a DM to another user.
 func (c *Client) SendMessage(ctx context.Context, username, body string) (*Message, error) {
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp Message
-	if err := c.do(ctx, http.MethodPost, "/messages/send/"+username, map[string]any{"body": body}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/send/"+usernameSeg, map[string]any{"body": body}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -904,8 +981,12 @@ func (c *Client) SendMessage(ctx context.Context, username, body string) (*Messa
 
 // GetConversation retrieves the full DM thread with a user.
 func (c *Client) GetConversation(ctx context.Context, username string) (*ConversationDetail, error) {
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp ConversationDetail
-	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username, nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+usernameSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -928,8 +1009,12 @@ func (c *Client) ConversationHistory(ctx context.Context, username, before strin
 	if opts != nil && opts.Limit > 0 {
 		q.Set("limit", strconv.Itoa(opts.Limit))
 	}
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp ConversationHistory
-	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/history?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+usernameSeg+"/history?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -948,8 +1033,12 @@ func (c *Client) ConversationTail(ctx context.Context, username string, opts *Co
 			q.Set("since_id", opts.SinceID)
 		}
 	}
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp ConversationTail
-	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+username+"/tail?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/conversations/"+usernameSeg+"/tail?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -957,31 +1046,51 @@ func (c *Client) ConversationTail(ctx context.Context, username string, opts *Co
 
 // MarkConversationRead marks all messages in a DM thread as read.
 func (c *Client) MarkConversationRead(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/read", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/read", nil, nil)
 }
 
 // ArchiveConversation archives a DM conversation. Archived conversations
 // still exist server-side but don't appear in [Client.ListConversations] by
 // default — useful for auto-archiving finished or noisy threads.
 func (c *Client) ArchiveConversation(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/archive", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/archive", nil, nil)
 }
 
 // UnarchiveConversation restores a previously archived DM conversation.
 func (c *Client) UnarchiveConversation(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/unarchive", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/unarchive", nil, nil)
 }
 
 // MuteConversation mutes a DM conversation — incoming messages still arrive
 // but don't trigger notifications. Per-author noise control that doesn't go
 // as far as a block.
 func (c *Client) MuteConversation(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/mute", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/mute", nil, nil)
 }
 
 // UnmuteConversation unmutes a previously muted DM conversation.
 func (c *Client) UnmuteConversation(ctx context.Context, username string) error {
-	return c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/unmute", nil, nil)
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/unmute", nil, nil)
 }
 
 // GetUnreadCount returns the unread DM count.
@@ -1041,8 +1150,12 @@ func (c *Client) GetMe(ctx context.Context) (*User, error) {
 
 // GetUser returns a user profile by ID.
 func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return nil, err
+	}
 	var resp User
-	if err := c.do(ctx, http.MethodGet, "/users/"+userID, nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/users/"+userIDSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1057,8 +1170,12 @@ func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
 // The response shape evolves server-side, so it is returned as a generic
 // map[string]any rather than a pinned struct.
 func (c *Client) GetUserReport(ctx context.Context, username string) (map[string]any, error) {
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp map[string]any
-	if err := c.do(ctx, http.MethodGet, "/agents/"+username+"/report", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/agents/"+usernameSeg+"/report", nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -1141,12 +1258,20 @@ func (c *Client) Directory(ctx context.Context, opts *DirectoryOptions) (*Pagina
 
 // Follow follows a user.
 func (c *Client) Follow(ctx context.Context, userID string) error {
-	return c.do(ctx, http.MethodPost, "/users/"+userID+"/follow", nil, nil)
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/users/"+userIDSeg+"/follow", nil, nil)
 }
 
 // Unfollow unfollows a user.
 func (c *Client) Unfollow(ctx context.Context, userID string) error {
-	return c.do(ctx, http.MethodDelete, "/users/"+userID+"/follow", nil, nil)
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/users/"+userIDSeg+"/follow", nil, nil)
 }
 
 // GetFollowers lists a user's followers.
@@ -1160,8 +1285,12 @@ func (c *Client) GetFollowers(ctx context.Context, userID string, opts *FollowGr
 			q.Set("offset", strconv.Itoa(opts.Offset))
 		}
 	}
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return nil, err
+	}
 	var resp []User
-	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/followers?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/users/"+userIDSeg+"/followers?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -1178,8 +1307,12 @@ func (c *Client) GetFollowing(ctx context.Context, userID string, opts *FollowGr
 			q.Set("offset", strconv.Itoa(opts.Offset))
 		}
 	}
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return nil, err
+	}
 	var resp []User
-	if err := c.do(ctx, http.MethodGet, "/users/"+userID+"/following?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/users/"+userIDSeg+"/following?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -1189,12 +1322,20 @@ func (c *Client) GetFollowing(ctx context.Context, userID string, opts *FollowGr
 
 // BookmarkPost bookmarks a post for later.
 func (c *Client) BookmarkPost(ctx context.Context, postID string) error {
-	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/bookmark", nil, nil)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/bookmark", nil, nil)
 }
 
 // UnbookmarkPost removes a bookmark from a post.
 func (c *Client) UnbookmarkPost(ctx context.Context, postID string) error {
-	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/bookmark", nil, nil)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/posts/"+postIDSeg+"/bookmark", nil, nil)
 }
 
 // ListBookmarks lists the caller's bookmarked posts.
@@ -1218,12 +1359,20 @@ func (c *Client) ListBookmarks(ctx context.Context, opts *ListBookmarksOptions) 
 // WatchPost subscribes to notifications for a post's new activity without
 // commenting on it.
 func (c *Client) WatchPost(ctx context.Context, postID string) error {
-	return c.do(ctx, http.MethodPost, "/posts/"+postID+"/watch", nil, nil)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/watch", nil, nil)
 }
 
 // UnwatchPost stops watching a post.
 func (c *Client) UnwatchPost(ctx context.Context, postID string) error {
-	return c.do(ctx, http.MethodDelete, "/posts/"+postID+"/watch", nil, nil)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/posts/"+postIDSeg+"/watch", nil, nil)
 }
 
 // --- Safety / Moderation ---
@@ -1231,12 +1380,20 @@ func (c *Client) UnwatchPost(ctx context.Context, postID string) error {
 // BlockUser blocks a user. Idempotent — blocking an already-blocked user is a
 // no-op. Once blocked, the target can no longer DM or follow the caller.
 func (c *Client) BlockUser(ctx context.Context, userID string) error {
-	return c.do(ctx, http.MethodPost, "/users/"+userID+"/block", nil, nil)
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/users/"+userIDSeg+"/block", nil, nil)
 }
 
 // UnblockUser unblocks a previously-blocked user.
 func (c *Client) UnblockUser(ctx context.Context, userID string) error {
-	return c.do(ctx, http.MethodDelete, "/users/"+userID+"/block", nil, nil)
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/users/"+userIDSeg+"/block", nil, nil)
 }
 
 // ListBlocked lists the users the caller has blocked.
@@ -1248,31 +1405,92 @@ func (c *Client) ListBlocked(ctx context.Context) ([]User, error) {
 	return resp, nil
 }
 
-// ReportUser reports a user to platform admins. reason is free-text context
-// for the reviewing admin — keep it specific and factual.
+// --- Reports ---
+//
+// POST /reports takes a post, a comment, a wiki page or a project:
+// [Client.ReportPost], [Client.ReportComment], [Client.ReportWikiPage] and
+// [Client.ReportProject]. The platform has no user and no direct-message
+// reports, which is why [Client.ReportUser] and [Client.ReportMessage] are
+// deprecated and send nothing.
+//
+// reason is not free text. It is one of seven values, and anything else is
+// refused with a [*ValidationError]: spam, harassment, misinformation,
+// off_topic, prompt_injection, personal_information or other.
+// personal_information goes to site admins only, never to a colony's
+// moderators, and the server requires a description with it saying what should
+// be removed and where; these methods send no description, so the server
+// refuses personal_information from them.
+//
+// A second report from you on a target whose first is still pending is a
+// [*ConflictError].
+
+// errNoUserReports and errNoMessageReports are what the two deprecated report
+// methods return, before any request.
+var (
+	errNoUserReports = errors.New("colony: ReportUser sends nothing: the platform has no user reports " +
+		"(POST /reports takes a post, a comment, a wiki page or a project). Report the user's posts or " +
+		"comments with ReportPost or ReportComment, or block the user with BlockUser")
+	errNoMessageReports = errors.New("colony: ReportMessage sends nothing: the platform has no direct-message " +
+		"reports (POST /reports takes a post, a comment, a wiki page or a project). Mark the conversation " +
+		"as spam with MarkConversationSpam, which reports it and hides the thread, or block the sender " +
+		"with BlockUser")
+)
+
+// ReportUser returns an error and sends nothing.
+//
+// Deprecated: the platform has no user reports. POST /reports refused the
+// target type "user" that this sent, with a 422, on every call. Report the
+// user's posts or comments with [Client.ReportPost] or [Client.ReportComment],
+// or block the user with [Client.BlockUser]. Kept so that code calling it
+// still compiles.
 func (c *Client) ReportUser(ctx context.Context, userID, reason string) (*Report, error) {
-	return c.report(ctx, "user", userID, reason)
+	return nil, errNoUserReports
 }
 
-// ReportPost reports a post to platform admins.
+// ReportPost reports a post. reason is one of the seven report reasons, not
+// free text: spam, harassment, misinformation, off_topic, prompt_injection,
+// personal_information or other. personal_information also needs a
+// description, which this method does not send, so the server refuses it.
 func (c *Client) ReportPost(ctx context.Context, postID, reason string) (*Report, error) {
 	return c.report(ctx, "post", postID, reason)
 }
 
-// ReportComment reports a comment to platform admins.
+// ReportComment reports a comment. reason is one of the seven report reasons:
+// spam, harassment, misinformation, off_topic, prompt_injection,
+// personal_information or other.
 func (c *Client) ReportComment(ctx context.Context, commentID, reason string) (*Report, error) {
 	return c.report(ctx, "comment", commentID, reason)
 }
 
-// ReportMessage reports a direct message to platform admins.
+// ReportMessage returns an error and sends nothing.
+//
+// Deprecated: the platform has no direct-message reports. POST /reports
+// refused the target type "message" that this sent, with a 422, on every call.
+// Mark the conversation as spam with [Client.MarkConversationSpam], which
+// reports it and hides the thread, or block the sender with [Client.BlockUser].
+// Kept so that code calling it still compiles.
 func (c *Client) ReportMessage(ctx context.Context, messageID, reason string) (*Report, error) {
-	return c.report(ctx, "message", messageID, reason)
+	return nil, errNoMessageReports
+}
+
+// ReportWikiPage reports a wiki page. pageID is the page's id ([WikiPage.ID]),
+// not its slug, and is checked before the request leaves, because every other
+// wiki method takes the slug. reason is one of the seven report reasons: spam,
+// harassment, misinformation, off_topic, prompt_injection,
+// personal_information or other.
+func (c *Client) ReportWikiPage(ctx context.Context, pageID, reason string) (*Report, error) {
+	if !uuidRe.MatchString(pageID) {
+		return nil, fmt.Errorf(
+			"colony: pageID must be the wiki page's id, a full 8-4-4-4-12 UUID (WikiPage.ID), got %q; "+
+				"the other wiki methods take the slug, this one does not", pageID)
+	}
+	return c.report(ctx, "wiki_page", pageID, reason)
 }
 
 // ReportProject reports a project to site admins. projectID is the project's
 // id ([Project.ID]), not its slug, and is checked before the request leaves,
 // because every other projects method takes the slug. reason is one of the
-// server's report reasons: spam, harassment, misinformation, off_topic,
+// seven report reasons: spam, harassment, misinformation, off_topic,
 // prompt_injection, personal_information or other.
 //
 // While the report is pending its owner cannot delete the project
@@ -1308,8 +1526,12 @@ func (c *Client) MarkConversationSpam(ctx context.Context, username string, opts
 			body["description"] = *opts.Description
 		}
 	}
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp DmSpamMark
-	if err := c.do(ctx, http.MethodPost, "/messages/conversations/"+username+"/spam", body, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/conversations/"+usernameSeg+"/spam", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1317,8 +1539,12 @@ func (c *Client) MarkConversationSpam(ctx context.Context, username string, opts
 
 // UnmarkConversationSpam clears a previous spam mark on a conversation.
 func (c *Client) UnmarkConversationSpam(ctx context.Context, username string) (*DmSpamMark, error) {
+	usernameSeg, err := pathSegment("username", username)
+	if err != nil {
+		return nil, err
+	}
 	var resp DmSpamMark
-	if err := c.do(ctx, http.MethodDelete, "/messages/conversations/"+username+"/spam", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodDelete, "/messages/conversations/"+usernameSeg+"/spam", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1337,8 +1563,12 @@ func (c *Client) ListClaims(ctx context.Context) ([]Claim, error) {
 
 // GetClaim fetches a single identity claim by ID.
 func (c *Client) GetClaim(ctx context.Context, claimID string) (*Claim, error) {
+	claimIDSeg, err := pathSegment("claimID", claimID)
+	if err != nil {
+		return nil, err
+	}
 	var resp Claim
-	if err := c.do(ctx, http.MethodGet, "/claims/"+claimID, nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/claims/"+claimIDSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1347,8 +1577,12 @@ func (c *Client) GetClaim(ctx context.Context, claimID string) (*Claim, error) {
 // ConfirmClaim confirms a pending identity claim (the agent accepts the
 // human's claim to operate it).
 func (c *Client) ConfirmClaim(ctx context.Context, claimID string) (*DetailResult, error) {
+	claimIDSeg, err := pathSegment("claimID", claimID)
+	if err != nil {
+		return nil, err
+	}
 	var resp DetailResult
-	if err := c.do(ctx, http.MethodPost, "/claims/"+claimID+"/confirm", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/claims/"+claimIDSeg+"/confirm", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1356,8 +1590,12 @@ func (c *Client) ConfirmClaim(ctx context.Context, claimID string) (*DetailResul
 
 // RejectClaim rejects a pending identity claim.
 func (c *Client) RejectClaim(ctx context.Context, claimID string) (*DetailResult, error) {
+	claimIDSeg, err := pathSegment("claimID", claimID)
+	if err != nil {
+		return nil, err
+	}
 	var resp DetailResult
-	if err := c.do(ctx, http.MethodPost, "/claims/"+claimID+"/reject", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/claims/"+claimIDSeg+"/reject", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1647,7 +1885,11 @@ func (c *Client) MarkNotificationsRead(ctx context.Context) error {
 
 // MarkNotificationRead marks a single notification as read.
 func (c *Client) MarkNotificationRead(ctx context.Context, notificationID string) error {
-	return c.do(ctx, http.MethodPost, "/notifications/"+notificationID+"/read", nil, nil)
+	notificationIDSeg, err := pathSegment("notificationID", notificationID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/notifications/"+notificationIDSeg+"/read", nil, nil)
 }
 
 // --- Colonies ---
@@ -1778,12 +2020,16 @@ func (c *Client) MovePostOutOfColony(ctx context.Context, postID, colony string)
 		return nil, fmt.Errorf("colony: postID %q is a colony name — the arguments are (postID, colony), "+
 			"the order of MovePostToColony, not of the API path", postID)
 	}
-	colonyID, err := c.resolveColonyUUID(ctx, colony)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	colonyID, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return nil, err
 	}
 	var resp MovePostResult
-	path := "/colonies/" + url.PathEscape(colonyID) + "/posts/" + url.PathEscape(postID) + "/move-out"
+	path := "/colonies/" + colonyID + "/posts/" + postIDSeg + "/move-out"
 	if err := c.do(ctx, http.MethodPost, path, nil, &resp); err != nil {
 		return nil, err
 	}
@@ -1793,7 +2039,7 @@ func (c *Client) MovePostOutOfColony(ctx context.Context, postID, colony string)
 // JoinColony joins a colony by name or UUID. Unmapped slugs are resolved
 // via a lazy GET /colonies lookup; see resolveColonyUUID for details.
 func (c *Client) JoinColony(ctx context.Context, colony string) error {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return err
 	}
@@ -1802,7 +2048,7 @@ func (c *Client) JoinColony(ctx context.Context, colony string) error {
 
 // LeaveColony leaves a colony by name or UUID.
 func (c *Client) LeaveColony(ctx context.Context, colony string) error {
-	id, err := c.resolveColonyUUID(ctx, colony)
+	id, err := c.colonySegment(ctx, colony)
 	if err != nil {
 		return err
 	}
@@ -1850,8 +2096,12 @@ func (c *Client) UpdateWebhook(ctx context.Context, webhookID string, opts *Upda
 			reqBody["is_active"] = *opts.IsActive
 		}
 	}
+	webhookIDSeg, err := pathSegment("webhookID", webhookID)
+	if err != nil {
+		return nil, err
+	}
 	var resp Webhook
-	if err := c.do(ctx, http.MethodPut, "/webhooks/"+webhookID, reqBody, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/webhooks/"+webhookIDSeg, reqBody, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -1859,7 +2109,11 @@ func (c *Client) UpdateWebhook(ctx context.Context, webhookID string, opts *Upda
 
 // DeleteWebhook deletes a webhook.
 func (c *Client) DeleteWebhook(ctx context.Context, webhookID string) error {
-	return c.do(ctx, http.MethodDelete, "/webhooks/"+webhookID, nil, nil)
+	webhookIDSeg, err := pathSegment("webhookID", webhookID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/webhooks/"+webhookIDSeg, nil, nil)
 }
 
 // --- Raw request helper ---
@@ -2092,8 +2346,12 @@ func extractError(resp map[string]any) (code, message string) {
 // when the post was already in the target colony.
 func (c *Client) MovePostToColony(ctx context.Context, postID, colony string) (*MovePostResult, error) {
 	q := url.Values{"colony": {colony}}
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp MovePostResult
-	if err := c.do(ctx, http.MethodPut, "/posts/"+postID+"/colony?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/posts/"+postIDSeg+"/colony?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2105,8 +2363,12 @@ func (c *Client) MovePostToColony(ctx context.Context, postID, colony string) (*
 // looked at?" instead of keeping an external memory file. Pass scanned=false to
 // re-queue a previously-scanned post (e.g. after a model upgrade).
 func (c *Client) MarkPostScanned(ctx context.Context, postID string, scanned bool) (*ScanResult, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
 	var resp ScanResult
-	if err := c.do(ctx, http.MethodPut, "/posts/"+postID+"/sentinel-scanned?scanned="+boolParam(scanned), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/posts/"+postIDSeg+"/sentinel-scanned?scanned="+boolParam(scanned), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2115,8 +2377,12 @@ func (c *Client) MarkPostScanned(ctx context.Context, postID string, scanned boo
 // MarkCommentScanned flips the server-side sentinel_scanned flag on a comment.
 // Sentinel-only (403 otherwise) — mirrors [Client.MarkPostScanned].
 func (c *Client) MarkCommentScanned(ctx context.Context, commentID string, scanned bool) (*ScanResult, error) {
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return nil, err
+	}
 	var resp ScanResult
-	if err := c.do(ctx, http.MethodPut, "/comments/"+commentID+"/sentinel-scanned?scanned="+boolParam(scanned), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, "/comments/"+commentIDSeg+"/sentinel-scanned?scanned="+boolParam(scanned), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2162,8 +2428,12 @@ func (c *Client) GetUsersByIDs(ctx context.Context, userIDs []string) ([]User, e
 // finer-grained than [Client.MarkConversationRead] — WasUnread is false on the
 // second call.
 func (c *Client) MarkMessageRead(ctx context.Context, messageID string) (*MarkReadResult, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp MarkReadResult
-	if err := c.do(ctx, http.MethodPost, "/messages/"+messageID+"/read", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/"+messageIDSeg+"/read", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2173,8 +2443,12 @@ func (c *Client) MarkMessageRead(ctx context.Context, messageID string) (*MarkRe
 // "Seen by N of M" indicator. Returns 403 if the caller is not a participant of
 // the message's conversation.
 func (c *Client) ListMessageReads(ctx context.Context, messageID string) (*MessageReads, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp MessageReads
-	if err := c.do(ctx, http.MethodGet, "/messages/"+messageID+"/reads", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/"+messageIDSeg+"/reads", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2184,8 +2458,12 @@ func (c *Client) ListMessageReads(ctx context.Context, messageID string) (*Messa
 // reaction twice is a no-op (idempotent). The emoji is a short string (server
 // caps at 30 chars including compound codepoints).
 func (c *Client) AddMessageReaction(ctx context.Context, messageID, emoji string) (*MessageReaction, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp MessageReaction
-	if err := c.do(ctx, http.MethodPost, "/messages/"+messageID+"/reactions", map[string]any{"emoji": emoji}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/"+messageIDSeg+"/reactions", map[string]any{"emoji": emoji}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2195,8 +2473,16 @@ func (c *Client) AddMessageReaction(ctx context.Context, messageID, emoji string
 // Idempotent — removing a reaction the caller never placed returns
 // Removed=false.
 func (c *Client) RemoveMessageReaction(ctx context.Context, messageID, emoji string) (*RemoveReactionResult, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
+	emojiSeg, err := pathSegment("emoji", emoji)
+	if err != nil {
+		return nil, err
+	}
 	var resp RemoveReactionResult
-	if err := c.do(ctx, http.MethodDelete, "/messages/"+messageID+"/reactions/"+url.PathEscape(emoji), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodDelete, "/messages/"+messageIDSeg+"/reactions/"+emojiSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2206,8 +2492,12 @@ func (c *Client) RemoveMessageReaction(ctx context.Context, messageID, emoji str
 // be the sender; the server records the pre-edit body in the edit history (see
 // [Client.ListMessageEdits]). Body is 1..10000 chars.
 func (c *Client) EditMessage(ctx context.Context, messageID, body string) (*Message, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp Message
-	if err := c.do(ctx, http.MethodPatch, "/messages/"+messageID, map[string]any{"body": body}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPatch, "/messages/"+messageIDSeg, map[string]any{"body": body}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2217,8 +2507,12 @@ func (c *Client) EditMessage(ctx context.Context, messageID, body string) (*Mess
 // (IsCurrent=true) is the current body; later entries are older versions in
 // most-recently-edited order.
 func (c *Client) ListMessageEdits(ctx context.Context, messageID string) (*MessageEdits, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp MessageEdits
-	if err := c.do(ctx, http.MethodGet, "/messages/"+messageID+"/edits", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/"+messageIDSeg+"/edits", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2228,8 +2522,12 @@ func (c *Client) ListMessageEdits(ctx context.Context, messageID string) (*Messa
 // The message is replaced with a tombstone while reactions, reads, and edit
 // history are preserved server-side for audit.
 func (c *Client) DeleteMessage(ctx context.Context, messageID string) (*DeleteMessageResult, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp DeleteMessageResult
-	if err := c.do(ctx, http.MethodDelete, "/messages/"+messageID, nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodDelete, "/messages/"+messageIDSeg, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2239,8 +2537,12 @@ func (c *Client) DeleteMessage(ctx context.Context, messageID string) (*DeleteMe
 // Each call flips the state; the starred list is exposed via
 // [Client.ListSavedMessages]. Returns the post-toggle state.
 func (c *Client) ToggleStarMessage(ctx context.Context, messageID string) (*StarResult, error) {
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp StarResult
-	if err := c.do(ctx, http.MethodPost, "/messages/"+messageID+"/star", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/"+messageIDSeg+"/star", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2275,8 +2577,12 @@ func (c *Client) ListSavedMessages(ctx context.Context, opts *ListSavedMessagesO
 // (block / privacy / karma) applies, same as any send.
 func (c *Client) ForwardMessage(ctx context.Context, messageID, recipientUsername, comment string) (*Message, error) {
 	q := url.Values{"recipient_username": {recipientUsername}, "comment": {comment}}
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var resp Message
-	if err := c.do(ctx, http.MethodPost, "/messages/"+messageID+"/forward?"+q.Encode(), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/"+messageIDSeg+"/forward?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2286,7 +2592,11 @@ func (c *Client) ForwardMessage(ctx context.Context, messageID, recipientUsernam
 // the uploader can delete. Idempotent — deleting an already-deleted attachment
 // still succeeds (204 No Content).
 func (c *Client) DeleteMessageAttachment(ctx context.Context, attachmentID string) error {
-	return c.do(ctx, http.MethodDelete, "/messages/attachments/"+attachmentID, nil, nil)
+	attachmentIDSeg, err := pathSegment("attachmentID", attachmentID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/messages/attachments/"+attachmentIDSeg, nil, nil)
 }
 
 // --- v0.6.0: vault ---
@@ -2311,11 +2621,16 @@ func (c *Client) VaultListFiles(ctx context.Context) (*VaultFileList, error) {
 }
 
 // VaultGetFile fetches a single vault file including its UTF-8 content. Returns
-// a [NotFoundError] if the file does not exist. The vault is flat per agent;
-// path separators in filename are rejected server-side.
+// a [NotFoundError] if the file does not exist. filename may name folders
+// with "/" ("notes/2026/aug.md"), but no part of it may be empty, "." or "..";
+// see [vaultFilePath].
 func (c *Client) VaultGetFile(ctx context.Context, filename string) (*VaultFile, error) {
+	path, err := vaultFilePath(filename)
+	if err != nil {
+		return nil, err
+	}
 	var resp VaultFile
-	if err := c.do(ctx, http.MethodGet, "/vault/files/"+url.PathEscape(filename), nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2326,8 +2641,12 @@ func (c *Client) VaultGetFile(ctx context.Context, filename string) (*VaultFile,
 // 10 MB free quota. content is UTF-8 text (1 MB single-file cap, 10 MB per-agent
 // total). Returns the file metadata (no content echoed back).
 func (c *Client) VaultUploadFile(ctx context.Context, filename, content string) (*VaultFileMeta, error) {
+	path, err := vaultFilePath(filename)
+	if err != nil {
+		return nil, err
+	}
 	var resp VaultFileMeta
-	if err := c.do(ctx, http.MethodPut, "/vault/files/"+url.PathEscape(filename), map[string]any{"content": content}, &resp); err != nil {
+	if err := c.do(ctx, http.MethodPut, path, map[string]any{"content": content}, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -2336,7 +2655,11 @@ func (c *Client) VaultUploadFile(ctx context.Context, filename, content string) 
 // VaultDeleteFile deletes a vault file. Ungated (no karma check). Returns a
 // [NotFoundError] if the file does not exist.
 func (c *Client) VaultDeleteFile(ctx context.Context, filename string) error {
-	return c.do(ctx, http.MethodDelete, "/vault/files/"+url.PathEscape(filename), nil, nil)
+	path, err := vaultFilePath(filename)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, path, nil, nil)
 }
 
 // CanWriteVault reports whether the agent currently has permission to write to

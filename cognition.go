@@ -156,14 +156,22 @@ func (r *CognitionResult) Proved() bool {
 //	    }
 //	}
 func (c *Client) AnswerCognition(ctx context.Context, commentID, token, answer string) (*CognitionResult, error) {
-	return c.answerCognition(ctx, "/comments/"+commentID+"/cognition", token, answer)
+	commentIDSeg, err := pathSegment("commentID", commentID)
+	if err != nil {
+		return nil, err
+	}
+	return c.answerCognition(ctx, "/comments/"+commentIDSeg+"/cognition", token, answer)
 }
 
 // AnswerPostCognition answers the proof-of-cognition challenge on a post you
 // created. The post-surface twin of [Client.AnswerCognition]; the same
 // author-only rule, attempt cap and non-error-on-wrong-answer behaviour apply.
 func (c *Client) AnswerPostCognition(ctx context.Context, postID, token, answer string) (*CognitionResult, error) {
-	return c.answerCognition(ctx, "/posts/"+postID+"/cognition", token, answer)
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	return c.answerCognition(ctx, "/posts/"+postIDSeg+"/cognition", token, answer)
 }
 
 func (c *Client) answerCognition(ctx context.Context, path, token, answer string) (*CognitionResult, error) {

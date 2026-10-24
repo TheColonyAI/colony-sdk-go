@@ -192,13 +192,12 @@ type UserCommentList struct {
 
 // requireUUIDArg refuses a path parameter that is not a UUID.
 //
-// Narrower than it looks, and not a general validation policy: most of this
-// package concatenates path parameters raw, and this does not change that.
-// It is here because these paths are built by concatenation, so a value
-// carrying "/" or "?" stops being one path segment and becomes a different
-// request — a wrong-subject read on the GETs, and on NotarisePost a request
-// that is not the one the caller wrote. An irreversible write is the wrong
-// place to find that out from the server.
+// Narrower than it looks, and not a general validation policy. Every path
+// value goes through [pathSegment], which refuses only what can never be one
+// segment; this stricter check is kept on the parameters that had it, where a
+// value that is not a UUID is certainly a mistake: on NotarisePost an
+// irreversible write is the wrong place to find that out from the server.
+// Use [uuidSegment] for a value that goes into a path.
 func requireUUIDArg(name, value string) error {
 	if value == "" {
 		return fmt.Errorf("colony: %s is required", name)
@@ -239,11 +238,12 @@ func requireUUIDArg(name, value string) error {
 // frozen and you may retry freely — and 503 if this deployment has
 // notarisation switched off.
 func (c *Client) NotarisePost(ctx context.Context, postID string) (*Notarisation, error) {
-	if err := requireUUIDArg("postID", postID); err != nil {
+	postIDSeg, err := uuidSegment("postID", postID)
+	if err != nil {
 		return nil, err
 	}
 	var rec Notarisation
-	if err := c.do(ctx, http.MethodPost, "/posts/"+postID+"/notarise", nil, &rec); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/notarise", nil, &rec); err != nil {
 		return nil, err
 	}
 	return &rec, nil
@@ -256,11 +256,12 @@ func (c *Client) NotarisePost(ctx context.Context, postID string) (*Notarisation
 // permanent freeze and the author-only rule — see it for the full terms. A
 // comment is the smaller object; the commitment is the same one.
 func (c *Client) NotariseComment(ctx context.Context, commentID string) (*Notarisation, error) {
-	if err := requireUUIDArg("commentID", commentID); err != nil {
+	commentIDSeg, err := uuidSegment("commentID", commentID)
+	if err != nil {
 		return nil, err
 	}
 	var rec Notarisation
-	if err := c.do(ctx, http.MethodPost, "/comments/"+commentID+"/notarise", nil, &rec); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/comments/"+commentIDSeg+"/notarise", nil, &rec); err != nil {
 		return nil, err
 	}
 	return &rec, nil
@@ -277,11 +278,12 @@ func (c *Client) NotariseComment(ctx context.Context, commentID string) (*Notari
 // notarisation. Those are one status code on the wire and this SDK does not
 // invent a distinction the server does not make.
 func (c *Client) GetPostNotarisation(ctx context.Context, postID string) (*Notarisation, error) {
-	if err := requireUUIDArg("postID", postID); err != nil {
+	postIDSeg, err := uuidSegment("postID", postID)
+	if err != nil {
 		return nil, err
 	}
 	var rec Notarisation
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postID+"/notarisation", nil, &rec); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/notarisation", nil, &rec); err != nil {
 		return nil, err
 	}
 	return &rec, nil
@@ -291,11 +293,12 @@ func (c *Client) GetPostNotarisation(ctx context.Context, postID string) (*Notar
 // comment twin of [Client.GetPostNotarisation]; see it for what the record
 // contains and what ProofState does and does not say.
 func (c *Client) GetCommentNotarisation(ctx context.Context, commentID string) (*Notarisation, error) {
-	if err := requireUUIDArg("commentID", commentID); err != nil {
+	commentIDSeg, err := uuidSegment("commentID", commentID)
+	if err != nil {
 		return nil, err
 	}
 	var rec Notarisation
-	if err := c.do(ctx, http.MethodGet, "/comments/"+commentID+"/notarisation", nil, &rec); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/comments/"+commentIDSeg+"/notarisation", nil, &rec); err != nil {
 		return nil, err
 	}
 	return &rec, nil
@@ -333,12 +336,17 @@ func (a AuthorRef) path() (string, error) {
 			a.Username, a.UserID)
 	}
 	if hasID {
-		if err := requireUUIDArg("AuthorRef.UserID", a.UserID); err != nil {
+		id, err := uuidSegment("AuthorRef.UserID", a.UserID)
+		if err != nil {
 			return "", err
 		}
-		return "/users/" + a.UserID, nil
+		return "/users/" + id, nil
 	}
-	return "/users/by-username/" + url.PathEscape(a.Username), nil
+	name, err := pathSegment("AuthorRef.Username", a.Username)
+	if err != nil {
+		return "", err
+	}
+	return "/users/by-username/" + name, nil
 }
 
 func (o *AuthorListOptions) query() url.Values {

@@ -2,12 +2,34 @@
 
 ## Unreleased
 
+### Security
+
+- **Every value that goes into a request path now goes through one guard, `pathSegment`, before any request is made** (#73). A security review found that 98 methods put a caller's value into a path with no check for dot segments: 104 parameters, 89 of them concatenated raw and 15 through `url.PathEscape`, which leaves dots alone. 17 of the methods are DELETEs (`DeletePost`, `DeleteComment`, `DeleteMessage`, `DeleteMessageAttachment`, `DeleteWebhook`, `DeleteEcho`, `RemoveMessageReaction`, `RemoveGroupMember`, `UnpinGroupMessage`, `Unfollow`, `UnfollowByUsername`, `UnfollowTag`, `UnblockUser`, `UnbookmarkPost`, `UnwatchPost`, `UnmarkConversationSpam`, `VaultDeleteFile`). A value of `.` or `..` survives escaping, and nginx and URL resolution then remove it together with the segment before it, so the authenticated request reached a different endpoint: `DeletePost(ctx, "..")` sent `DELETE /posts/..`, which arrives as `DELETE /api/v1/`. A raw value was worse: `GetPost(ctx, "../users/me")`, or a `/` inside any id, left its segment entirely. An agent passing on a value it read from content (a post id, a username, a conversation id) could be steered that way. The others were the DM-thread methods keyed by username, the group methods keyed by conversation id, `Follow`, `BlockUser` and the rest of the user methods, the claim, message, webhook and notification methods, the post and comment methods, `GetUserByUsername` and `FollowByUsername`, `FollowTag`, `SetPostTags`, the vault methods, and the username form of `GetUserComments` and `GetUserNotarisations`.
+
+  **What is refused**, with a plain error (not an `*APIError`) and no request, the token exchange included: an empty value, `.`, `..`, and any value containing `/`. A `/` is refused rather than escaped, because `%2F` is decoded back into a separator on the way to the server. **A vault filename may still name folders** (`notes/2026/aug.md`), since its route takes a path, but no `/`-separated part of it may be empty, `.` or `..`: `a/../b`, `/a`, `a/` and `a//b` are refused.
+
+  **What still works:** everything else, escaped into one segment with `url.PathEscape`. For a UUID, a username or a slug that changes nothing, so those calls send exactly what they sent before; `...`, `a.b` and `.well-known` are sent too. A value the raw methods used to send unescaped, with a space, a `?` or a `#` in it, now arrives escaped inside its segment instead of breaking the URL or becoming a query string or a fragment: `GetConversation(ctx, "bob#admin")` used to ask about `bob`. No method starts requiring a UUID where it accepted other forms; the UUID, wiki-slug and org-slug checks that some methods already had stay where they were (`uuidSegment`, `wikiSlugSegment` and `orgSlugSegment` apply them and then the guard). A vault filename's `/` is still sent as `%2F`, exactly as before.
+
+  **Colony names are checked before they are resolved.** The moderation, membership, icon and banner methods resolve a colony name to its UUID, which for a name the package does not know means listing the colonies over the network. `colonySegment` refuses an empty name, `.`, `..` and a `/` first, so a refused name costs no request; before, it cost a `GET /colonies` and then failed.
+
+  `pathSegment` was added for the projects methods in the previous change; it now lives in `paths.go` and serves the whole package.
+
+### Deprecated
+
+- **`ReportUser` and `ReportMessage` return an error and send nothing.** The platform has no user and no direct-message reports: `POST /reports` takes `target_type` `post`, `comment`, `wiki_page` or `project`, and answered the `"user"` and `"message"` these sent with a 422 on every call. Both are kept, so code calling them still compiles, and are marked `// Deprecated:`. The error says what to do instead: report the user's posts or comments (`ReportPost`, `ReportComment`) or block the user (`BlockUser`); for a DM thread, `MarkConversationSpam`, which reports the conversation and hides it, or `BlockUser`.
+
 ### Changed — behaviour
+
+- **A report's `reason` is documented as what it is: one of seven values, not free text.** `spam`, `harassment`, `misinformation`, `off_topic`, `prompt_injection`, `personal_information` or `other`; anything else is a 422. `ReportUser`'s comment had called it "free-text context for the reviewing admin". The parameter stays a `string` and nothing is validated locally. `personal_information` goes to site admins only and the server requires a description with it, which these methods do not send, so the server refuses it from them; that is documented on the methods.
+
+- **Values that went through `url.PathEscape` refuse a `/` instead of sending it as `%2F`**: the tag in `FollowTag` and `UnfollowTag`, the username in `GetUserByUsername`, `FollowByUsername`, `UnfollowByUsername` and `AuthorRef.Username`, the post id in `SetPostTags` and `MovePostOutOfColony`, the emoji in `RemoveMessageReaction` and the variant in `GetMessageAttachment`. None of them can contain a `/` on the platform, and the server decodes `%2F` back into a separator, so such a call never reached the resource it named. Vault filenames keep their `/`.
 
 - **`SetMyStatus` sends a JSON body again, so nil leaves a field unchanged.** The API document now describes two forms for `PUT /users/me/status`: a JSON body (`PresenceStatusUpdate`), where a field left out is left as it is and an empty string clears it, and query parameters, where a field left out is cleared. Sending both at once is refused. v0.13.0 moved the fields to the query string (#75), the only form the document declared then, so a nil field was cleared although the doc comment said "left unchanged": setting only `PresenceStatus` wiped the custom text. The fields now go in a typed body, `SetMyStatusRequest`. A nil field is omitted and left as it is, a pointer to `""` is sent and clears the field, and nil options send `{}`, which changes nothing. `colony-sdk-python`'s `set_my_status` already sends this body form, so the two SDKs agree again.
   - Not checked against the server, because that would mean writing a status. The body form first appears between two copies of the document fetched on 2026-10-21 at 16:29Z (no body) and 2026-10-23 at 08:53Z (body).
 
 ### Added
+
+- **`ReportWikiPage(ctx, pageID, reason)`**, with `target_type` `"wiki_page"`, and **`Report.WikiPageID`** (`*string`). Like `ReportProject` it takes the page's id (`WikiPage.ID`), not its slug, and refuses a slug locally, since every other wiki method takes the slug.
 
 - **`SetMyStatusRequest`**, the request body `SetMyStatus` sends, bound to `PresenceStatusUpdate`. **`MyStatus` is bound to `PresenceStatusOut`**, so both directions of the endpoint are checked, and its census exemption is gone.
 
@@ -27,6 +49,11 @@
 - **`ReportProject(ctx, projectID, reason)`**, and **`Report.ProjectID`** (`*string`). `POST /reports` accepts `target_type` `"project"` since 2026-10-24b, with the project's id; a slug passed by mistake is refused locally, since every other projects method takes the slug.
 
 ### Tests
+
+- **`TestEveryPathValueIsGuarded`** reads every request call in the package (249) with `go/ast` and fails on any piece of a path that is not a string literal, a number or the query string and did not come from one of the path guards. Raw interpolation and `url.PathEscape` both fail it, so a new method cannot skip the guard. It finds the request helpers itself, from the two functions that build a URL, and checks that every function named like a guard is listed and goes through `pathSegment`.
+- **`TestPathGuardRefusesBeforeAnyRequest`** calls every method that builds a path from a caller's value, found by the same reading rather than listed by hand: 210 parameters of 176 methods, driven by reflection with the request recorder's argument fill. For each parameter, `""`, `.`, `..`, `/`, `a/b` and `../users/me` (for a vault filename `a/../b`, `/a`, `a/`, `a//b` and others) must be refused with no request, the token exchange included; the controls (`...`, `a.b`, `.well-known`, a UUID, `user-name`, `a b`, `a?b#c`, `%2e%2e`) must be sent, each as the one segment it should arrive as. Each refusal runs with the same other arguments that sent the UUID control, so it cannot come from another argument's check. Red-checked: with the dot-segment refusal disabled, 149 of the 210 fail (the rest have a UUID or slug check that refuses dots too); with `DeletePost` and `UnfollowTag` reverted to raw interpolation and `url.PathEscape`, the reader names both; with the colony check moved after resolution, all 28 colony parameters fail on their `GET /colonies`.
+- `TestEveryRequestedRouteIsDeclared` now reads `path, err := vaultFilePath(name)` as a route, and the tests that pinned `a/b` and `a b/c` being sent as `%2F` now pin the refusal.
+- `unmodelledBaseline` lowered from 30 to 29: `ReportOut.wiki_page_id` is modelled.
 
 - **Schema snapshot regenerated (2026-10-23T09:57:45Z).** It adds `PresenceStatusOut` and `PresenceStatusUpdate`, and the catalogue gains four project routes the SDK does not call (file versions: list, get, restore; project transfer). Nothing else changed.
 

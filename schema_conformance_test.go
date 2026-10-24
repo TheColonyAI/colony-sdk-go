@@ -733,7 +733,11 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // eleven project schemas, DELETE /projects/{slug}/colony and one field,
 // ReportOut.project_id, which is modelled as Report.ProjectID. The project
 // types model every field their schemas declare.
-const unmodelledBaseline = 30
+//
+// --- path segments and reports, 2026-10-24 --------------------------------
+// Lowered 30 -> 29, measured, with no snapshot change: ReportOut.wiki_page_id
+// is now modelled as Report.WikiPageID, for ReportWikiPage.
+const unmodelledBaseline = 29
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

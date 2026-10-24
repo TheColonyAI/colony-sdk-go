@@ -149,12 +149,24 @@ func isClientRecv(fl *ast.FieldList) bool {
 
 // assignments maps each local name to the expression it was first given with
 // := or =. Later "path +=" statements in this package only add a query string,
-// which the route drops anyway.
+// which the route drops anyway. In "path, err := vaultFilePath(name)" the
+// first name is given the call, which the resolver renders as a route.
 func assignments(body *ast.BlockStmt) map[string]ast.Expr {
 	out := map[string]ast.Expr{}
 	ast.Inspect(body, func(n ast.Node) bool {
 		as, ok := n.(*ast.AssignStmt)
-		if !ok || (as.Tok != token.DEFINE && as.Tok != token.ASSIGN) || len(as.Lhs) != len(as.Rhs) {
+		if !ok || (as.Tok != token.DEFINE && as.Tok != token.ASSIGN) {
+			return true
+		}
+		if len(as.Lhs) == 2 && len(as.Rhs) == 1 {
+			if id, ok := as.Lhs[0].(*ast.Ident); ok {
+				if _, seen := out[id.Name]; !seen {
+					out[id.Name] = as.Rhs[0]
+				}
+			}
+			return true
+		}
+		if len(as.Lhs) != len(as.Rhs) {
 			return true
 		}
 		for i, l := range as.Lhs {

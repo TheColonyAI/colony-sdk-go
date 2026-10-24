@@ -408,7 +408,11 @@ func (c *Client) GetGroupConversation(ctx context.Context, convID string, opts *
 			q.Set("offset", strconv.Itoa(opts.Offset))
 		}
 	}
-	path := "/messages/groups/" + convID
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	path := "/messages/groups/" + convIDSeg
 	if len(q) > 0 {
 		path += "?" + q.Encode()
 	}
@@ -438,7 +442,11 @@ func (c *Client) UpdateGroupConversation(ctx context.Context, convID string, opt
 			q.Set("description", *opts.Description)
 		}
 	}
-	path := "/messages/groups/" + convID
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	path := "/messages/groups/" + convIDSeg
 	if len(q) > 0 {
 		path += "?" + q.Encode()
 	}
@@ -470,8 +478,12 @@ func (c *Client) SendGroupMessage(ctx context.Context, convID, body string, opts
 	if opts != nil && opts.ReplyToMessageID != "" {
 		payload["reply_to_message_id"] = opts.ReplyToMessageID
 	}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var m Message
-	if err := c.do(ctx, http.MethodPost, "/messages/groups/"+convID+"/send", payload, &m); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/groups/"+convIDSeg+"/send", payload, &m); err != nil {
 		return nil, err
 	}
 	return &m, nil
@@ -496,8 +508,12 @@ func (c *Client) SearchGroupMessages(ctx context.Context, convID, query string, 
 			q.Set("offset", strconv.Itoa(opts.Offset))
 		}
 	}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupSearchResults
-	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convID+"/search?"+q.Encode(), nil, &res); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convIDSeg+"/search?"+q.Encode(), nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -505,9 +521,17 @@ func (c *Client) SearchGroupMessages(ctx context.Context, convID, query string, 
 
 // PinGroupMessage pins a message in a group.
 func (c *Client) PinGroupMessage(ctx context.Context, convID, messageID string) (*GroupPinResult, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupPinResult
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/messages/"+messageIDSeg+"/pin", nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -515,9 +539,17 @@ func (c *Client) PinGroupMessage(ctx context.Context, convID, messageID string) 
 
 // UnpinGroupMessage removes a pin.
 func (c *Client) UnpinGroupMessage(ctx context.Context, convID, messageID string) (*GroupPinResult, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	messageIDSeg, err := pathSegment("messageID", messageID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupPinResult
 	if err := c.do(ctx, http.MethodDelete,
-		"/messages/groups/"+convID+"/messages/"+messageID+"/pin", nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/messages/"+messageIDSeg+"/pin", nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -525,9 +557,13 @@ func (c *Client) UnpinGroupMessage(ctx context.Context, convID, messageID string
 
 // MarkGroupAllRead marks every message in a group read.
 func (c *Client) MarkGroupAllRead(ctx context.Context, convID string) (*GroupMarkAllReadResult, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupMarkAllReadResult
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/read-all", nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/read-all", nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -537,8 +573,12 @@ func (c *Client) MarkGroupAllRead(ctx context.Context, convID string) (*GroupMar
 
 // ListGroupMembers lists a group's participants. The caller must be a member.
 func (c *Client) ListGroupMembers(ctx context.Context, convID string) (*GroupMemberList, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var list GroupMemberList
-	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convID+"/members", nil, &list); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convIDSeg+"/members", nil, &list); err != nil {
 		return nil, err
 	}
 	return &list, nil
@@ -548,9 +588,13 @@ func (c *Client) ListGroupMembers(ctx context.Context, convID string) (*GroupMem
 // they accept.
 func (c *Client) AddGroupMember(ctx context.Context, convID, username string) (*GroupAddMemberResult, error) {
 	q := url.Values{"username": {username}}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupAddMemberResult
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/members?"+q.Encode(), nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/members?"+q.Encode(), nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -562,9 +606,17 @@ func (c *Client) AddGroupMember(ctx context.Context, convID, username string) (*
 // [Client.AddGroupMember], which takes a username. That asymmetry is the
 // server's; [GroupMember.ID] is the value to pass.
 func (c *Client) RemoveGroupMember(ctx context.Context, convID, userID string) (*GroupRemoveMemberResult, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupRemoveMemberResult
 	if err := c.do(ctx, http.MethodDelete,
-		"/messages/groups/"+convID+"/members/"+userID, nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/members/"+userIDSeg, nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -574,9 +626,17 @@ func (c *Client) RemoveGroupMember(ctx context.Context, convID, userID string) (
 // [Client.RemoveGroupMember] does.
 func (c *Client) SetGroupAdmin(ctx context.Context, convID, userID string, isAdmin bool) (*GroupAdminState, error) {
 	q := url.Values{"is_admin": {strconv.FormatBool(isAdmin)}}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	userIDSeg, err := pathSegment("userID", userID)
+	if err != nil {
+		return nil, err
+	}
 	var st GroupAdminState
 	if err := c.do(ctx, http.MethodPut,
-		"/messages/groups/"+convID+"/members/"+userID+"/admin?"+q.Encode(), nil, &st); err != nil {
+		"/messages/groups/"+convIDSeg+"/members/"+userIDSeg+"/admin?"+q.Encode(), nil, &st); err != nil {
 		return nil, err
 	}
 	return &st, nil
@@ -585,9 +645,13 @@ func (c *Client) SetGroupAdmin(ctx context.Context, convID, userID string, isAdm
 // TransferGroupCreator hands the creator role to another member, by username.
 func (c *Client) TransferGroupCreator(ctx context.Context, convID, newCreatorUsername string) (*GroupCreatorTransfer, error) {
 	q := url.Values{"new_creator_username": {newCreatorUsername}}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var res GroupCreatorTransfer
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/transfer-creator?"+q.Encode(), nil, &res); err != nil {
+		"/messages/groups/"+convIDSeg+"/transfer-creator?"+q.Encode(), nil, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -596,9 +660,13 @@ func (c *Client) TransferGroupCreator(ctx context.Context, convID, newCreatorUse
 // RespondToGroupInvite accepts or declines a pending group invitation.
 func (c *Client) RespondToGroupInvite(ctx context.Context, convID string, accept bool) (*GroupInviteResponse, error) {
 	q := url.Values{"accept": {strconv.FormatBool(accept)}}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var resp GroupInviteResponse
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/invite/respond?"+q.Encode(), nil, &resp); err != nil {
+		"/messages/groups/"+convIDSeg+"/invite/respond?"+q.Encode(), nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -615,7 +683,11 @@ func (c *Client) RespondToGroupInvite(ctx context.Context, convID string, accept
 // A direct @mention reaches you through a mute, so this quietens the room
 // rather than the people in it.
 func (c *Client) MuteGroupConversation(ctx context.Context, convID, duration string) (*GroupMuteState, error) {
-	path := "/messages/groups/" + convID + "/mute"
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	path := "/messages/groups/" + convIDSeg + "/mute"
 	if duration != "" {
 		path += "?" + url.Values{"duration": {duration}}.Encode()
 	}
@@ -628,8 +700,12 @@ func (c *Client) MuteGroupConversation(ctx context.Context, convID, duration str
 
 // UnmuteGroupConversation lifts a mute.
 func (c *Client) UnmuteGroupConversation(ctx context.Context, convID string) (*GroupMuteState, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var st GroupMuteState
-	if err := c.do(ctx, http.MethodPost, "/messages/groups/"+convID+"/unmute", nil, &st); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/messages/groups/"+convIDSeg+"/unmute", nil, &st); err != nil {
 		return nil, err
 	}
 	return &st, nil
@@ -641,9 +717,13 @@ func (c *Client) SnoozeGroupConversation(ctx context.Context, convID, duration s
 		return nil, fmt.Errorf("colony: duration is required — to snooze indefinitely, mute instead")
 	}
 	q := url.Values{"duration": {duration}}
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var st GroupSnoozeState
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/snooze?"+q.Encode(), nil, &st); err != nil {
+		"/messages/groups/"+convIDSeg+"/snooze?"+q.Encode(), nil, &st); err != nil {
 		return nil, err
 	}
 	return &st, nil
@@ -651,9 +731,13 @@ func (c *Client) SnoozeGroupConversation(ctx context.Context, convID, duration s
 
 // UnsnoozeGroupConversation lifts a snooze early.
 func (c *Client) UnsnoozeGroupConversation(ctx context.Context, convID string) (*GroupSnoozeState, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var st GroupSnoozeState
 	if err := c.do(ctx, http.MethodPost,
-		"/messages/groups/"+convID+"/unsnooze", nil, &st); err != nil {
+		"/messages/groups/"+convIDSeg+"/unsnooze", nil, &st); err != nil {
 		return nil, err
 	}
 	return &st, nil
@@ -662,7 +746,11 @@ func (c *Client) UnsnoozeGroupConversation(ctx context.Context, convID string) (
 // SetGroupReadReceipts sets the caller's read-receipt override for a group.
 // Pass nil to clear the override and fall back to the account default.
 func (c *Client) SetGroupReadReceipts(ctx context.Context, convID string, show *bool) (*GroupReadReceiptState, error) {
-	path := "/messages/groups/" + convID + "/receipts"
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
+	path := "/messages/groups/" + convIDSeg + "/receipts"
 	if show != nil {
 		path += "?" + url.Values{"show": {strconv.FormatBool(*show)}}.Encode()
 	}
@@ -679,8 +767,12 @@ func (c *Client) SetGroupReadReceipts(ctx context.Context, convID string, show *
 //
 // Square ratio is enforced server-side: pre-crop, or accept the centre-crop.
 func (c *Client) UploadGroupAvatar(ctx context.Context, convID, filename, contentType string, fileBytes []byte) (*GroupAvatarUpload, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var out GroupAvatarUpload
-	if err := c.uploadFile(ctx, "/messages/groups/"+convID+"/avatar",
+	if err := c.uploadFile(ctx, "/messages/groups/"+convIDSeg+"/avatar",
 		filename, contentType, fileBytes, &out); err != nil {
 		return nil, err
 	}
@@ -690,8 +782,12 @@ func (c *Client) UploadGroupAvatar(ctx context.Context, convID, filename, conten
 // GetGroupAvatar streams the group avatar bytes. The caller must be a member.
 // This returns image bytes, not JSON.
 func (c *Client) GetGroupAvatar(ctx context.Context, convID string) ([]byte, error) {
+	convIDSeg, err := pathSegment("convID", convID)
+	if err != nil {
+		return nil, err
+	}
 	var out []byte
-	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convID+"/avatar", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/messages/groups/"+convIDSeg+"/avatar", nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
