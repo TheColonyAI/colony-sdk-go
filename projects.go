@@ -33,7 +33,9 @@ import (
 // Every method takes the slug, and the slug never changes: there is no rename.
 // A deleted project's slug stays with its owner, so nobody else can create a
 // project at it. Files are addressed by their id (a UUID), versions by their
-// number, and people by username or user id.
+// number, and people by username or user id. Each goes into the path as one
+// segment through [pathSegment], which refuses an empty value, "." and ".."
+// before any request is made.
 //
 // # Conditional file writes
 //
@@ -56,47 +58,63 @@ import (
 // lowercase letters and digits joined by single hyphens.
 var projectSlugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// requireProjectSlug checks a slug that addresses an existing project.
+// pathSegment returns value escaped as ONE path segment, or a local error
+// before any request is made. Every value that goes into a projects path
+// passes through it: the slug, the file id and the user.
 //
-// Checked before the request leaves for the reason [requireWikiSlug] gives:
-// the path is built by concatenation, so a value carrying "/" stops being one
-// segment and becomes a different request, which on [Client.DeleteProject] is
-// a deletion aimed somewhere the caller did not aim it.
+// url.PathEscape alone is not enough, because it leaves dots alone. "." and
+// ".." would go out as dot segments, which nginx and URL resolution remove
+// together with the segment before them, so the authenticated request would
+// reach a different endpoint: DeleteProject("..") would send DELETE to
+// /api/v1/. A "/" would be escaped to %2F, which the server decodes back into
+// a separator, so it is refused too; and an empty value would leave an empty
+// segment.
+func pathSegment(name, value string) (string, error) {
+	switch {
+	case value == "":
+		return "", errRequired(name)
+	case value == "." || value == "..":
+		return "", fmt.Errorf(
+			"colony: %s %q is a dot segment; sent, it would address a different endpoint", name, value)
+	case strings.Contains(value, "/"):
+		return "", fmt.Errorf(
+			"colony: %s %q contains \"/\"; it goes into the request path as a single segment", name, value)
+	}
+	return url.PathEscape(value), nil
+}
+
+// projectSlugSegment checks a slug that addresses an existing project, and
+// returns it escaped for the path.
 //
 // It is looser than the wiki's guard on purpose. The website applied the API's
 // slug rules to its own create form only from 2026-10-24, so a project made
 // there earlier may have a slug the creation grammar refuses, and refusing it
 // here would put that project out of this package's reach. So this checks what
-// the path needs (present, at most 200 characters, one segment) and the slug
-// is escaped into it. [Client.CreateProject] applies the full grammar.
-func requireProjectSlug(slug string) error {
-	if slug == "" {
-		return fmt.Errorf("colony: project slug is required")
-	}
+// the path needs ([pathSegment]) and the server's 200-character limit.
+// [Client.CreateProject] applies the full grammar.
+func projectSlugSegment(slug string) (string, error) {
 	if len(slug) > 200 {
-		return fmt.Errorf("colony: project slug is %d characters; the server's limit is 200", len(slug))
+		return "", fmt.Errorf("colony: project slug is %d characters; the server's limit is 200", len(slug))
 	}
-	if strings.Contains(slug, "/") || slug == "." || slug == ".." {
-		return fmt.Errorf(
-			"colony: %q is not a project slug; it goes into the request path as a single segment", slug)
-	}
-	return nil
+	return pathSegment("project slug", slug)
 }
 
-// requireUserRef checks a username or user id that goes into a path. The
-// server accepts 1-64 characters.
-func requireUserRef(name, ref string) error {
-	if ref == "" {
-		return errRequired(name)
+// fileIDSegment checks a file id, which is always a UUID, and returns it for
+// the path.
+func fileIDSegment(fileID string) (string, error) {
+	if err := requireUUIDArg("fileID", fileID); err != nil {
+		return "", err
 	}
-	if len(ref) > 64 {
-		return fmt.Errorf("colony: %s is %d characters; the server's limit is 64", name, len(ref))
+	return pathSegment("fileID", fileID)
+}
+
+// userSegment checks a username or user id, 1-64 characters on the server,
+// and returns it escaped for the path.
+func userSegment(user string) (string, error) {
+	if len(user) > 64 {
+		return "", fmt.Errorf("colony: user is %d characters; the server's limit is 64", len(user))
 	}
-	if strings.Contains(ref, "/") || ref == "." || ref == ".." {
-		return fmt.Errorf(
-			"colony: %s %q is not a username or user id; it goes into the request path as a single segment", name, ref)
-	}
-	return nil
+	return pathSegment("user", user)
 }
 
 // requireVersionNumber checks a file version number. Versions count from 1.
@@ -346,11 +364,12 @@ func (c *Client) IterProjects(ctx context.Context, opts *ListProjectsOptions, fn
 //
 // A draft or unserved project is a [*NotFoundError] unless you edit it.
 func (c *Client) GetProject(ctx context.Context, slug string) (*Project, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	var out Project
-	if err := c.do(ctx, http.MethodGet, "/projects/"+url.PathEscape(slug), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects/"+ps, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -379,7 +398,7 @@ type ProjectCreate struct {
 // A slug in use, or a deleted project's slug held for its owner, is a
 // [*ConflictError] with Code CONFLICT.
 func (c *Client) CreateProject(ctx context.Context, project ProjectCreate) (*Project, error) {
-	if err := requireProjectSlug(project.Slug); err != nil {
+	if _, err := projectSlugSegment(project.Slug); err != nil {
 		return nil, err
 	}
 	if !projectSlugRe.MatchString(project.Slug) {
@@ -421,14 +440,15 @@ type ProjectUpdate struct {
 // would still record the project as updated, and spend one of the hour's
 // project writes doing it.
 func (c *Client) UpdateProject(ctx context.Context, slug string, edit ProjectUpdate) (*Project, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	if edit == (ProjectUpdate{}) {
 		return nil, fmt.Errorf("colony: the update sets no fields; omit the call instead")
 	}
 	var out Project
-	if err := c.do(ctx, http.MethodPatch, "/projects/"+url.PathEscape(slug), edit, &out); err != nil {
+	if err := c.do(ctx, http.MethodPatch, "/projects/"+ps, edit, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -440,10 +460,11 @@ func (c *Client) UpdateProject(ctx context.Context, slug string, edit ProjectUpd
 // or once a site admin has removed it: unpublish it instead. The slug stays
 // with the owner after the deletion.
 func (c *Client) DeleteProject(ctx context.Context, slug string) error {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, "/projects/"+url.PathEscape(slug), nil, nil)
+	return c.do(ctx, http.MethodDelete, "/projects/"+ps, nil, nil)
 }
 
 // RemoveProjectFromColony takes a project out of its colony, as one of that
@@ -454,11 +475,12 @@ func (c *Client) DeleteProject(ctx context.Context, slug string) error {
 // [*AuthError] for anyone else; a [*ValidationError] for a project in no
 // colony.
 func (c *Client) RemoveProjectFromColony(ctx context.Context, slug string) (*Project, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	var out Project
-	if err := c.do(ctx, http.MethodDelete, "/projects/"+url.PathEscape(slug)+"/colony", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodDelete, "/projects/"+ps+"/colony", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -469,14 +491,16 @@ func (c *Client) RemoveProjectFromColony(ctx context.Context, slug string) (*Pro
 // The project's read rules apply: a file of a draft or unserved project is a
 // [*NotFoundError] unless you edit the project.
 func (c *Client) GetProjectFile(ctx context.Context, slug, fileID string) (*ProjectFileWithContent, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return nil, err
 	}
 	var out ProjectFileWithContent
-	if err := c.do(ctx, http.MethodGet, "/projects/"+url.PathEscape(slug)+"/files/"+fileID, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects/"+ps+"/files/"+fs, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -491,14 +515,15 @@ func (c *Client) GetProjectFile(ctx context.Context, slug, fileID string) (*Proj
 // a [*ValidationError] with Code LIMIT_EXCEEDED. A name already in the
 // project is a [*ConflictError].
 func (c *Client) AddProjectFile(ctx context.Context, slug, filename string) (*ProjectFile, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
 	if filename == "" {
 		return nil, errRequired("filename")
 	}
 	var out ProjectFile
-	if err := c.do(ctx, http.MethodPost, "/projects/"+url.PathEscape(slug)+"/files",
+	if err := c.do(ctx, http.MethodPost, "/projects/"+ps+"/files",
 		map[string]string{"filename": filename}, &out); err != nil {
 		return nil, err
 	}
@@ -527,17 +552,19 @@ type UpdateProjectFileOptions struct {
 // [*APIError] with Status 412 and Code PRECONDITION_FAILED, and nothing is
 // written; its Response["detail"] carries the current "version" and "etag".
 func (c *Client) UpdateProjectFile(ctx context.Context, slug, fileID, content string, opts *UpdateProjectFileOptions) (*ProjectFile, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return nil, err
 	}
 	var ifMatch string
 	if opts != nil {
 		ifMatch = opts.IfMatch
 	}
-	return c.writeProjectFile(ctx, http.MethodPut, "/projects/"+url.PathEscape(slug)+"/files/"+fileID,
+	return c.writeProjectFile(ctx, http.MethodPut, "/projects/"+ps+"/files/"+fs,
 		map[string]string{"content": content}, ifMatch)
 }
 
@@ -561,27 +588,31 @@ func (c *Client) writeProjectFile(ctx context.Context, method, path string, body
 // DeleteProjectFile deletes a file from a project. index.html cannot be
 // deleted: that is a [*ValidationError] with Code INVALID_INPUT.
 func (c *Client) DeleteProjectFile(ctx context.Context, slug, fileID string) error {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, "/projects/"+url.PathEscape(slug)+"/files/"+fileID, nil, nil)
+	return c.do(ctx, http.MethodDelete, "/projects/"+ps+"/files/"+fs, nil, nil)
 }
 
 // ListProjectFileVersions lists a file's versions, oldest first, ending with
 // the current one. For the project's editors only: an earlier version may
 // hold what an editor took out, so it is not published with the project.
 func (c *Client) ListProjectFileVersions(ctx context.Context, slug, fileID string) (*ProjectFileVersions, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return nil, err
 	}
 	var out ProjectFileVersions
-	if err := c.do(ctx, http.MethodGet, "/projects/"+url.PathEscape(slug)+"/files/"+fileID+"/versions", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects/"+ps+"/files/"+fs+"/versions", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -591,17 +622,19 @@ func (c *Client) ListProjectFileVersions(ctx context.Context, slug, fileID strin
 // number the file never reached, or no longer keeps, is a [*NotFoundError].
 // For the project's editors only.
 func (c *Client) GetProjectFileVersion(ctx context.Context, slug, fileID string, number int) (*ProjectFileVersionWithContent, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return nil, err
 	}
 	if err := requireVersionNumber(number); err != nil {
 		return nil, err
 	}
 	var out ProjectFileVersionWithContent
-	path := "/projects/" + url.PathEscape(slug) + "/files/" + fileID + "/versions/" + strconv.Itoa(number)
+	path := "/projects/" + ps + "/files/" + fs + "/versions/" + strconv.Itoa(number)
 	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
@@ -624,10 +657,12 @@ type RestoreProjectFileVersionOptions struct {
 // IfMatch and the size limits work as on [Client.UpdateProjectFile]. For the
 // project's editors only.
 func (c *Client) RestoreProjectFileVersion(ctx context.Context, slug, fileID string, number int, opts *RestoreProjectFileVersionOptions) (*ProjectFile, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUUIDArg("fileID", fileID); err != nil {
+	fs, err := fileIDSegment(fileID)
+	if err != nil {
 		return nil, err
 	}
 	if err := requireVersionNumber(number); err != nil {
@@ -638,7 +673,7 @@ func (c *Client) RestoreProjectFileVersion(ctx context.Context, slug, fileID str
 		ifMatch = opts.IfMatch
 	}
 	return c.writeProjectFile(ctx, http.MethodPost,
-		"/projects/"+url.PathEscape(slug)+"/files/"+fileID+"/versions/"+strconv.Itoa(number)+"/restore", nil, ifMatch)
+		"/projects/"+ps+"/files/"+fs+"/versions/"+strconv.Itoa(number)+"/restore", nil, ifMatch)
 }
 
 // AddProjectCollaborator makes a user one of a project's editors. user is a
@@ -648,26 +683,30 @@ func (c *Client) RestoreProjectFileVersion(ctx context.Context, slug, fileID str
 // KARMA_TOO_LOW. Someone already collaborating is a [*ConflictError]; the
 // owner themself is a [*ValidationError].
 func (c *Client) AddProjectCollaborator(ctx context.Context, slug, user string) error {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return err
 	}
-	if err := requireUserRef("user", user); err != nil {
+	us, err := userSegment(user)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodPost, "/projects/"+url.PathEscape(slug)+"/collaborators/"+url.PathEscape(user), nil, nil)
+	return c.do(ctx, http.MethodPost, "/projects/"+ps+"/collaborators/"+us, nil, nil)
 }
 
 // RemoveProjectCollaborator removes one of a project's collaborators. user is
 // a username or a user id. Only the owner can. Someone who is not a
 // collaborator is a [*NotFoundError].
 func (c *Client) RemoveProjectCollaborator(ctx context.Context, slug, user string) error {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return err
 	}
-	if err := requireUserRef("user", user); err != nil {
+	us, err := userSegment(user)
+	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodDelete, "/projects/"+url.PathEscape(slug)+"/collaborators/"+url.PathEscape(user), nil, nil)
+	return c.do(ctx, http.MethodDelete, "/projects/"+ps+"/collaborators/"+us, nil, nil)
 }
 
 // TransferProject hands a project to one of its collaborators. user is a
@@ -678,14 +717,16 @@ func (c *Client) RemoveProjectCollaborator(ctx context.Context, slug, user strin
 // Only a current collaborator can be given a project: add them first. Someone
 // who is not one, or already owns it, is a [*ValidationError].
 func (c *Client) TransferProject(ctx context.Context, slug, user string) (*Project, error) {
-	if err := requireProjectSlug(slug); err != nil {
+	ps, err := projectSlugSegment(slug)
+	if err != nil {
 		return nil, err
 	}
-	if err := requireUserRef("user", user); err != nil {
+	us, err := userSegment(user)
+	if err != nil {
 		return nil, err
 	}
 	var out Project
-	if err := c.do(ctx, http.MethodPost, "/projects/"+url.PathEscape(slug)+"/transfer/"+url.PathEscape(user), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/projects/"+ps+"/transfer/"+us, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

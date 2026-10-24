@@ -617,7 +617,7 @@ func TestProjectArgumentsAreCheckedBeforeTheRequest(t *testing.T) {
 			refuse(t, name+" with slug "+slug, func(c *Client) error { return call(c, slug) })
 		}
 	}
-	for _, id := range []string{"", "index.html", "a1000000-0000-4000-8000", pjFileID + "/../x"} {
+	for _, id := range []string{"", ".", "..", "../../users/x", "index.html", "a1000000-0000-4000-8000", pjFileID + "/../x"} {
 		refuse(t, "GetProjectFile with file id "+id, func(c *Client) error { _, err := c.GetProjectFile(ctx, "p", id); return err })
 		refuse(t, "UpdateProjectFile with file id "+id, func(c *Client) error {
 			_, err := c.UpdateProjectFile(ctx, "p", id, "x", nil)
@@ -647,7 +647,7 @@ func TestProjectArgumentsAreCheckedBeforeTheRequest(t *testing.T) {
 			return err
 		})
 	}
-	for _, user := range []string{"", "a/b", "..", strings.Repeat("u", 65)} {
+	for _, user := range []string{"", ".", "..", "a/b", "../../users/me", strings.Repeat("u", 65)} {
 		refuse(t, "AddProjectCollaborator with user "+user, func(c *Client) error { return c.AddProjectCollaborator(ctx, "p", user) })
 		refuse(t, "RemoveProjectCollaborator with user "+user, func(c *Client) error { return c.RemoveProjectCollaborator(ctx, "p", user) })
 		refuse(t, "TransferProject with user "+user, func(c *Client) error { _, err := c.TransferProject(ctx, "p", user); return err })
@@ -680,6 +680,49 @@ func TestProjectArgumentsAreCheckedBeforeTheRequest(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestPathSegment pins the one helper every projects path segment goes
+// through. url.PathEscape leaves dots alone, so without it DeleteProject("..")
+// would send DELETE /projects/.., which resolves to /api/v1/ on the way to the
+// server.
+func TestPathSegment(t *testing.T) {
+	for _, v := range []string{"", ".", "..", "/", "a/b", "../x"} {
+		if got, err := pathSegment("v", v); err == nil {
+			t.Errorf("pathSegment(%q) = %q, want a refusal", v, got)
+		}
+	}
+	for v, want := range map[string]string{
+		"orbit-clock": "orbit-clock",
+		"...":         "...", // not a dot segment
+		".hidden":     ".hidden",
+		"a b":         "a%20b",
+		"a?b#c":       "a%3Fb%23c",
+		"%2e%2e":      "%252e%252e", // an escaped dot segment stays escaped
+	} {
+		got, err := pathSegment("v", v)
+		if err != nil || got != want {
+			t.Errorf("pathSegment(%q) = %q, %v, want %q", v, got, err, want)
+		}
+	}
+
+	// And the methods that delete: a dot segment never leaves the client.
+	ctx := context.Background()
+	for _, v := range []string{".", ".."} {
+		c, reqs := projectServer(t, projectReply{204, "", nil})
+		if err := c.DeleteProject(ctx, v); err == nil {
+			t.Errorf("DeleteProject(%q) was accepted", v)
+		}
+		if err := c.RemoveProjectCollaborator(ctx, "orbit-clock", v); err == nil {
+			t.Errorf("RemoveProjectCollaborator(%q) was accepted", v)
+		}
+		if err := c.DeleteProjectFile(ctx, v, pjFileID); err == nil {
+			t.Errorf("DeleteProjectFile(%q, ...) was accepted", v)
+		}
+		if len(*reqs) != 0 {
+			t.Errorf("%q: %d request(s) reached the server, first %s %s", v, len(*reqs), (*reqs)[0].method, (*reqs)[0].raw)
+		}
+	}
 }
 
 // TestListProjectsQuery pins the three filters' wire names.

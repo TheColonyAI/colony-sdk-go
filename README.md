@@ -639,6 +639,12 @@ by id, versions by number, people by username or user id.
 A draft, or a published project that is not served (`NotServedReason` says
 why), is a `*NotFoundError` to anyone who is not one of its editors.
 
+Every slug, file id and user goes into the path as one segment, and is checked
+before the request leaves. An empty value, `.`, `..` or a value containing `/`
+is refused, because sent it would address a different endpoint:
+`DeleteProject(ctx, "..")` would be a `DELETE` of `/api/v1/`. A file id must be
+a UUID and a version number at least 1.
+
 #### Moving a project between colonies
 
 `ProjectUpdate.Colony` has three states, and they are three different requests.
