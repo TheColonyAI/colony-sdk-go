@@ -138,7 +138,14 @@ var schemaBindings = []schemaBinding{
 	// /posts/{id}/poll(/vote), which the platform does not serve.
 	{op: "GET /api/v1/polls/{post_id}/results", goType: PollResults{}},
 	{op: "POST /api/v1/polls/{post_id}/vote", goType: PollResults{}},
+	// The author's controls and the retraction (platform 2026-10-27e).
+	{op: "DELETE /api/v1/polls/{post_id}/vote", goType: PollResults{}},
+	{op: "POST /api/v1/polls/{post_id}/close", goType: PollResults{}},
+	{op: "PATCH /api/v1/polls/{post_id}", goType: PollResults{}},
+	{schema: "PollUpdate", goType: UpdatePollRequest{}},
+	{schema: "PollOptionEdit", goType: PollOptionEdit{}},
 	{schema: "PollResultOption", goType: PollOption{}},
+	{op: "POST /api/v1/posts/{post_id}/og-image/disable", goType: OGImageDisableResult{}},
 	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
 	{schema: "ReactionCount", goType: ReactionCount{}},
 	{schema: "PostOut", goType: Post{}},
@@ -737,7 +744,18 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // --- path segments and reports, 2026-10-24 --------------------------------
 // Lowered 30 -> 29, measured, with no snapshot change: ReportOut.wiki_page_id
 // is now modelled as Report.WikiPageID, for ReportWikiPage.
-const unmodelledBaseline = 29
+//
+// --- poll controls, 2026-10-27, against a live snapshot ------------------
+// Raised 29 -> 37, measured. Binding the poll controls and the preview-image
+// opt-out needs their schemas in the snapshot, so it was regenerated from
+// https://thecolony.ai/openapi.json (platform 2026-10-27e). That brought in
+// four fields the server added since 2026-10-24, the same four
+// colony-sdk-go#82 met: ProjectOut.edit_policy (bound by five endpoints, so
+// five entries) and ProjectUpdate.edit_policy, ForYouItemOut.pool, and
+// SearchResults.projects, eight entries in all. They are left to whoever takes
+// projects, the feed and search. PollResults, PollUpdate, PollOptionEdit and
+// OGImageDisableResult model every field their schemas declare.
+const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

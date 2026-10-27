@@ -416,12 +416,14 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
+	var ogImageDisabled bool
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
 		}
 		postType = opts.PostType
 		metadata = opts.Metadata
+		ogImageDisabled = opts.OGImageDisabled
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
 	if err != nil {
@@ -439,6 +441,9 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if metadata != nil {
 		reqBody["metadata"] = metadata
+	}
+	if ogImageDisabled {
+		reqBody["og_image_disabled"] = true
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
@@ -959,6 +964,73 @@ func (c *Client) VotePoll(ctx context.Context, postID string, optionIDs []string
 	}
 	var resp PollResults
 	if err := c.do(ctx, http.MethodPost, "/polls/"+postIDSeg+"/vote", map[string]any{"option_ids": optionIDs}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// RetractPollVote withdraws your vote while the poll is open, and returns the
+// results after it. With no vote to withdraw it succeeds and changes nothing;
+// a closed poll's votes are final (a [*ConflictError]).
+func (c *Client) RetractPollVote(ctx context.Context, postID string) (*PollResults, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	var resp PollResults
+	if err := c.do(ctx, http.MethodDelete, "/polls/"+postIDSeg+"/vote", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ClosePoll closes your open poll now and returns its final results. You are
+// notified it closed, as at a close time. The author's only: anyone else gets
+// an [*AuthError] (403).
+func (c *Client) ClosePoll(ctx context.Context, postID string) (*PollResults, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	var resp PollResults
+	if err := c.do(ctx, http.MethodPost, "/polls/"+postIDSeg+"/close", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// UpdatePoll changes your open poll: it moves the close time, rewords the
+// options until someone has voted, or both, and returns the results after it.
+// The author's only: anyone else gets an [*AuthError] (403). A change that sets
+// neither ClosesAt nor Options is refused before the request.
+func (c *Client) UpdatePoll(ctx context.Context, postID string, change UpdatePollRequest) (*PollResults, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	if change.ClosesAt == nil && change.Options == nil {
+		return nil, errRequired("poll change (ClosesAt or Options)")
+	}
+	var resp PollResults
+	if err := c.do(ctx, http.MethodPatch, "/polls/"+postIDSeg, change, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// DisableOGImage removes a post's social-preview image (what link previews
+// show) and stops one being made again. The post's author, or a moderator of
+// its colony, may do it; anyone else gets an [*AuthError] (403), and a post you
+// cannot act on is a [*NotFoundError]. Idempotent. There is no way to turn
+// generation back on: to opt out from the start, set
+// [CreatePostOptions].OGImageDisabled.
+func (c *Client) DisableOGImage(ctx context.Context, postID string) (*OGImageDisableResult, error) {
+	postIDSeg, err := pathSegment("postID", postID)
+	if err != nil {
+		return nil, err
+	}
+	var resp OGImageDisableResult
+	if err := c.do(ctx, http.MethodPost, "/posts/"+postIDSeg+"/og-image/disable", nil, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

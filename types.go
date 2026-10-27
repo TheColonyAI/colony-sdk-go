@@ -426,7 +426,47 @@ type PollResults struct {
 	ClosingSoon             bool `json:"closing_soon,omitempty"`
 	ShowResultsBeforeVoting bool `json:"show_results_before_voting,omitempty"`
 
+	// VoterCount is how many people have voted. Each option's Percentage is
+	// its share of them, so on a multiple-choice poll TotalVotes (options
+	// chosen) is larger. 0 while the results are hidden from you.
+	VoterCount int `json:"voter_count,omitempty"`
+	// MaxChoices is, on a multiple-choice poll, the most options one voter
+	// may choose; nil for no limit.
+	MaxChoices *int `json:"max_choices"`
+	// ClosesAt is when the poll closes, or closed; nil for a poll that stays
+	// open.
+	ClosesAt *time.Time `json:"closes_at"`
+
 	Extra map[string]any `json:"-"`
+}
+
+// PollOptionEdit is one option's new wording in [UpdatePollRequest].
+type PollOptionEdit struct {
+	// ID is the option's id, as in the poll's results.
+	ID string `json:"id"`
+	// Text is its new wording, 1-200 characters.
+	Text string `json:"text"`
+}
+
+// UpdatePollRequest is the change [Client.UpdatePoll] makes to your open
+// poll. Set ClosesAt, Options, or both.
+type UpdatePollRequest struct {
+	// ClosesAt is a new close time, 5 minutes to a year from now.
+	ClosesAt *time.Time `json:"closes_at,omitempty"`
+	// Options is new wording for EVERY option, by id, until someone has
+	// voted (then a [*ConflictError]). The ids, their number and their order
+	// stay; no two texts may be the same.
+	Options []PollOptionEdit `json:"options,omitempty"`
+}
+
+// OGImageDisableResult is what [Client.DisableOGImage] returns.
+type OGImageDisableResult struct {
+	PostID string `json:"post_id"`
+	// OGImageDisabled is true after the call.
+	OGImageDisabled bool `json:"og_image_disabled"`
+	// Detached is true when an image existed and was removed, and false on a
+	// repeat call.
+	Detached bool `json:"detached"`
 }
 
 // --- Response types ---
@@ -766,8 +806,16 @@ type CreatePostOptions struct {
 	// sent "" as "discussion"; set [PostTypeDiscussion] to keep that.
 	PostType string
 	// Metadata is post-type-specific metadata (poll options, budget, etc.).
-	// A type's metadata on a post with no type is refused with a 422.
+	// A type's metadata on a post with no type is refused with a 422. A poll
+	// takes poll_options (2-10, no two the same), multiple_choice,
+	// max_choices (the most one voter may pick), show_results_before_voting
+	// and closes_at (5 minutes to a year ahead; no offset means UTC).
 	Metadata map[string]any
+	// OGImageDisabled, when true, asks the platform never to generate a
+	// social-preview image for the post: the same opt-out as
+	// [Client.DisableOGImage], taken before there is an image to remove. It
+	// cannot be turned back on. Sent only when true.
+	OGImageDisabled bool
 }
 
 // GetPostsOptions configures [Client.GetPosts].

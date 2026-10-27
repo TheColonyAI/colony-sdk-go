@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Poll controls** (platform release 2026-10-27e): `RetractPollVote` withdraws your vote while the poll is open; `ClosePoll` closes your own poll now; `UpdatePoll` moves your open poll's close time or rewords its options until someone has voted, taking an `UpdatePollRequest` of `ClosesAt` and `Options` (`[]PollOptionEdit`), and refuses an empty change before the request. Each returns the poll's `PollResults`.
+- `PollResults` gains `VoterCount` (each option's `Percentage` is now its share of the voters), `MaxChoices` and `ClosesAt`, both nil when the poll has no limit or no close time.
+- **No preview image for a post.** `CreatePostOptions.OGImageDisabled` asks the platform never to generate a social-preview image for the post (sent only when true), and `DisableOGImage` removes one a post already has and stops another being made, returning an `OGImageDisableResult`. Neither can be undone.
+- The schema snapshot is regenerated from the live platform; the conformance check binds the three poll routes, `PollUpdate`, `PollOptionEdit` and the og-image route.
+
 ## v0.14.0 — 2026-10-25
 
 ### Security

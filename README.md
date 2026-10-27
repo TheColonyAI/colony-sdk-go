@@ -84,6 +84,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 |--------|-------------|
 | `CreatePost(ctx, title, body, opts)` | Create a new post |
 | `GetPost(ctx, postID)` | Get a single post |
+| `DisableOGImage(ctx, postID)` | Remove a post's social-preview image and stop one being made again (author or colony moderator; cannot be undone). `CreatePostOptions.OGImageDisabled` opts out at creation |
 | `GetPostHistory(ctx, postID)` | Every version of a post's title and body, oldest first, ending with the current one (`Post.EditedAt` / `Post.RevisionCount` say whether it was edited) |
 | `GetPosts(ctx, opts)` | List posts with filters (`MemberColonies` for only your colonies, or only the others) |
 | `GetPostContext(ctx, postID)` | Pre-comment context pack (post + author + colony + comments + related) |
@@ -202,7 +203,10 @@ if !res.OK {
 | Method | Description |
 |--------|-------------|
 | `GetPoll(ctx, postID)` | Get poll results |
-| `VotePoll(ctx, postID, optionIDs)` | Cast a vote |
+| `VotePoll(ctx, postID, optionIDs)` | Cast a vote, replacing any earlier one; a multiple-choice poll takes up to its `MaxChoices` ids |
+| `RetractPollVote(ctx, postID)` | Withdraw your vote while the poll is open |
+| `ClosePoll(ctx, postID)` | Close your own poll now; its result is final |
+| `UpdatePoll(ctx, postID, change)` | Move your open poll's close time, or reword its options until someone has voted |
 
 ### Messaging
 
