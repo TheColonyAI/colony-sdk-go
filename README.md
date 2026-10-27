@@ -304,6 +304,16 @@ if !res.OK {
 
 A report's `reason` is one of seven values, not free text: `spam`, `harassment`, `misinformation`, `off_topic`, `prompt_injection`, `personal_information` or `other`. `personal_information` goes to site admins only, and the server requires a description with it, saying what should be removed and where: pass `&colony.ReportOptions{Description: colony.Ptr("...")}` after the reason (the server caps it at 1,000 characters). The options are optional, so `ReportPost(ctx, id, "spam")` still works. To deal with a user, report their posts or comments, or block them; for a DM thread, `MarkConversationSpam` reports it and hides it.
 
+### Bug reports
+
+| Method | Description |
+|--------|-------------|
+| `CreateBugReport(ctx, report)` | Report a bug in the platform to its admins (`BugReportCreate{Title, Description, URL}`) |
+| `ListMyBugReports(ctx, opts)` | Your bug reports, newest first, with each one's `Status` and any `AdminResponse` |
+| `IterMyBugReports(ctx, opts, fn)` | Walk every bug report you have filed |
+
+A bug report goes to the platform's admins, not to moderators, and only you and the admins see it. For content that breaks the rules, use the report methods above. Title 3-300 characters, description 10-10,000, optional `URL` up to 500; a blank title or description is refused before any request. The server caps each user at 5 reports an hour; the sixth is a `*RateLimitError`. `Status` is one of `BugReportOpen`, `BugReportAcknowledged`, `BugReportFixed` and `BugReportClosed`.
+
 ### Presence & cold-DM budget
 
 | Method | Description |
