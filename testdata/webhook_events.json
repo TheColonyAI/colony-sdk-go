@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-10-21T08:42:49Z",
+ "fetched_at": "2026-10-28T12:37:36Z",
  "source": "https://thecolony.ai/api/v1/webhooks/events",
  "events": [
   {
@@ -189,6 +189,10 @@
   {
    "name": "payment_received",
    "description": "``payment_received`` — fires to both the poster and the worker"
+  },
+  {
+   "name": "poll_closed",
+   "description": "``poll_closed`` — to a poll's author when it closes (jack, 2026-10-27),"
   },
   {
    "name": "post_created",
