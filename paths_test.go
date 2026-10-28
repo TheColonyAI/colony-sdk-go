@@ -786,6 +786,75 @@ func TestPathGuardRefusesBeforeAnyRequest(t *testing.T) {
 	t.Logf("%d guarded parameters of %d methods, %d calls", len(params), len(methods), ps.calls)
 }
 
+// notUUIDSegmentParams are the plain-segment parameters whose value is not
+// always a UUID on the server: names, tags, emoji, a user (a username or an
+// id, and a username may be all hex). With [uuidPathParams] they decide every
+// plain-segment parameter, so a new one needs a decision.
+var notUUIDSegmentParams = map[string]bool{
+	"emoji": true, "slug": true, "tag": true, "user": true, "userID": true, "username": true, "variant": true,
+}
+
+// TestTruncatedIDsAreRefusedBeforeAnyRequest (jack, 2026-10-28): a plain-segment
+// parameter whose value is always a UUID refuses the start of one, with no
+// request made, and every other one still sends a hex-only value, which may be
+// a real name.
+func TestTruncatedIDsAreRefusedBeforeAnyRequest(t *testing.T) {
+	ps := newPathServer(t)
+	seen := map[string]bool{}
+	for _, p := range guardedParams(t, parseSource(t)) {
+		if p.kind != kindSegment {
+			continue
+		}
+		if uuidPathParams[p.name] == notUUIDSegmentParams[p.name] {
+			t.Errorf("%s.%s must be in exactly one of uuidPathParams and notUUIDSegmentParams", p.method, p.name)
+			continue
+		}
+		seen[p.name] = true
+		p := p
+		t.Run(p.method+"/"+p.name, func(t *testing.T) {
+			if !reflect.ValueOf(&Client{}).MethodByName(p.method).IsValid() {
+				t.Skipf("%s is not built by %s", p.method, runtime.Version())
+			}
+			// The fill of the other arguments that sends a UUID, so a refusal
+			// below cannot come from another argument.
+			mode := -1
+			for mi, fm := range pathFillModes {
+				if reqs, _, _ := ps.callWith(p, pathTestUUID, fm.mode, fm.minimal); sentAs(reqs, pathTestUUID) {
+					mode = mi
+					break
+				}
+			}
+			if mode < 0 {
+				t.Fatalf("%s: no fill of the other arguments sends a request", p.method)
+			}
+			fm := pathFillModes[mode]
+			if !uuidPathParams[p.name] {
+				if reqs, _, err := ps.callWith(p, "deadbeef12", fm.mode, fm.minimal); !sentAs(reqs, "deadbeef12") {
+					t.Errorf("%s(%s=\"deadbeef12\") was not sent: %v", p.method, p.name, err)
+				}
+				return
+			}
+			for _, v := range []string{"eae899e1", "EAE899E1", "eae899e1-ab0a-4ba2", "eae899e1ab0a4ba2a5a5ea82ea919445"} {
+				reqs, pan, err := ps.callWith(p, v, fm.mode, fm.minimal)
+				if pan != nil {
+					t.Fatalf("%s(%s=%q) panicked: %v", p.method, p.name, v, pan)
+				}
+				if err == nil || !strings.Contains(err.Error(), p.name+" ") || !strings.Contains(err.Error(), "looks like a truncated id") {
+					t.Errorf("%s(%s=%q) error = %v, want the truncated-id refusal", p.method, p.name, v, err)
+				}
+				if len(reqs) != 0 {
+					t.Errorf("%s(%s=%q): %d request(s) reached the server", p.method, p.name, v, len(reqs))
+				}
+			}
+		})
+	}
+	for name := range uuidPathParams {
+		if !seen[name] {
+			t.Errorf("uuidPathParams lists %s, which no method passes to pathSegment: remove it", name)
+		}
+	}
+}
+
 func TestPathSegment(t *testing.T) {
 	for _, v := range []string{"", ".", "..", "/", "a/b", "../x", "x/.."} {
 		if got, err := pathSegment("v", v); err == nil {
