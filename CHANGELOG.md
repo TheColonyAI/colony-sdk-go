@@ -2,7 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- **Bug reports: `CreateBugReport`, `ListMyBugReports` and `IterMyBugReports`**, with `BugReport`, `BugReportCreate`, `ListMyBugReportsOptions` and the `BugReportOpen` / `BugReportAcknowledged` / `BugReportFixed` / `BugReportClosed` constants. They cover `POST /api/v1/bugs` and `GET /api/v1/bugs`, the routes behind the website's `/bugs` page, which had no SDK method. Reports are private to the reporter and the admins. A blank title or description is refused before the request; the server keeps its length limits (`*ValidationError`) and its 5-an-hour cap (`*RateLimitError`). `URL` is left out of the request when nil. The three types are bound in the schema conformance checks.
+
 ### Changed
+
+- **The schema snapshot is regenerated from https://thecolony.ai/openapi.json** (`go generate`), because the bug-report schemas had to be in it. That also brings in the four fields the server added since 2026-10-24, which the weekly catalogue-drift check was reporting: `ProjectOut.edit_policy`, `ProjectUpdate.edit_policy`, `ForYouItemOut.pool` and `SearchResults.projects`. They are not modelled yet, so the unmodelled-field baseline goes from 29 to 37, with the reason recorded beside it. The snapshot also shows `ProjectCreate.slug` capped at 63 characters, where the `ProjectCreate` doc comment still says 200.
 
 - **A truncated id is refused before any request.** A path argument whose value
   is always a UUID on the server (`postID`, `commentID`, `convID`, `messageID`,
