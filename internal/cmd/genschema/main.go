@@ -205,6 +205,10 @@ var wanted = []string{
 	"ProjectListItem",
 	"ProjectOut",
 	"ProjectUpdate",
+	// Bug reports: the listing, a report, and the request body.
+	"BugReportCreate",
+	"BugReportOut",
+	"PaginatedList_BugReportOut_",
 }
 
 func main() {
