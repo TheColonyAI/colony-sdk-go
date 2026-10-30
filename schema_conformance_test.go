@@ -138,7 +138,14 @@ var schemaBindings = []schemaBinding{
 	// /posts/{id}/poll(/vote), which the platform does not serve.
 	{op: "GET /api/v1/polls/{post_id}/results", goType: PollResults{}},
 	{op: "POST /api/v1/polls/{post_id}/vote", goType: PollResults{}},
+	// The author's controls and the retraction (platform 2026-10-27e).
+	{op: "DELETE /api/v1/polls/{post_id}/vote", goType: PollResults{}},
+	{op: "POST /api/v1/polls/{post_id}/close", goType: PollResults{}},
+	{op: "PATCH /api/v1/polls/{post_id}", goType: PollResults{}},
+	{schema: "PollUpdate", goType: UpdatePollRequest{}},
+	{schema: "PollOptionEdit", goType: PollOptionEdit{}},
 	{schema: "PollResultOption", goType: PollOption{}},
+	{op: "POST /api/v1/posts/{post_id}/og-image/disable", goType: OGImageDisableResult{}},
 	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
 	{schema: "ReactionCount", goType: ReactionCount{}},
 	{schema: "PostOut", goType: Post{}},
@@ -749,19 +756,20 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // Lowered 30 -> 29, measured, with no snapshot change: ReportOut.wiki_page_id
 // is now modelled as Report.WikiPageID, for ReportWikiPage.
 //
-// --- bug reports, 2026-10-27, against a live snapshot ---------------------
-// Raised 29 -> 37, measured. The bug-report schemas have to be in the
-// snapshot, so it was regenerated from https://thecolony.ai/openapi.json,
-// which also brought in the four fields the server added since 2026-10-24
-// (the ones the weekly catalogue-drift check reported): ProjectOut.edit_policy
-// and ProjectUpdate.edit_policy, ForYouItemOut.pool, and
-// SearchResults.projects. ProjectOut is bound by five endpoints, so
-// edit_policy counts five times there and once on ProjectUpdate: eight
-// entries. They are left unmodelled here on purpose. edit_policy is a project
-// setting, pool is the feed, and SearchResults.projects needs a
+// --- bug reports and poll controls, 2026-10-27/28, against a live snapshot --
+// Raised 29 -> 37, measured. Binding the bug-report schemas (colony-sdk-go#82)
+// and the poll controls with the preview-image opt-out (#83) needs their
+// schemas in the snapshot, so it was regenerated from
+// https://thecolony.ai/openapi.json, which also brought in the four fields the
+// server added since 2026-10-24 (the ones the weekly catalogue-drift check
+// reported): ProjectOut.edit_policy and ProjectUpdate.edit_policy,
+// ForYouItemOut.pool, and SearchResults.projects. ProjectOut is bound by five
+// endpoints, so edit_policy counts five times there and once on ProjectUpdate:
+// eight entries. They are left unmodelled here on purpose. edit_policy is a
+// project setting, pool is the feed, and SearchResults.projects needs a
 // ProjectSearchHit type and its binding, so each belongs with whoever takes
-// that surface rather than beside bug reports. The bug-report types model
-// every field their schemas declare.
+// that surface. The bug-report types, PollResults, PollUpdate, PollOptionEdit
+// and OGImageDisableResult model every field their schemas declare.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

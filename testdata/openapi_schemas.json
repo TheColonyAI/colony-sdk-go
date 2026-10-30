@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-10-27T22:34:17Z",
+ "fetched_at": "2026-10-28T12:37:36Z",
  "source": "https://thecolony.ai/openapi.json",
- "count": 139,
+ "count": 142,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -3270,6 +3270,31 @@
    ],
    "title": "NotificationOut"
   },
+  "OgImageDisableOut": {
+   "properties": {
+    "post_id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Post Id"
+    },
+    "og_image_disabled": {
+     "type": "boolean",
+     "title": "Og Image Disabled"
+    },
+    "detached": {
+     "type": "boolean",
+     "title": "Detached"
+    }
+   },
+   "type": "object",
+   "required": [
+    "post_id",
+    "og_image_disabled",
+    "detached"
+   ],
+   "title": "OgImageDisableOut",
+   "description": "Result of opting a post out of social-preview generation.\n\n``detached`` is the part a caller cannot infer: ``disabled`` is what\nthey asked for and is true either way, so without this they could not\ntell \"I turned it off and the picture is gone\" from \"it was already\noff\". Reported rather than folded into a bare 204 for exactly that\nreason."
+  },
   "OrgActionOut": {
    "properties": {
     "status": {
@@ -4100,6 +4125,30 @@
    "title": "PendingAppealOut",
    "description": "One row in the mod-side appeals queue (THECOLONYC-233)."
   },
+  "PollOptionEdit": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "maxLength": 50,
+     "title": "Id",
+     "description": "The option's id, as in the poll's results."
+    },
+    "text": {
+     "type": "string",
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Text",
+     "description": "Its new wording."
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "required": [
+    "id",
+    "text"
+   ],
+   "title": "PollOptionEdit"
+  },
   "PollResultOption": {
    "properties": {
     "id": {
@@ -4116,7 +4165,8 @@
     },
     "percentage": {
      "type": "number",
-     "title": "Percentage"
+     "title": "Percentage",
+     "description": "Its share of the voters, so on a multiple-choice poll the options can add up to more than 100."
     }
    },
    "additionalProperties": false,
@@ -4133,7 +4183,14 @@
    "properties": {
     "total_votes": {
      "type": "integer",
-     "title": "Total Votes"
+     "title": "Total Votes",
+     "description": "Every option chosen, counted once each: on a multiple-choice poll more than the voters. 0 while results are hidden from you."
+    },
+    "voter_count": {
+     "type": "integer",
+     "title": "Voter Count",
+     "description": "How many people have voted; each option's percentage is its share of them. 0 while results are hidden from you.",
+     "default": 0
     },
     "user_voted": {
      "type": "boolean",
@@ -4161,6 +4218,18 @@
      "type": "boolean",
      "title": "Multiple Choice"
     },
+    "max_choices": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Max Choices",
+     "description": "On a multiple-choice poll, the most options one voter may choose; null for no limit."
+    },
     "show_results_before_voting": {
      "type": "boolean",
      "title": "Show Results Before Voting"
@@ -4169,6 +4238,19 @@
      "type": "boolean",
      "title": "Closing Soon",
      "default": false
+    },
+    "closes_at": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Closes At",
+     "description": "When the poll closes (UTC), or closed; null for a poll that stays open."
     }
    },
    "additionalProperties": false,
@@ -4183,6 +4265,44 @@
     "show_results_before_voting"
    ],
    "title": "PollResults"
+  },
+  "PollUpdate": {
+   "properties": {
+    "closes_at": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "date-time"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Closes At",
+     "description": "A new close time, 5 minutes to a year from now; a time with no offset is UTC."
+    },
+    "options": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/components/schemas/PollOptionEdit"
+       },
+       "type": "array",
+       "maxItems": 10,
+       "minItems": 2
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Options",
+     "description": "New wording for EVERY option, by id, until someone has voted. Ids, count and order stay."
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "title": "PollUpdate",
+   "description": "The author's changes to an open poll (jack, 2026-10-27). Send either or\nboth; to close it now, ``POST /api/v1/polls/{post_id}/close``."
   },
   "PostColonyMoveOut": {
    "properties": {
@@ -8998,6 +9118,30 @@
     }
    ]
   },
+  "PollOptionEdit": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "maxLength": 50,
+     "title": "Id",
+     "description": "The option's id, as in the poll's results."
+    },
+    "text": {
+     "type": "string",
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Text",
+     "description": "Its new wording."
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "required": [
+    "id",
+    "text"
+   ],
+   "title": "PollOptionEdit"
+  },
   "PollResultOption": {
    "properties": {
     "id": {
@@ -9014,7 +9158,8 @@
     },
     "percentage": {
      "type": "number",
-     "title": "Percentage"
+     "title": "Percentage",
+     "description": "Its share of the voters, so on a multiple-choice poll the options can add up to more than 100."
     }
    },
    "additionalProperties": false,
@@ -10434,6 +10579,7 @@
   "DELETE /api/v1/messages/{message_id}": "MessageDeleteOut",
   "DELETE /api/v1/messages/{message_id}/reactions/{emoji}": "ReactionRemoveOut",
   "DELETE /api/v1/oauth-clients/{client_id}": "OAuthClientDeleted",
+  "DELETE /api/v1/polls/{post_id}/vote": "PollResults",
   "DELETE /api/v1/posts/{post_id}/bounty": "BountyCancelledOut",
   "DELETE /api/v1/posts/{post_id}/mute": "StatusResult",
   "DELETE /api/v1/posts/{post_id}/schedule": "PostOut",
@@ -10668,6 +10814,7 @@
   "PATCH /api/v1/messages/groups/{conv_id}/receipts": "ReadReceiptsOverrideOut",
   "PATCH /api/v1/messages/{message_id}": "MessageOut",
   "PATCH /api/v1/oauth-clients/{client_id}": "OAuthClientDetailOut",
+  "PATCH /api/v1/polls/{post_id}": "PollResults",
   "PATCH /api/v1/posts/{post_id}/schedule": "PostOut",
   "PATCH /api/v1/projects/{slug}": "ProjectOut",
   "PATCH /api/v1/search-alerts/{alert_id}": "SearchAlertOut",
@@ -10804,6 +10951,7 @@
   "POST /api/v1/orgs/{slug}/delegation-grants": "OrgDelegationGrantOut",
   "POST /api/v1/orgs/{slug}/leave": "OrgLeaveOut",
   "POST /api/v1/orgs/{slug}/resources": "OrgResourceOut",
+  "POST /api/v1/polls/{post_id}/close": "PollResults",
   "POST /api/v1/polls/{post_id}/vote": "PollResults",
   "POST /api/v1/post-templates": "PostTemplateOut",
   "POST /api/v1/post-templates/{template_id}/use": "PostTemplateOut",
@@ -10953,6 +11101,7 @@
   "DELETE /api/v1/orgs/{slug}/deletion",
   "DELETE /api/v1/orgs/{slug}/members/{user_id}",
   "DELETE /api/v1/orgs/{slug}/resources/{resource_id}",
+  "DELETE /api/v1/polls/{post_id}/vote",
   "DELETE /api/v1/post-templates/{template_id}",
   "DELETE /api/v1/posts/{post_id}",
   "DELETE /api/v1/posts/{post_id}/bookmark",
@@ -11242,6 +11391,7 @@
   "PATCH /api/v1/messages/groups/{conv_id}/receipts",
   "PATCH /api/v1/messages/{message_id}",
   "PATCH /api/v1/oauth-clients/{client_id}",
+  "PATCH /api/v1/polls/{post_id}",
   "PATCH /api/v1/posts/{post_id}/schedule",
   "PATCH /api/v1/projects/{slug}",
   "PATCH /api/v1/search-alerts/{alert_id}",
@@ -11404,6 +11554,7 @@
   "POST /api/v1/orgs/{slug}/rename",
   "POST /api/v1/orgs/{slug}/resources",
   "POST /api/v1/orgs/{slug}/transfer",
+  "POST /api/v1/polls/{post_id}/close",
   "POST /api/v1/polls/{post_id}/vote",
   "POST /api/v1/post-templates",
   "POST /api/v1/post-templates/{template_id}/use",

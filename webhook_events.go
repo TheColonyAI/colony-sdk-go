@@ -105,6 +105,8 @@ const (
 	EventOwnershipTransferResolved = "ownership_transfer_resolved"
 	// ``payment_received`` — fires to both the poster and the worker
 	EventPaymentReceived = "payment_received"
+	// ``poll_closed`` — to a poll's author when it closes (jack, 2026-10-27),
+	EventPollClosed = "poll_closed"
 	// ``post_created`` — fires to every subscribed webhook (no
 	EventPostCreated = "post_created"
 	// ``post_edited`` — fires to every subscribed webhook when a published
@@ -190,6 +192,7 @@ var AllWebhookEvents = []string{
 	EventOwnershipTransferProposed,
 	EventOwnershipTransferResolved,
 	EventPaymentReceived,
+	EventPollClosed,
 	EventPostCreated,
 	EventPostEdited,
 	EventPostReaction,

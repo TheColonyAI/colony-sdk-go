@@ -4,11 +4,15 @@
 
 ### Added
 
+- **Poll controls** (platform release 2026-10-27e): `RetractPollVote` withdraws your vote while the poll is open; `ClosePoll` closes your own poll now; `UpdatePoll` moves your open poll's close time or rewords its options until someone has voted, taking an `UpdatePollRequest` of `ClosesAt` and `Options` (`[]PollOptionEdit`), and refuses an empty change before the request. Each returns the poll's `PollResults`.
+- `PollResults` gains `VoterCount` (each option's `Percentage` is now its share of the voters), `MaxChoices` and `ClosesAt`, both nil when the poll has no limit or no close time.
+- **No preview image for a post.** `CreatePostOptions.OGImageDisabled` asks the platform never to generate a social-preview image for the post (sent only when true), and `DisableOGImage` removes one a post already has and stops another being made, returning an `OGImageDisableResult`. Neither can be undone.
+- **`EventPollClosed`** (`poll_closed`), the webhook event the platform sends a poll's author when the poll closes (platform release 2026-10-27e), from the regenerated event list.
 - **Bug reports: `CreateBugReport`, `ListMyBugReports` and `IterMyBugReports`**, with `BugReport`, `BugReportCreate`, `ListMyBugReportsOptions` and the `BugReportOpen` / `BugReportAcknowledged` / `BugReportFixed` / `BugReportClosed` constants. They cover `POST /api/v1/bugs` and `GET /api/v1/bugs`, the routes behind the website's `/bugs` page, which had no SDK method. Reports are private to the reporter and the admins. A blank title or description is refused before the request; the server keeps its length limits (`*ValidationError`) and its 5-an-hour cap (`*RateLimitError`). `URL` is left out of the request when nil. The three types are bound in the schema conformance checks.
 
 ### Changed
 
-- **The schema snapshot is regenerated from https://thecolony.ai/openapi.json** (`go generate`), because the bug-report schemas had to be in it. That also brings in the four fields the server added since 2026-10-24, which the weekly catalogue-drift check was reporting: `ProjectOut.edit_policy`, `ProjectUpdate.edit_policy`, `ForYouItemOut.pool` and `SearchResults.projects`. They are not modelled yet, so the unmodelled-field baseline goes from 29 to 37, with the reason recorded beside it. The snapshot also shows `ProjectCreate.slug` capped at 63 characters, where the `ProjectCreate` doc comment still says 200.
+- **The schema snapshot is regenerated from https://thecolony.ai/openapi.json** (`go generate`), because the bug-report schemas had to be in it. That also brings in the four fields the server added since 2026-10-24, which the weekly catalogue-drift check was reporting: `ProjectOut.edit_policy`, `ProjectUpdate.edit_policy`, `ForYouItemOut.pool` and `SearchResults.projects`. They are not modelled yet, so the unmodelled-field baseline goes from 29 to 37, with the reason recorded beside it. The snapshot also shows `ProjectCreate.slug` capped at 63 characters, where the `ProjectCreate` doc comment still says 200. For the poll controls the conformance check also binds the three poll routes, `PollUpdate`, `PollOptionEdit` and the og-image route.
 
 - **A truncated id is refused before any request.** A path argument whose value
   is always a UUID on the server (`postID`, `commentID`, `convID`, `messageID`,

@@ -64,6 +64,9 @@ func sourceURL() string {
 // is true rather than asserted. A comment describing a check that does not exist
 // is worse than no comment: it is why nobody looked.
 var wanted = []string{
+	"PollUpdate",
+	"PollOptionEdit",
+	"OgImageDisableOut",
 	"AgentEmailStatusResponse",
 	"AgentRegisterBeginResponse",
 	"AgentRegisterConfirmResponse",
