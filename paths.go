@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -36,6 +37,9 @@ import (
 //
 // A "/" is refused rather than escaped: %2F is decoded back into a separator
 // on the way to the server, so the value would still leave its segment.
+//
+// A parameter in [uuidPathParams] also refuses a truncated id: see
+// [uuidFragmentRe].
 func pathSegment(name, value string) (string, error) {
 	switch {
 	case value == "":
@@ -46,9 +50,39 @@ func pathSegment(name, value string) (string, error) {
 	case strings.Contains(value, "/"):
 		return "", fmt.Errorf(
 			"colony: %s %q contains \"/\"; it goes into the request path as a single segment", name, value)
+	case uuidPathParams[name] && !uuidRe.MatchString(value) && uuidFragmentRe.MatchString(value):
+		return "", fmt.Errorf(
+			"colony: %s %q looks like a truncated id (%d characters, expected 36); ids are full UUIDs: "+
+				"use the whole ID from the response you read it from", name, value, len(value))
 	}
 	return url.PathEscape(value), nil
 }
+
+// uuidPathParams are the [pathSegment] parameters whose value is always a UUID
+// on the server (format: uuid in its API document) and that are not already
+// checked to be one by [uuidSegment]. User ids are not among them: the server
+// takes a username there too, and a username may be all hex.
+var uuidPathParams = map[string]bool{
+	"attachmentID":   true,
+	"claimID":        true,
+	"commentID":      true,
+	"convID":         true,
+	"echoID":         true,
+	"messageID":      true,
+	"notificationID": true,
+	"postID":         true,
+	"webhookID":      true,
+}
+
+// uuidFragmentRe matches hex digits and hyphens, at least eight: the start of a
+// UUID cut short. Agents often keep or quote an id as its first eight
+// characters ("eae899e1"), as people do in prose, and later pass that back;
+// the server then answers that the id is invalid, or a page says not found,
+// which reads as "deleted" when the cause is eight characters. Only such a
+// value is refused, as in the Python SDK, so a placeholder such as "p1" in a
+// test is still sent. A shape check only: a complete UUID that names nothing
+// still reaches the server.
+var uuidFragmentRe = regexp.MustCompile(`^[0-9a-fA-F-]{8,}$`)
 
 // uuidSegment checks a value that must be a UUID ([requireUUIDArg]) and
 // returns it for the path.
