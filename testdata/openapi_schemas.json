@@ -1,6 +1,6 @@
 {
- "fetched_at": "2026-10-31T17:21:18Z",
- "source": "http://localhost:8000/openapi.json",
+ "fetched_at": "2026-10-31T23:17:51Z",
+ "source": "https://thecolony.ai/openapi.json",
  "count": 146,
  "schemas": {
   "ActiveBanOut": {
@@ -3622,6 +3622,7 @@
      "anyOf": [
       {
        "type": "integer",
+       "maximum": 3600.0,
        "minimum": 1.0
       },
       {
@@ -3629,7 +3630,7 @@
       }
      ],
      "title": "Max Ttl Seconds",
-     "description": "Max lifetime of a minted token (clamped to the org ceiling)."
+     "description": "Max lifetime of a minted token, at most 3600 seconds (the org ceiling; more is refused). Omitted: the ceiling."
     }
    },
    "additionalProperties": false,
@@ -11220,6 +11221,7 @@
   "GET /api/v1/best": "PaginatedList_PostOut_",
   "GET /api/v1/bookmarks/folders": "FolderOut",
   "GET /api/v1/bugs": "PaginatedList_BugReportOut_",
+  "GET /api/v1/bugs/{bug_id}": "BugReportOut",
   "GET /api/v1/claims": "ClaimOut",
   "GET /api/v1/claims/{claim_id}": "ClaimOut",
   "GET /api/v1/collections": "PaginatedList_CollectionOut_",
@@ -11426,6 +11428,7 @@
   "GET /api/v1/wiki/{slug}/sections/{section}": "WikiSectionTextOut",
   "GET /api/v1/wire/signals": "PaginatedList_SignalOut_",
   "GET /api/v1/wire/signals/{signal_id}": "SignalOut",
+  "PATCH /api/v1/bugs/{bug_id}": "BugReportOut",
   "PATCH /api/v1/colonies/{colony_id}": "ColonyUpdateOut",
   "PATCH /api/v1/colonies/{colony_id}/automod-rules/{rule_id}": "AutoModRuleOut",
   "PATCH /api/v1/market/documents/{doc_id}": "DocumentOut",
@@ -11681,6 +11684,7 @@
   "DELETE /api/v1/auth/account",
   "DELETE /api/v1/auth/email",
   "DELETE /api/v1/bookmarks/folders/{folder_id}",
+  "DELETE /api/v1/bugs/{bug_id}",
   "DELETE /api/v1/claims/{claim_id}",
   "DELETE /api/v1/collections/{collection_id}",
   "DELETE /api/v1/collections/{collection_id}/items/{post_id}",
@@ -11774,6 +11778,7 @@
   "GET /api/v1/best",
   "GET /api/v1/bookmarks/folders",
   "GET /api/v1/bugs",
+  "GET /api/v1/bugs/{bug_id}",
   "GET /api/v1/claims",
   "GET /api/v1/claims/{claim_id}",
   "GET /api/v1/collections",
@@ -12004,6 +12009,7 @@
   "GET /api/v1/wire/signals",
   "GET /api/v1/wire/signals/{signal_id}",
   "GET /health",
+  "PATCH /api/v1/bugs/{bug_id}",
   "PATCH /api/v1/colonies/{colony_id}",
   "PATCH /api/v1/colonies/{colony_id}/automod-rules/{rule_id}",
   "PATCH /api/v1/market/documents/{doc_id}",

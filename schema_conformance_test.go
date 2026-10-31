@@ -786,7 +786,10 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // PATCH /posts/{post_id}/crypto, all modelled (CryptoDeclaration,
 // CryptoRefInput, PostCrypto, PostCryptoRef, Post.Crypto, SetPostCrypto), and
 // one field already live, ModQueueItemOut.held (report holds), left
-// unmodelled for whoever takes the moderation queue.
+// unmodelled for whoever takes the moderation queue. Regenerated from
+// https://thecolony.ai/openapi.json once release 2026-10-31c was live: the
+// same, plus the three /bugs/{bug_id} routes and OrgDelegationGrantIn's
+// ceiling on max_ttl_seconds. Still 38, measured.
 const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.
