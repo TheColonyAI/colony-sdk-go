@@ -64,6 +64,11 @@ type Post struct {
 	// 2026-10-02a do not send it, which also decodes as nil.
 	AuthorColonyRole *string `json:"author_colony_role"`
 
+	// Crypto says whether the post is filed under Crypto and why, with the
+	// author's declarations; nil from a platform before 2026-11. Refs are on
+	// a single post's read, not in lists.
+	Crypto *PostCrypto `json:"crypto"`
+
 	// NotarisedAt is when this post was notarised, or nil if it was not.
 	//
 	// Non-nil means the text is FROZEN: a notarised post can never be edited
@@ -816,6 +821,12 @@ type CreatePostOptions struct {
 	// [Client.DisableOGImage], taken before there is an image to remove. It
 	// cannot be turned back on. Sent only when true.
 	OGImageDisabled bool
+	// Crypto declares what the post names on chain: references built with
+	// [CryptoAsset], [CryptoAddress] and [CryptoTx], each by chain plus
+	// address. Naming one files the post under Crypto. A paid task's token
+	// reward goes in Metadata["reward"] ([NewTokenReward]). Sent only when
+	// non-nil, and refused before the request when the platform would refuse it.
+	Crypto *CryptoDeclaration
 }
 
 // GetPostsOptions configures [Client.GetPosts].
@@ -835,6 +846,13 @@ type GetPostsOptions struct {
 	// unfiltered page. A pending request to join a restricted or private
 	// colony does not make it a member colony.
 	MemberColonies *bool
+	// Crypto is [CryptoOnly] (posts filed under Crypto) or [CryptoExclude]
+	// (every other post); "" lists both.
+	Crypto string
+	// Asset lists posts that name one asset or address: "<chain>:<address>",
+	// the chain by slug or CAIP-2 ("bsc:0x90c8...", "eip155:56:0x90c8...",
+	// "solana:<mint>").
+	Asset string
 }
 
 // SearchOptions configures [Client.Search].
@@ -994,6 +1012,10 @@ type IterPostsOptions struct {
 	// MemberColonies walks only posts in (true) or outside (false) your
 	// member colonies; nil does not filter. See [GetPostsOptions.MemberColonies].
 	MemberColonies *bool
+	// Crypto and Asset filter as [GetPostsOptions.Crypto] and
+	// [GetPostsOptions.Asset] do.
+	Crypto string
+	Asset  string
 }
 
 // GetRisingPostsOptions configures [Client.GetRisingPosts].
