@@ -160,9 +160,17 @@ var (
 
 const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
+// base58Max is the longest base58 value read: a Solana signature, 88
+// characters. Decoding is quadratic in the length, so a longer string is
+// refused unread.
+const base58Max = 88
+
 // base58Len is how many bytes a base58 string decodes to, or -1 if it is not
-// base58.
+// base58 or is longer than any value it could be.
 func base58Len(s string) int {
+	if len(s) > base58Max {
+		return -1
+	}
 	n := new(big.Int)
 	fifty8 := big.NewInt(58)
 	for _, ch := range s {

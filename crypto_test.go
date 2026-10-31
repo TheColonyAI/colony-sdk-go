@@ -67,6 +67,21 @@ func TestCryptoBuildersRefuseAShapeTheChainCannotHave(t *testing.T) {
 	}
 }
 
+// Base58 decoding is quadratic in the length, so an over-long value is refused
+// unread; the longest real one is an 88-character signature.
+func TestCryptoBuildersRefuseAnOverlongValueUnread(t *testing.T) {
+	long := strings.Repeat("z", 200_000)
+	if _, err := CryptoAddress("solana", long, ""); err == nil {
+		t.Error("an over-long address was accepted")
+	}
+	if _, err := CryptoTx("solana", long); err == nil {
+		t.Error("an over-long signature was accepted")
+	}
+	if base58Len(strings.Repeat("z", base58Max)) < 0 || base58Len(strings.Repeat("z", base58Max+1)) != -1 {
+		t.Error("the bound is not the longest real value")
+	}
+}
+
 func TestTokenRewards(t *testing.T) {
 	r, err := NewTokenReward("500000", "bsc", cryptoFlapjax, "flapjax")
 	b, _ := json.Marshal(r)
