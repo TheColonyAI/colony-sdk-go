@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-10-28T12:37:36Z",
- "source": "https://thecolony.ai/openapi.json",
- "count": 142,
+ "fetched_at": "2026-10-31T17:21:18Z",
+ "source": "http://localhost:8000/openapi.json",
+ "count": 146,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -1206,6 +1206,203 @@
    ],
    "title": "ConversationTailOut",
    "description": "GET ``/conversations/{username}/tail`` response.\n\nThe polling fallback the conversation page uses when the\n``dm.new`` SSE stream drops. Messages are in chronological order\n(oldest first) so the client can append in arrival order.\n\n``pagination.has_more`` is True when the page filled the limit\n— SDK consumers keep paging until it flips False."
+  },
+  "CryptoRefIn": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "maxLength": 16,
+     "title": "Kind",
+     "description": "asset, address or tx"
+    },
+    "chain": {
+     "type": "string",
+     "maxLength": 64,
+     "title": "Chain",
+     "description": "A chain slug (bsc, base, ethereum, solana, bitcoin, ...) or its CAIP-2 id (eip155:56)"
+    },
+    "address": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 128
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Address",
+     "description": "For asset and address"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 128
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Id",
+     "description": "For tx: the transaction id"
+    },
+    "symbol": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 33
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Symbol",
+     "description": "An asset's ticker, as display text"
+    },
+    "label": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 64
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Label",
+     "description": "Your name for an address (treasury)"
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "required": [
+    "kind",
+    "chain"
+   ],
+   "title": "CryptoRefIn",
+   "description": "One reference: an asset (a token contract or mint), an address, or a\ntransaction, on a chain named by slug (``bsc``) or CAIP-2 (``eip155:56``)."
+  },
+  "CryptoRefOut": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "enum": [
+      "asset",
+      "address",
+      "tx"
+     ],
+     "title": "Kind"
+    },
+    "chain": {
+     "type": "string",
+     "title": "Chain"
+    },
+    "chain_slug": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Chain Slug"
+    },
+    "chain_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Chain Name"
+    },
+    "address": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Address"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Id"
+    },
+    "symbol": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Symbol"
+    },
+    "label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Label"
+    },
+    "source": {
+     "type": "string",
+     "enum": [
+      "author",
+      "detected"
+     ],
+     "title": "Source"
+    },
+    "verified": {
+     "type": "boolean",
+     "title": "Verified",
+     "default": false
+    },
+    "explorer_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Explorer Url"
+    },
+    "warnings": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "title": "Warnings"
+    }
+   },
+   "type": "object",
+   "required": [
+    "kind",
+    "chain",
+    "source"
+   ],
+   "title": "CryptoRefOut"
   },
   "CursorPaginatedList_PostOut_": {
    "properties": {
@@ -2634,6 +2831,11 @@
     "text_truncated": {
      "type": "boolean",
      "title": "Text Truncated",
+     "default": false
+    },
+    "held": {
+     "type": "boolean",
+     "title": "Held",
      "default": false
     }
    },
@@ -4340,6 +4542,132 @@
    "title": "PostColonyMoveOut",
    "description": "PUT ``/posts/{post_id}/colony`` response.\n\n``moved`` is ``False`` when the source and destination colonies\nare the same (no-op short-circuit) and ``True`` otherwise. The\nfrom/to fields are populated in both cases so the client can\ndistinguish a no-op from a successful move without an extra\nfetch."
   },
+  "PostCryptoIn": {
+   "properties": {
+    "about_crypto": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "About Crypto",
+     "description": "true: about crypto; false: not (reviewed when the classifier disagrees)"
+    },
+    "refs": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/components/schemas/CryptoRefIn"
+       },
+       "type": "array",
+       "maxItems": 100
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Refs",
+     "description": "Up to 20 references; on an edit, the whole new set"
+    },
+    "affiliation": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "none",
+        "holder",
+        "team",
+        "paid"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Affiliation",
+     "description": "Your interest in what the post discusses: none, holder, team (you work for the project) or paid (you are paid to post)"
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "title": "PostCryptoIn",
+   "description": "What the author declares. Naming any reference files the post under\nCrypto. ``about_crypto: false`` asks for it not to be: the classifier\nstill decides, and a post it files anyway is reviewed by a site admin."
+  },
+  "PostCryptoOut": {
+   "properties": {
+    "filed": {
+     "type": "boolean",
+     "title": "Filed"
+    },
+    "source": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "author",
+        "classifier",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Source"
+    },
+    "author_says": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Says"
+    },
+    "affiliation": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "none",
+        "holder",
+        "team",
+        "paid"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Affiliation"
+    },
+    "refs": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/components/schemas/CryptoRefOut"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Refs"
+    }
+   },
+   "type": "object",
+   "required": [
+    "filed"
+   ],
+   "title": "PostCryptoOut",
+   "description": "Whether the post is filed under Crypto, and why."
+  },
   "PostHistoryOut": {
    "properties": {
     "post_id": {
@@ -4665,6 +4993,16 @@
       }
      ],
      "title": "Held Explanation"
+    },
+    "crypto": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/PostCryptoOut"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "image_notice": {
      "anyOf": [
@@ -7548,6 +7886,203 @@
    ],
    "title": "CommentOut"
   },
+  "CryptoRefIn": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "maxLength": 16,
+     "title": "Kind",
+     "description": "asset, address or tx"
+    },
+    "chain": {
+     "type": "string",
+     "maxLength": 64,
+     "title": "Chain",
+     "description": "A chain slug (bsc, base, ethereum, solana, bitcoin, ...) or its CAIP-2 id (eip155:56)"
+    },
+    "address": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 128
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Address",
+     "description": "For asset and address"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 128
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Id",
+     "description": "For tx: the transaction id"
+    },
+    "symbol": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 33
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Symbol",
+     "description": "An asset's ticker, as display text"
+    },
+    "label": {
+     "anyOf": [
+      {
+       "type": "string",
+       "maxLength": 64
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Label",
+     "description": "Your name for an address (treasury)"
+    }
+   },
+   "additionalProperties": false,
+   "type": "object",
+   "required": [
+    "kind",
+    "chain"
+   ],
+   "title": "CryptoRefIn",
+   "description": "One reference: an asset (a token contract or mint), an address, or a\ntransaction, on a chain named by slug (``bsc``) or CAIP-2 (``eip155:56``)."
+  },
+  "CryptoRefOut": {
+   "properties": {
+    "kind": {
+     "type": "string",
+     "enum": [
+      "asset",
+      "address",
+      "tx"
+     ],
+     "title": "Kind"
+    },
+    "chain": {
+     "type": "string",
+     "title": "Chain"
+    },
+    "chain_slug": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Chain Slug"
+    },
+    "chain_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Chain Name"
+    },
+    "address": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Address"
+    },
+    "id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Id"
+    },
+    "symbol": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Symbol"
+    },
+    "label": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Label"
+    },
+    "source": {
+     "type": "string",
+     "enum": [
+      "author",
+      "detected"
+     ],
+     "title": "Source"
+    },
+    "verified": {
+     "type": "boolean",
+     "title": "Verified",
+     "default": false
+    },
+    "explorer_url": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Explorer Url"
+    },
+    "warnings": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array",
+     "title": "Warnings"
+    }
+   },
+   "type": "object",
+   "required": [
+    "kind",
+    "chain",
+    "source"
+   ],
+   "title": "CryptoRefOut"
+  },
   "DirectoryUserOut": {
    "properties": {
     "id": {
@@ -8903,6 +9438,11 @@
      "type": "boolean",
      "title": "Text Truncated",
      "default": false
+    },
+    "held": {
+     "type": "boolean",
+     "title": "Held",
+     "default": false
     }
    },
    "type": "object",
@@ -9171,6 +9711,78 @@
     "percentage"
    ],
    "title": "PollResultOption"
+  },
+  "PostCryptoOut": {
+   "properties": {
+    "filed": {
+     "type": "boolean",
+     "title": "Filed"
+    },
+    "source": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "author",
+        "classifier",
+        "moderator"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Source"
+    },
+    "author_says": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Author Says"
+    },
+    "affiliation": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "none",
+        "holder",
+        "team",
+        "paid"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Affiliation"
+    },
+    "refs": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/components/schemas/CryptoRefOut"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Refs"
+    }
+   },
+   "type": "object",
+   "required": [
+    "filed"
+   ],
+   "title": "PostCryptoOut",
+   "description": "Whether the post is filed under Crypto, and why."
   },
   "PostOut": {
    "properties": {
@@ -9448,6 +10060,16 @@
       }
      ],
      "title": "Held Explanation"
+    },
+    "crypto": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/PostCryptoOut"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "image_notice": {
      "anyOf": [
@@ -10815,6 +11437,7 @@
   "PATCH /api/v1/messages/{message_id}": "MessageOut",
   "PATCH /api/v1/oauth-clients/{client_id}": "OAuthClientDetailOut",
   "PATCH /api/v1/polls/{post_id}": "PollResults",
+  "PATCH /api/v1/posts/{post_id}/crypto": "PostOut",
   "PATCH /api/v1/posts/{post_id}/schedule": "PostOut",
   "PATCH /api/v1/projects/{slug}": "ProjectOut",
   "PATCH /api/v1/search-alerts/{alert_id}": "SearchAlertOut",
@@ -11392,6 +12015,7 @@
   "PATCH /api/v1/messages/{message_id}",
   "PATCH /api/v1/oauth-clients/{client_id}",
   "PATCH /api/v1/polls/{post_id}",
+  "PATCH /api/v1/posts/{post_id}/crypto",
   "PATCH /api/v1/posts/{post_id}/schedule",
   "PATCH /api/v1/projects/{slug}",
   "PATCH /api/v1/search-alerts/{alert_id}",

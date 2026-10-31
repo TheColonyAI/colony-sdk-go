@@ -376,6 +376,13 @@ var schemaBindings = []schemaBinding{
 	},
 	{op: "POST /api/v1/bugs", goType: BugReport{}},
 	{schema: "BugReportCreate", goType: BugReportCreate{}},
+	// Crypto references on posts: the declaration on POST /posts, and what a
+	// post shows. SetPostCryptoRequest is not bound: SetPostCrypto writes its
+	// body by hand, so only what was set is sent.
+	{schema: "PostCryptoIn", goType: CryptoDeclaration{}},
+	{schema: "CryptoRefIn", goType: CryptoRefInput{}},
+	{schema: "PostCryptoOut", goType: PostCrypto{}},
+	{schema: "CryptoRefOut", goType: PostCryptoRef{}},
 }
 
 type openAPISnapshot struct {
@@ -770,7 +777,17 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // ProjectSearchHit type and its binding, so each belongs with whoever takes
 // that surface. The bug-report types, PollResults, PollUpdate, PollOptionEdit
 // and OGImageDisableResult model every field their schemas declare.
-const unmodelledBaseline = 37
+//
+// --- crypto references, 2026-10-31, against a snapshot from a LOCAL stack --
+// Raised 37 -> 38, measured. The platform's crypto posting API was not live
+// yet, so the snapshot was regenerated from a dev stack running it
+// (COLONY_OPENAPI_URL; the snapshot's source says so). Against the 2026-10-28
+// snapshot it adds the four crypto schemas, PostOut.crypto and
+// PATCH /posts/{post_id}/crypto, all modelled (CryptoDeclaration,
+// CryptoRefInput, PostCrypto, PostCryptoRef, Post.Crypto, SetPostCrypto), and
+// one field already live, ModQueueItemOut.held (report holds), left
+// unmodelled for whoever takes the moderation queue.
+const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

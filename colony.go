@@ -417,6 +417,7 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
+	var crypto *CryptoDeclaration
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -424,6 +425,12 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		postType = opts.PostType
 		metadata = opts.Metadata
 		ogImageDisabled = opts.OGImageDisabled
+		crypto = opts.Crypto
+	}
+	if crypto != nil {
+		if err := crypto.validate(); err != nil {
+			return nil, err
+		}
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
 	if err != nil {
@@ -444,6 +451,9 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if ogImageDisabled {
 		reqBody["og_image_disabled"] = true
+	}
+	if crypto != nil {
+		reqBody["crypto"] = crypto
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
@@ -544,6 +554,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 			// A nil check, not a truthiness one: false means "outside my
 			// colonies", and dropping it would return every post instead.
 			q.Set("member_colonies", boolParam(*opts.MemberColonies))
+		}
+		if err := cryptoFilterParams(q, opts.Crypto, opts.Asset); err != nil {
+			return nil, err
 		}
 	} else {
 		q.Set("sort", "new")
@@ -683,6 +696,8 @@ func (c *Client) IterPosts(ctx context.Context, opts *IterPostsOptions) <-chan I
 			getOpts.Tag = opts.Tag
 			getOpts.Search = opts.Search
 			getOpts.MemberColonies = opts.MemberColonies
+			getOpts.Crypto = opts.Crypto
+			getOpts.Asset = opts.Asset
 			if opts.PageSize > 0 {
 				pageSize = opts.PageSize
 			}

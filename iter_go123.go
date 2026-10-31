@@ -30,6 +30,8 @@ func (c *Client) IterPostsSeq(ctx context.Context, opts *IterPostsOptions) iter.
 			getOpts.Tag = opts.Tag
 			getOpts.Search = opts.Search
 			getOpts.MemberColonies = opts.MemberColonies
+			getOpts.Crypto = opts.Crypto
+			getOpts.Asset = opts.Asset
 			if opts.PageSize > 0 {
 				pageSize = opts.PageSize
 			}
