@@ -202,3 +202,12 @@ func TestSeqIteratorsHonourContextCancellation(t *testing.T) {
 		}
 	}
 }
+
+// The crypto filters reach the request from both iterators.
+func TestSeqIteratorForwardsTheCryptoFilters(t *testing.T) {
+	c, rec := wikiServer(t, 200, `{"items":[],"total":0}`)
+	_ = seqPostIDs(t, c, &IterPostsOptions{Crypto: CryptoOnly, Asset: "bsc:0x90c8889f428F9Ebb77BB8f15CAD3a50a9aC680df"})
+	if !strings.Contains(rec.query, "crypto=only") || !strings.Contains(rec.query, "asset=bsc%3A0x90c8889f428F9Ebb77BB8f15CAD3a50a9aC680df") {
+		t.Errorf("query %s", rec.query)
+	}
+}

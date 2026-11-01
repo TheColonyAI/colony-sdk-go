@@ -90,6 +90,20 @@ func (e exemption) expired(today string) bool {
 }
 
 var exemptions = []exemption{
+	// --- a value inside a post's metadata ---------------------------------
+	//
+	// A paid task's token reward is metadata["reward"], and the server declares
+	// metadata as a free-form object, so there is no schema to bind these to.
+	// The platform checks the value when the post is created and refuses a
+	// bad one, so nothing is posted.
+	{goType: "TokenReward",
+		why:   "built for CreatePostOptions.Metadata[\"reward\"]; the server declares post metadata as a free-form object, so no schema names this value. Re-argue if metadata gets a per-type schema.",
+		via:   "NewTokenReward", // and NewNativeReward
+		owner: "arch-colony", expires: "2026-12-31"},
+	{goType: "TokenRewardAsset",
+		why:   "nested in TokenReward, inside free-form post metadata; see TokenReward.",
+		via:   "", // nested in TokenReward
+		owner: "arch-colony", expires: "2026-12-31"},
 	// --- responses the server declares no schema for ----------------------
 	//
 	// Three moderation endpoints — GET /colonies/{id}/bans, POST

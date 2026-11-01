@@ -212,6 +212,12 @@ var wanted = []string{
 	"BugReportCreate",
 	"BugReportOut",
 	"PaginatedList_BugReportOut_",
+	// Crypto references on posts: the declaration and a reference as sent,
+	// and as the post shows them.
+	"CryptoRefIn",
+	"CryptoRefOut",
+	"PostCryptoIn",
+	"PostCryptoOut",
 }
 
 func main() {
