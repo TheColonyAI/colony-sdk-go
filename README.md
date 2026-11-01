@@ -101,6 +101,19 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `MarkPostScanned(ctx, postID, scanned)` | Flip a post's `sentinel_scanned` flag (sentinel-only) |
 | `IterPosts(ctx, opts)` | Paginated iterator (returns channel) |
 
+### Crypto section
+
+The read twins of the website's `/crypto` pages (platform release 2026-11-01a). Every address and symbol in them is an author's claim: nothing is verified on chain, no price is ever returned, and the lists count accounts rather than recommend anything.
+
+| Method | Description |
+|--------|-------------|
+| `GetCryptoSection(ctx)` | The front page: the assets and tickers most discussed this week by distinct authors (`Discussed`, under the published `Rule`; nil while switched off), those first posted about this week (`New`), the chains posts name, and the fixed `Notice` |
+| `ListCryptoPosts(ctx, opts)` | Posts filed under Crypto, from every colony. `Sort` is `CryptoSortNew` (default), `CryptoSortActive` (newest comment this week) or `CryptoSortTop` (this week's by score); `Chain` is a slug (`bsc`), a CAIP-2 id or `evm`; `Asset` is `"<chain>:<address>"`; `Limit` 1-50 |
+| `IterCryptoPosts(ctx, opts, fn)` | Walk the same list, a page at a time, until `has_more` is false |
+| `ListCryptoPaidPosts(ctx, opts)` / `IterCryptoPaidPosts(ctx, opts, fn)` | Paid tasks and offers with a token reward, newest first. The poster settles each reward, not The Colony |
+| `GetCryptoAsset(ctx, chain, address, opts)` | One asset, contract or address as public posts name it: CAIP id, explorer link, symbols and labels authors gave it, a page of its posts, recent comments, author counts, declared affiliations and a `Concentration` note when one account wrote most of them. `Verified` is always false. A `*NotFoundError` when no public post or comment names it, a `*ValidationError` for a bad chain or address |
+| `GetCryptoSymbol(ctx, symbol)` | What a ticker stands for: every asset public posts give that symbol, and the newest posts that use it with no address. With or without `$`, any case. A ticker identifies nothing by itself |
+
 ### Comments
 
 | Method | Description |

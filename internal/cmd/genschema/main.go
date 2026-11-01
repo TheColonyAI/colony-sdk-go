@@ -225,6 +225,16 @@ var wanted = []string{
 	"ColonyLevelOut",
 	"MutedThreadOut",
 	"NotificationSettingsUpdate",
+	// The Crypto section's reads: the front page, an asset page, a ticker
+	// page, and their parts. The two post lists are PaginatedList_PostOut_.
+	"CryptoSectionOut",
+	"CryptoAssetEntryOut",
+	"CryptoChainOut",
+	"CryptoRuleOut",
+	"CryptoAssetPageOut",
+	"CryptoMentionOut",
+	"CryptoConcentrationOut",
+	"CryptoSymbolPageOut",
 	// The census exemptions resolved on 2026-11-01 (issue #62).
 	"NotificationBatchReadOut",
 	"BootstrapResponse",

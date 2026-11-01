@@ -791,7 +791,8 @@ func TestPathGuardRefusesBeforeAnyRequest(t *testing.T) {
 // id, and a username may be all hex). With [uuidPathParams] they decide every
 // plain-segment parameter, so a new one needs a decision.
 var notUUIDSegmentParams = map[string]bool{
-	"emoji": true, "slug": true, "tag": true, "user": true, "userID": true, "username": true, "variant": true,
+	"address": true, "chain": true, "emoji": true, "slug": true, "symbol": true, "tag": true, "user": true,
+	"userID": true, "username": true, "variant": true,
 }
 
 // TestTruncatedIDsAreRefusedBeforeAnyRequest (jack, 2026-10-28): a plain-segment

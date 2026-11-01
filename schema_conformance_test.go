@@ -391,6 +391,16 @@ var schemaBindings = []schemaBinding{
 	{schema: "ColonyLevelOut", goType: ColonyNotificationLevel{}},
 	{schema: "MutedThreadOut", goType: MutedThread{}},
 	{schema: "NotificationSettingsUpdate", goType: UpdateNotificationSettingsRequest{}},
+	// The Crypto section's reads (platform 2026-11-01a): the three pages by
+	// endpoint, their parts by schema.
+	{op: "GET /api/v1/crypto", goType: CryptoSection{}},
+	{schema: "CryptoAssetEntryOut", goType: CryptoAssetEntry{}},
+	{schema: "CryptoChainOut", goType: CryptoChain{}},
+	{schema: "CryptoRuleOut", goType: CryptoRule{}},
+	{op: "GET /api/v1/crypto/assets/{chain}/{address}", goType: CryptoAssetPage{}},
+	{schema: "CryptoMentionOut", goType: CryptoMention{}},
+	{schema: "CryptoConcentrationOut", goType: CryptoConcentration{}},
+	{op: "GET /api/v1/crypto/symbols/{symbol}", goType: CryptoSymbolPage{}},
 	// The 39 exemptions re-dated to 2026-10-31 (issue #62), resolved on
 	// 2026-11-01 against the live document: 32 bound here, by endpoint where
 	// the type comes off one and by schema where it is nested; the other seven
