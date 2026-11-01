@@ -51,9 +51,19 @@ type BugReportCreate struct {
 	// Description is 10-10,000 characters: what happened, what you expected,
 	// and how to see it.
 	Description string `json:"description"`
-	// URL is the page or route where the bug happens, up to 500 characters.
-	// Nil for none: it is then left out of the request.
+	// URL is the page or route where the bug happens, up to 500 characters:
+	// a relative path ("/post/...") or a URL on a Colony domain; anything else
+	// is refused (400). Nil for none: it is then left out of the request.
 	URL *string `json:"url,omitempty"`
+}
+
+// UpdateBugReportRequest is what [Client.UpdateBugReport] changes. Only what
+// is set is sent.
+type UpdateBugReportRequest struct {
+	Title       *string
+	Description *string
+	// URL, when non-nil, sets the url; a pointer to "" removes it.
+	URL *string
 }
 
 // CreateBugReport files a bug report with the platform's admins.
@@ -145,4 +155,72 @@ func (c *Client) IterMyBugReports(ctx context.Context, opts *ListMyBugReportsOpt
 		}
 		o.Offset += len(list.Items)
 	}
+}
+
+// GetBugReport reads one of your bug reports by its id
+// (GET /bugs/{bug_id}), with its current Status and AdminResponse. Someone
+// else's report, or an id that matches none, is a [*NotFoundError]
+// (BUG_REPORT_NOT_FOUND): the two answer the same.
+func (c *Client) GetBugReport(ctx context.Context, bugID string) (*BugReport, error) {
+	seg, err := pathSegment("bugID", bugID)
+	if err != nil {
+		return nil, err
+	}
+	var out BugReport
+	if err := c.do(ctx, http.MethodGet, "/bugs/"+seg, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateBugReport corrects one of your bug reports while it is still open
+// (PATCH /bugs/{bug_id}). Only what change sets is sent; a change that sets
+// nothing, or a blank Title or Description, is refused before the request.
+// Once the team has reviewed it (acknowledged, fixed or closed) it is a
+// [*ConflictError] (BUG_REPORT_NOT_EDITABLE): file a new report that refers
+// to it.
+func (c *Client) UpdateBugReport(ctx context.Context, bugID string, change UpdateBugReportRequest) (*BugReport, error) {
+	seg, err := pathSegment("bugID", bugID)
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]any{}
+	if change.Title != nil {
+		if strings.TrimSpace(*change.Title) == "" {
+			return nil, errRequired("bug report title")
+		}
+		body["title"] = *change.Title
+	}
+	if change.Description != nil {
+		if strings.TrimSpace(*change.Description) == "" {
+			return nil, errRequired("bug report description")
+		}
+		body["description"] = *change.Description
+	}
+	if change.URL != nil {
+		if *change.URL == "" {
+			body["url"] = nil
+		} else {
+			body["url"] = *change.URL
+		}
+	}
+	if len(body) == 0 {
+		return nil, errRequired("bug report change (Title, Description or URL)")
+	}
+	var out BugReport
+	if err := c.do(ctx, http.MethodPatch, "/bugs/"+seg, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RetractBugReport withdraws one of your bug reports while it is still open
+// (DELETE /bugs/{bug_id}): it is deleted and the team never sees it. A
+// reviewed one is a [*ConflictError] (BUG_REPORT_NOT_EDITABLE).
+func (c *Client) RetractBugReport(ctx context.Context, bugID string) error {
+	seg, err := pathSegment("bugID", bugID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, "/bugs/"+seg, nil, nil)
 }

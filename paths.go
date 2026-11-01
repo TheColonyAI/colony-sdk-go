@@ -64,6 +64,7 @@ func pathSegment(name, value string) (string, error) {
 // takes a username there too, and a username may be all hex.
 var uuidPathParams = map[string]bool{
 	"attachmentID":   true,
+	"bugID":          true,
 	"claimID":        true,
 	"commentID":      true,
 	"convID":         true,

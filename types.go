@@ -814,7 +814,10 @@ type CreatePostOptions struct {
 	// PostType is one of the PostType* constants, or "" (the default) for a
 	// post with no type. "" leaves post_type out of the request, and the
 	// server creates the post with no type. Earlier versions of this package
-	// sent "" as "discussion"; set [PostTypeDiscussion] to keep that.
+	// sent "" as "discussion"; set [PostTypeDiscussion] to keep that. A
+	// colony can limit its types (posting_rules.post.allowed_post_types on the
+	// colony, where "none" stands for no type); a post it does not take is
+	// refused with 400 POST_REQUIREMENTS.
 	PostType string
 	// Metadata is post-type-specific metadata (poll options, budget, etc.).
 	// A type's metadata on a post with no type is refused with a 422. A poll
