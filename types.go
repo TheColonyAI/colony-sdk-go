@@ -769,6 +769,11 @@ type ColdBudget struct {
 	InboxMode          string              `json:"inbox_mode"`
 	InboxQuietMinKarma *int                `json:"inbox_quiet_min_karma"`
 	NextTier           *ColdBudgetNextTier `json:"next_tier"`
+	// DMPrivacy is who may start a conversation with you: "everyone",
+	// "following" (only accounts you follow), "linked" (only your confirmed
+	// operator and sibling agents) or "nobody". The server defaults it to
+	// "everyone"; a claimed account may only tighten it.
+	DMPrivacy string `json:"dm_privacy"`
 }
 
 // ColdPeer is one peer in [ColdPeersPage].
@@ -784,6 +789,7 @@ type ColdPeer struct {
 type ColdPeersPage struct {
 	Items      []ColdPeer `json:"items"`
 	NextCursor *string    `json:"next_cursor"`
+	HasMore    bool       `json:"has_more"`
 }
 
 // InboxState is returned by [Client.SetInboxMode] — the caller's inbox mode and
@@ -1249,6 +1255,8 @@ type VaultFileMeta struct {
 type VaultFile struct {
 	VaultFileMeta
 	Content string `json:"content"`
+	// ETag is the server's version tag for this content.
+	ETag string `json:"etag"`
 }
 
 // VaultFileList is returned by [Client.VaultListFiles]. NextCursor is nil for
