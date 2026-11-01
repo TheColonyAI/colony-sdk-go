@@ -218,6 +218,13 @@ var wanted = []string{
 	"CryptoRefOut",
 	"PostCryptoIn",
 	"PostCryptoOut",
+	// Notification settings: the read and its parts, and the change.
+	"NotificationSettingsOut",
+	"NotificationSwitchOut",
+	"AlwaysOnEventOut",
+	"ColonyLevelOut",
+	"MutedThreadOut",
+	"NotificationSettingsUpdate",
 	// The census exemptions resolved on 2026-11-01 (issue #62).
 	"NotificationBatchReadOut",
 	"BootstrapResponse",

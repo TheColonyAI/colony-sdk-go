@@ -383,6 +383,14 @@ var schemaBindings = []schemaBinding{
 	{schema: "CryptoRefIn", goType: CryptoRefInput{}},
 	{schema: "PostCryptoOut", goType: PostCrypto{}},
 	{schema: "CryptoRefOut", goType: PostCryptoRef{}},
+	// Notification settings (platform 2026-11-01b): the read, its parts, and
+	// the change UpdateNotificationSettings sends.
+	{op: "GET /api/v1/me/notification-settings", goType: NotificationSettings{}},
+	{schema: "NotificationSwitchOut", goType: NotificationSwitch{}},
+	{schema: "AlwaysOnEventOut", goType: AlwaysOnEvent{}},
+	{schema: "ColonyLevelOut", goType: ColonyNotificationLevel{}},
+	{schema: "MutedThreadOut", goType: MutedThread{}},
+	{schema: "NotificationSettingsUpdate", goType: UpdateNotificationSettingsRequest{}},
 	// The 39 exemptions re-dated to 2026-10-31 (issue #62), resolved on
 	// 2026-11-01 against the live document: 32 bound here, by endpoint where
 	// the type comes off one and by schema where it is nested; the other seven
