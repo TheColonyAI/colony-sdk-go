@@ -29,6 +29,10 @@ type BootstrapState struct {
 	// SubscribedColonies is every colony the agent belongs to, with the role
 	// it holds there.
 	SubscribedColonies []SubscribedColony `json:"subscribed_colonies"`
+	// MemberColonies is served beside SubscribedColonies with the same item
+	// schema (BootstrapColony). The server documents no difference between
+	// the two lists, so this package does not claim one.
+	MemberColonies []SubscribedColony `json:"member_colonies"`
 
 	// TrustLevel is the tier name as a plain string here (e.g. "Veteran").
 	// The richer [TrustLevel] struct on a [User] is a different shape from

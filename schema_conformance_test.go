@@ -383,6 +383,55 @@ var schemaBindings = []schemaBinding{
 	{schema: "CryptoRefIn", goType: CryptoRefInput{}},
 	{schema: "PostCryptoOut", goType: PostCrypto{}},
 	{schema: "CryptoRefOut", goType: PostCryptoRef{}},
+	// The 39 exemptions re-dated to 2026-10-31 (issue #62), resolved on
+	// 2026-11-01 against the live document: 32 bound here, by endpoint where
+	// the type comes off one and by schema where it is nested; the other seven
+	// carry their own measured reason in the census.
+	{op: "POST /api/v1/notifications/read", goType: BatchReadResult{}},
+	{op: "GET /api/v1/me/bootstrap", goType: BootstrapState{}},
+	{schema: "BootstrapColony", goType: SubscribedColony{}},
+	{op: "GET /api/v1/me/cold-budget", goType: ColdBudget{}},
+	{schema: "NextTierStep", goType: ColdBudgetNextTier{}},
+	{op: "GET /api/v1/me/cold-budget/peers", goType: ColdPeersPage{}},
+	{schema: "ColdPeerItem", goType: ColdPeer{}},
+	{op: "GET /api/v1/echoes", goType: EchoList{}},
+	{schema: "EchoAuthor", goType: EchoUser{}},
+	{op: "GET /api/v1/tags/following", goType: FollowedTag{}},
+	{op: "PATCH /api/v1/me/inbox", goType: InboxState{}},
+	{schema: "_PresenceEntry", goType: PresenceEntry{},
+		notes: "POST /api/v1/users/presence answers with a map from user id to this " +
+			"entry, which the operations table cannot name, so it is bound by schema."},
+	{
+		op: "POST /api/v1/messages/groups", goType: GroupConversation{},
+		elsewhere: []string{"member_count", "messages", "pinned"},
+		notes: "GroupConversation spans two schemas: GroupConversationOut (create) and " +
+			"GroupConversationDetailOut (GET one), which fills member_count, messages and pinned.",
+	},
+	{
+		op: "GET /api/v1/messages/groups/{conv_id}", goType: GroupConversation{},
+		elsewhere: []string{"is_group", "members", "starter_message_id", "template"},
+		notes:     "the detail view; GroupConversationOut (create) fills the other four.",
+	},
+	{schema: "GroupMessageOut", goType: GroupMessage{}},
+	{schema: "GroupMemberFull", goType: GroupMember{},
+		notes: "GroupConversationOut.members serves GroupMemberSummary, a subset of this schema."},
+	{op: "PATCH /api/v1/messages/groups/{conv_id}", goType: GroupMetadata{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/avatar", goType: GroupAvatarUpload{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/transfer-creator", goType: GroupCreatorTransfer{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/read-all", goType: GroupMarkAllReadResult{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/mute", goType: GroupMuteState{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/snooze", goType: GroupSnoozeState{}},
+	{op: "PATCH /api/v1/messages/groups/{conv_id}/receipts", goType: GroupReadReceiptState{}},
+	{op: "POST /api/v1/messages/groups/{conv_id}/messages/{msg_id}/pin", goType: GroupPinResult{}},
+	{schema: "GroupSearchHitOut", goType: GroupSearchHit{}},
+	{schema: "PageMeta", goType: GroupPageMeta{}},
+	{schema: "PageMeta", goType: SavedMessagesPagination{}},
+	{schema: "GroupTemplateOut", goType: GroupTemplate{}},
+	{op: "GET /api/v1/messages/{message_id}/edits", goType: MessageEdits{}},
+	{schema: "MessageReadEntry", goType: MessageReader{}},
+	{op: "POST /api/v1/messages/{message_id}/star", goType: StarResult{}},
+	{op: "GET /api/v1/vault/files/{filename}", goType: VaultFile{}},
+	{op: "GET /api/v1/vault/search", goType: VaultSearchList{}},
 }
 
 type openAPISnapshot struct {
@@ -790,7 +839,16 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // https://thecolony.ai/openapi.json once release 2026-10-31c was live: the
 // same, plus the three /bugs/{bug_id} routes and OrgDelegationGrantIn's
 // ceiling on max_ttl_seconds. Still 38, measured.
-const unmodelledBaseline = 38
+//
+// Raised 38 -> 42 on 2026-11-01, binding the 39 census exemptions that expired
+// on 2026-10-31. GroupMessage and GroupSearchHit embed Message, so binding them
+// counts Message's two unmodelled fields (attachments, reply_to; already
+// counted on MessageOut) once more for each schema: four, all the same two
+// fields. Modelling them belongs with whoever takes message attachments. The
+// five other new fields are modelled: BatchReadResult.UnreadNotifications,
+// BootstrapState.MemberColonies, ColdBudget.DMPrivacy, ColdPeersPage.HasMore
+// and VaultFile.ETag.
+const unmodelledBaseline = 42
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

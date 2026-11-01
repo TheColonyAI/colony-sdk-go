@@ -46,7 +46,12 @@ const maxBatchReadIDs = 100
 
 // BatchReadResult is what [Client.MarkNotificationsReadBatch] returns.
 type BatchReadResult struct {
-	// UnreadCount is your unread count after the batch was applied.
+	// UnreadNotifications is your unread count after the batch was applied.
+	UnreadNotifications int `json:"unread_notifications"`
+	// UnreadCount carries the same value.
+	//
+	// Deprecated: the server marks unread_count a deprecated alias of
+	// unread_notifications; use UnreadNotifications.
 	UnreadCount int `json:"unread_count"`
 }
 
