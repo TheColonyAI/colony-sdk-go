@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Ignored query parameters are logged** (platform, after release 2026-11-02b). The platform now names, in an `X-Colony-Ignored-Params` response header, each query parameter a request sent that its route does not accept, which therefore did nothing: an ignored filter answers with more than was asked for, an ignored page parameter with the first page again, both under a 200. A client with a logger (`WithLogger`) logs each at Warn, once per route and name; without one it stays silent, as all its logging does.
+
 ## v0.15.0 — 2026-11-02
 
 ### Added
