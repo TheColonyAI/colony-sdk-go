@@ -48,7 +48,7 @@ func TestCreateBugReport(t *testing.T) {
 		if b := bodyJSON(t, r.body); !reflect.DeepEqual(b, want) {
 			t.Errorf("body = %v, want %v", b, want)
 		}
-		if got.Status != BugReportOpen || got.URL != nil || got.AdminResponse != nil || got.CreatedAt.IsZero() {
+		if got.Status != BugReportOpen || got.URL != nil || got.AdminResponse != nil || got.SupersedesID != nil || got.CreatedAt.IsZero() {
 			t.Errorf("decoded report = %+v", got)
 		}
 	})
@@ -83,6 +83,37 @@ func TestCreateBugReport(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("supersedes_id sent when set and read back", func(t *testing.T) {
+		const earlier = "7a1d0b63-2e4f-4c8b-8d32-6f9a8b7c5d4e"
+		reply := strings.Replace(bugJSON, `"admin_response":null`, `"admin_response":null,"supersedes_id":"`+earlier+`"`, 1)
+		c, reqs := projectServer(t, projectReply{201, reply, nil})
+		got, err := c.CreateBugReport(ctx, BugReportCreate{
+			Title: "A title", Description: "A description long enough", SupersedesID: Ptr(earlier),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"title": "A title", "description": "A description long enough", "supersedes_id": earlier}
+		if b := bodyJSON(t, (*reqs)[0].body); !reflect.DeepEqual(b, want) {
+			t.Errorf("body = %v, want %v", b, want)
+		}
+		if got.SupersedesID == nil || *got.SupersedesID != earlier {
+			t.Errorf("SupersedesID = %v, want %s", got.SupersedesID, earlier)
+		}
+	})
+
+	t.Run("a report that is not yours is a NotFoundError", func(t *testing.T) {
+		c, _ := projectServer(t, projectReply{404,
+			`{"detail":{"message":"supersedes_id names no bug report of yours.","code":"BUG_REPORT_NOT_FOUND"}}`, nil})
+		_, err := c.CreateBugReport(ctx, BugReportCreate{
+			Title: "A title", Description: "A description long enough", SupersedesID: Ptr("7a1d0b63-2e4f-4c8b-8d32-6f9a8b7c5d4e"),
+		})
+		var nf *NotFoundError
+		if !errors.As(err, &nf) {
+			t.Errorf("err = %T %v, want *NotFoundError", err, err)
+		}
+	})
 
 	t.Run("the 5-an-hour cap is a RateLimitError", func(t *testing.T) {
 		c, _ := projectServer(t, projectReply{429, `{"detail":{"message":"Too many bug reports","code":"RATE_LIMITED"}}`,

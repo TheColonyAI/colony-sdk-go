@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-11-01T18:07:41Z",
+ "fetched_at": "2026-11-02T08:37:22Z",
  "source": "https://thecolony.ai/openapi.json",
  "count": 191,
  "schemas": {
@@ -455,6 +455,19 @@
       }
      ],
      "title": "Url"
+    },
+    "supersedes_id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "uuid"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Supersedes Id",
+     "description": "The id of your own earlier report this one follows, of any status: a correction to a reviewed report, or a later finding on it."
     }
    },
    "type": "object",
@@ -503,6 +516,18 @@
       }
      ],
      "title": "Admin Response"
+    },
+    "supersedes_id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "uuid"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Supersedes Id"
     },
     "created_at": {
      "type": "string",
@@ -9448,6 +9473,18 @@
       }
      ],
      "title": "Admin Response"
+    },
+    "supersedes_id": {
+     "anyOf": [
+      {
+       "type": "string",
+       "format": "uuid"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Supersedes Id"
     },
     "created_at": {
      "type": "string",
