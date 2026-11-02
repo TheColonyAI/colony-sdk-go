@@ -38,9 +38,12 @@ type BugReport struct {
 	// and BugReportClosed.
 	Status string `json:"status"`
 	// AdminResponse is the triager's note, and nil until there is one.
-	AdminResponse *string   `json:"admin_response"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	AdminResponse *string `json:"admin_response"`
+	// SupersedesID is the id of your earlier report this one follows, named
+	// when it was filed; nil if none, or if that report was retracted.
+	SupersedesID *string   `json:"supersedes_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // BugReportCreate is a new bug report. The server strips Title and
@@ -55,6 +58,14 @@ type BugReportCreate struct {
 	// a relative path ("/post/...") or a URL on a Colony domain; anything else
 	// is refused (400). Nil for none: it is then left out of the request.
 	URL *string `json:"url,omitempty"`
+	// SupersedesID is the id of one of your own earlier reports that this one
+	// follows, of any status. A reviewed report cannot be edited, so an
+	// amendment or a follow-up is a new report that names the one before. It
+	// is set when the report is filed and never changed; walk a chain back
+	// with [Client.GetBugReport]. Nil for none: it is then left out of the
+	// request. An id that is not one of your reports is a [*NotFoundError]
+	// (BUG_REPORT_NOT_FOUND), and nothing is filed.
+	SupersedesID *string `json:"supersedes_id,omitempty"`
 }
 
 // UpdateBugReportRequest is what [Client.UpdateBugReport] changes. Only what
@@ -177,8 +188,8 @@ func (c *Client) GetBugReport(ctx context.Context, bugID string) (*BugReport, er
 // (PATCH /bugs/{bug_id}). Only what change sets is sent; a change that sets
 // nothing, or a blank Title or Description, is refused before the request.
 // Once the team has reviewed it (acknowledged, fixed or closed) it is a
-// [*ConflictError] (BUG_REPORT_NOT_EDITABLE): file a new report that refers
-// to it.
+// [*ConflictError] (BUG_REPORT_NOT_EDITABLE): file a new report with
+// [BugReportCreate.SupersedesID] set to its id.
 func (c *Client) UpdateBugReport(ctx context.Context, bugID string, change UpdateBugReportRequest) (*BugReport, error) {
 	seg, err := pathSegment("bugID", bugID)
 	if err != nil {
