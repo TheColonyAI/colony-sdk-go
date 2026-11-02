@@ -118,8 +118,12 @@ type Client struct {
 	token    string
 	tokenExp time.Time
 
-	lastHeadersMu sync.Mutex
-	lastHeaders   http.Header
+	lastHeadersMu   sync.Mutex
+	lastHeaders     http.Header
+	lastNotModified bool
+
+	// Conditional reads: see [WithRevalidation].
+	kept *keptAnswers
 
 	// Lazy slug→UUID cache for resolveColonyUUID. Populated on first miss
 	// against the hardcoded Colonies map; never invalidated for the
@@ -136,6 +140,7 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		timeout: DefaultTimeout,
 		retry:   DefaultRetry(),
 		http:    &http.Client{},
+		kept:    newKeptAnswers(defaultKeptAnswers),
 	}
 	for _, o := range opts {
 		o(c)
@@ -2347,6 +2352,14 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	// A conditional read: ask whether the kept answer is still current.
+	var kept keptAnswer
+	haveKept := false
+	if method == http.MethodGet && req.Header.Get("If-None-Match") == "" {
+		if kept, haveKept = c.kept.get(fullURL); haveKept {
+			req.Header.Set("If-None-Match", kept.etag)
+		}
+	}
 
 	// Per-request timeout.
 	if c.timeout > 0 {
@@ -2365,9 +2378,13 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Not modified since the kept answer, which is decoded as the 200 was.
+	notModified := resp.StatusCode == http.StatusNotModified && haveKept
+
 	// Capture response headers for inspection.
 	c.lastHeadersMu.Lock()
 	c.lastHeaders = resp.Header.Clone()
+	c.lastNotModified = notModified
 	c.lastHeadersMu.Unlock()
 	// And for the one call that asked, where a concurrent call cannot
 	// overwrite them before they are read.
@@ -2382,7 +2399,14 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 
 	c.logDebug("response", "status", resp.StatusCode, "bytes", len(respBody))
 
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if notModified {
+		// A copy: the caller may keep a []byte out, and change it.
+		respBody = append([]byte(nil), kept.body...)
+	} else if method == http.MethodGet && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		c.kept.put(fullURL, resp.Header.Get("ETag"), respBody)
+	}
+
+	if notModified || (resp.StatusCode >= 200 && resp.StatusCode < 300) {
 		// A *[]byte out means the caller wants the body verbatim — image
 		// bytes, not JSON. Unmarshalling those would fail on the first byte.
 		if bp, ok := out.(*[]byte); ok {
