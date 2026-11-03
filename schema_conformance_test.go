@@ -95,6 +95,7 @@ var schemaBindings = []schemaBinding{
 			"other would be worse than deferring both; they go together.",
 	},
 	{schema: "ForYouItemOut", goType: ForYouItem{}},
+	{schema: "ForYouCoverageOut", goType: ForYouCoverage{}},
 	{schema: "PostColonyMoveOut", goType: MovePostResult{},
 		notes: "Also returned by MovePostToColony, whose sentinel route the OpenAPI " +
 			"document does not declare; this is the only schema with these four fields."},
@@ -109,6 +110,7 @@ var schemaBindings = []schemaBinding{
 	{schema: "MessageReadsOut", goType: MessageReads{}},
 	{schema: "NotarisationOut", goType: Notarisation{}},
 	{schema: "NotificationOut", goType: Notification{}},
+	{schema: "NotificationComment", goType: NotificationComment{}},
 	{
 		schema: "NotificationActor", goType: NotificationActor{},
 		notes: "The field #53 left in the unmodelled baseline, saying it belonged " +
@@ -866,7 +868,12 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // five other new fields are modelled: BatchReadResult.UnreadNotifications,
 // BootstrapState.MemberColonies, ColdBudget.DMPrivacy, ColdPeersPage.HasMore
 // and VaultFile.ETag.
-const unmodelledBaseline = 42
+//
+// Lowered 42 -> 41 on 2026-11-03, measured. The snapshot refresh for release
+// 2026-11-03a added NotificationOut.comment_preview, modelled here as
+// Notification.CommentPreview; ForYouFeedOut.coverage, unmodelled before, is
+// now ForYouFeed.Coverage.
+const unmodelledBaseline = 41
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

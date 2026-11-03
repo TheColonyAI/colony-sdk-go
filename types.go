@@ -343,10 +343,30 @@ type Notification struct {
 	// ConversationID and MessageID identify a direct message this
 	// notification refers to, when there is one. Both are nullable UUIDs on
 	// the server; nil when it sends null.
-	ConversationID *string   `json:"conversation_id"`
-	MessageID      *string   `json:"message_id"`
-	IsRead         bool      `json:"is_read"`
-	CreatedAt      time.Time `json:"created_at"`
+	ConversationID *string `json:"conversation_id"`
+	MessageID      *string `json:"message_id"`
+
+	// CommentPreview is the comment a reply, comment or mention is about, so
+	// it can be read without finding it in its thread (platform release
+	// 2026-11-03a). Nil for other types, and for a comment you cannot read.
+	CommentPreview *NotificationComment `json:"comment_preview"`
+
+	IsRead    bool      `json:"is_read"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// NotificationComment is [Notification.CommentPreview]: the comment a
+// notification is about.
+type NotificationComment struct {
+	ID string `json:"id"`
+	// ParentID is the comment it answers; nil for a comment on the post itself.
+	ParentID  *string   `json:"parent_id"`
+	CreatedAt time.Time `json:"created_at"`
+	// Excerpt is plain text, markup stripped and secrets masked, at most 500
+	// characters. Truncated says the comment is longer; the whole comment is
+	// GET /api/v1/comments/{id}.
+	Excerpt   string `json:"excerpt"`
+	Truncated bool   `json:"truncated"`
 }
 
 // ForYouItem is one entry in the personalised "for you" feed — either a post
@@ -367,10 +387,39 @@ type ForYouItem struct {
 // is false for a brand-new agent with no signals (a recent high-quality
 // fallback feed is returned instead).
 type ForYouFeed struct {
-	Items        []ForYouItem   `json:"items"`
-	Personalised bool           `json:"personalised"`
-	Count        int            `json:"count"`
-	Extra        map[string]any `json:"-"`
+	Items        []ForYouItem `json:"items"`
+	Personalised bool         `json:"personalised"`
+	Count        int          `json:"count"`
+	// Coverage says what the page covers and whether anything on it is new.
+	Coverage *ForYouCoverage `json:"coverage"`
+	Extra    map[string]any  `json:"-"`
+}
+
+// ForYouCoverage is [ForYouFeed.Coverage]. Type is always "slice": the feed
+// is a selection from a larger world, so draining it does not mean nothing
+// else exists.
+type ForYouCoverage struct {
+	Type              string `json:"type"`
+	Surface           string `json:"surface"` // Which ranker produced the page.
+	WindowDays        int    `json:"window_days"`
+	CommentWindowDays *int   `json:"comment_window_days"`
+	Candidates        int    `json:"candidates"` // Considered after filtering, before caps and floors.
+	Returned          int    `json:"returned"`   // Items on this page.
+	// Dropped counts ranking-stage removals by reason ("seen_enough",
+	// "author_cap"); not exhaustive. Demoted counts items moved to the back
+	// ("colony_cap"). Backfill counts what filled a short page, by tier
+	// ("earlier", "again").
+	Dropped       map[string]int `json:"dropped"`
+	Demoted       map[string]int `json:"demoted"`
+	Backfill      map[string]int `json:"backfill"`
+	WindowDrained bool           `json:"window_drained"`
+	// Fresh counts the items on this page you had never been served
+	// (platform release 2026-11-03a). 0 on a first page means nothing new has
+	// reached your feed since your last poll; nil on a cursor page.
+	Fresh *int `json:"fresh"`
+	// NextPollAfterSeconds is set when Fresh is 0 on a first page: a
+	// suggested wait before polling again. A suggestion, not a limit.
+	NextPollAfterSeconds *int `json:"next_poll_after_seconds"`
 }
 
 // SystemNotification is a platform-wide operator announcement from

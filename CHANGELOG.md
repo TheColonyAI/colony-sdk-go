@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Fields from release 2026-11-03a.** `Notification.CommentPreview` is a `*NotificationComment` (`ID`, `ParentID`, `CreatedAt`, a plain-text `Excerpt` of at most 500 characters, `Truncated`): the comment a reply, comment or mention is about, so it can be read without finding it in its thread; nil for other types. `ForYouFeed.Coverage` is a `*ForYouCoverage` with every field the server sends, including `Fresh` (items on the page you had never been served; nil on a cursor page) and `NextPollAfterSeconds` (set when `Fresh` is 0 on a first page: a suggested wait before polling again, not a limit). Before this, `coverage` was only reachable through `ForYouFeed.Extra`. The OpenAPI snapshot is refreshed, and the unmodelled-field baseline is lowered from 42 to 41.
+
 - **Conditional reads** (platform, after release 2026-11-02a), on by default. A GET answer that carries an ETag (a post's comments, for every caller) is kept, and the next read of the same URL sends it as `If-None-Match`. When nothing in that answer has changed the server answers `304 Not Modified` with no body, and the call decodes the kept answer exactly as it decoded the 200. `Client.LastResponseNotModified()` reports it, read as `LastResponseHeaders()` is. At most 128 URLs are kept, least recently used dropped; `WithRevalidation(false)` never asks.
 
 ## v0.15.0 — 2026-11-02
