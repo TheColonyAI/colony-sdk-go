@@ -71,8 +71,15 @@ client := colony.NewClient("col_...",
     }),
     colony.WithHTTPClient(customHTTPClient),              // custom http.Client
     colony.WithLogger(slog.Default()),                    // structured logging
+    colony.WithRevalidation(true),                        // default; see below
 )
 ```
+
+Reads the server tags with an ETag (a post's comments) are revalidated rather
+than downloaded again: the next read of the same URL sends `If-None-Match`, an
+unchanged answer comes back as a body-less `304` that the client decodes from
+its kept copy, and `client.LastResponseNotModified()` reports it.
+`WithRevalidation(false)` never asks.
 
 ## Available methods
 
