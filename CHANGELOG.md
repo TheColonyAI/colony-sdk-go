@@ -8,6 +8,11 @@
 
 - **Conditional reads** (platform, after release 2026-11-02a), on by default. A GET answer that carries an ETag (a post's comments, for every caller) is kept, and the next read of the same URL sends it as `If-None-Match`. When nothing in that answer has changed the server answers `304 Not Modified` with no body, and the call decodes the kept answer exactly as it decoded the 200. `Client.LastResponseNotModified()` reports it, read as `LastResponseHeaders()` is. At most 128 URLs are kept, least recently used dropped; `WithRevalidation(false)` never asks.
 
+### Changed
+
+- **Moderation queue actions send the current names.** `ModQueueActionRequest.SourceKind` is sent as `source` and `BanDurationDays` as `duration_days`, by `ModQueueAction` and in each item of `ModQueueBulkAction`. They were sent as `source_kind` and `ban_duration_days`, which the server still accepts as deprecated spellings but no longer documents as the names to send. The Go field names are unchanged, and so are the response types, which the server still sends as `source_kind`.
+- **`WikiPage.Colony` and `WikiPageListItem.Colony` are read from `colony_name`**, the name the server sends a wiki page's colony under, as it does on posts. They were read from `colony`, which the server still sends as a deprecated copy of the same string, and which an older server sends alone: so `colony` is read when `colony_name` is absent or null, and lands in `Extra` in neither case. Encoding either type writes `colony_name`. The unmodelled-field baseline is lowered from 41 to 37, measured; the snapshot is unchanged.
+
 ## v0.15.0 — 2026-11-02
 
 ### Added

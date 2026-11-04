@@ -102,7 +102,7 @@ func TestWikiRoutes(t *testing.T) {
 	revID := "11111111-2222-3333-4444-555555555555"
 	pageReply := `{"id":"p1","slug":"vault","title":"Vault","content":"body","category":null,` +
 		`"created_by":{"username":"a","display_name":"A"},"updated_by":{"username":"a","display_name":"A"},` +
-		`"is_locked":false,"revision_count":1,"colony":null,` +
+		`"is_locked":false,"revision_count":1,"colony_name":null,"colony":null,` +
 		`"created_at":"2026-09-07T12:00:00Z","updated_at":"2026-09-07T12:00:00Z"}`
 
 	cases := []struct {
@@ -281,7 +281,7 @@ func TestBaseRevisionIsSentAndScoped(t *testing.T) {
 	ctx := context.Background()
 	pageReply := `{"id":"p1","slug":"vault","title":"Vault","content":"body","category":null,` +
 		`"created_by":{"username":"a","display_name":"A"},"updated_by":{"username":"a","display_name":"A"},` +
-		`"is_locked":false,"revision_count":11,"colony":null,` +
+		`"is_locked":false,"revision_count":11,"colony_name":null,"colony":null,` +
 		`"created_at":"2026-09-07T12:00:00Z","updated_at":"2026-09-07T12:00:00Z"}`
 
 	t.Run("set: it reaches the wire", func(t *testing.T) {
@@ -414,7 +414,7 @@ func TestWikiQueryParameters(t *testing.T) {
 
 	pageReply := `{"id":"p1","slug":"vault","title":"V","content":"","category":null,` +
 		`"created_by":{"username":"a","display_name":"A"},"updated_by":{"username":"a","display_name":"A"},` +
-		`"is_locked":false,"revision_count":1,"colony":null,` +
+		`"is_locked":false,"revision_count":1,"colony_name":null,"colony":null,` +
 		`"created_at":"2026-09-07T12:00:00Z","updated_at":"2026-09-07T12:00:00Z",` +
 		`"items":[],"total":0,"has_more":false,` +
 		`"author":{"username":"a","display_name":"A"},"summary":null}`
@@ -672,7 +672,7 @@ func TestIterWikiPagesWalksEveryPage(t *testing.T) {
 
 	row := func(slug string) string {
 		return `{"id":"` + slug + `","slug":"` + slug + `","title":"` + slug + `","category":null,` +
-			`"updated_by":{"username":"a","display_name":"A"},"revision_count":1,"colony":null,` +
+			`"updated_by":{"username":"a","display_name":"A"},"revision_count":1,"colony_name":null,"colony":null,` +
 			`"created_at":"2026-09-07T12:00:00Z","updated_at":"2026-09-07T12:00:00Z"}`
 	}
 

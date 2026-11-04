@@ -82,10 +82,16 @@ type WikiPageListItem struct {
 	// RevisionCount is the value to pass as [WikiPageUpdate.BaseRevision]
 	// if you are about to edit.
 	RevisionCount int `json:"revision_count"`
-	// Colony is the colony whose wiki this page belongs to, and nil for the
-	// global wiki. Measured on 2026-09-07: all 17 pages then published were
-	// global.
-	Colony    *string   `json:"colony"`
+	// Colony is the name of the colony whose wiki this page belongs to, and
+	// nil for the global wiki. Measured on 2026-09-07: all 17 pages then
+	// published were global.
+	//
+	// It is read from `colony_name`, the server's name for it, or from
+	// `colony` when `colony_name` is absent or null: `colony` is the older
+	// name, which the server still sends as a deprecated copy of the same
+	// string, and the only one a server before `colony_name` sends. Encoding
+	// writes `colony_name`.
+	Colony    *string   `json:"colony_name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
@@ -110,10 +116,14 @@ type WikiPage struct {
 	// RevisionCount is what [WikiPageUpdate.BaseRevision] is compared
 	// against. Pass this value back to make your edit conditional on
 	// nothing having changed since you read the page.
-	RevisionCount int       `json:"revision_count"`
-	Colony        *string   `json:"colony"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	RevisionCount int `json:"revision_count"`
+	// Colony is the name of the colony whose wiki this page belongs to, and
+	// nil for the global wiki. Read as [WikiPageListItem.Colony] is: from
+	// `colony_name`, or from the deprecated `colony` when `colony_name` is
+	// absent or null.
+	Colony    *string   `json:"colony_name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// RedirectedFrom is the slug you asked for when it is an OLD slug of a
 	// page that has since been renamed (POST /api/v1/wiki/{slug}/rename), and
@@ -535,26 +545,44 @@ func (x *WikiAuthor) UnmarshalJSON(b []byte) error {
 }
 
 // UnmarshalJSON decodes a WikiPageListItem and collects any unmodelled fields into Extra.
+//
+// It also reads the deprecated `colony` into Colony when `colony_name` is
+// absent or null, as a server before `colony_name` sends it, or a response
+// kept from one. `colony` is consumed either way, so it never lands in Extra.
 func (x *WikiPageListItem) UnmarshalJSON(b []byte) error {
 	type alias WikiPageListItem
-	var a alias
+	var a struct {
+		alias
+		LegacyColony *string `json:"colony"`
+	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
-	*x = WikiPageListItem(a)
-	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	*x = WikiPageListItem(a.alias)
+	if x.Colony == nil {
+		x.Colony = a.LegacyColony
+	}
+	x.Extra = extraFields(b, reflect.TypeOf(a))
 	return nil
 }
 
 // UnmarshalJSON decodes a WikiPage and collects any unmodelled fields into Extra.
+//
+// It reads the deprecated `colony` as [WikiPageListItem.UnmarshalJSON] does.
 func (x *WikiPage) UnmarshalJSON(b []byte) error {
 	type alias WikiPage
-	var a alias
+	var a struct {
+		alias
+		LegacyColony *string `json:"colony"`
+	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
-	*x = WikiPage(a)
-	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	*x = WikiPage(a.alias)
+	if x.Colony == nil {
+		x.Colony = a.LegacyColony
+	}
+	x.Extra = extraFields(b, reflect.TypeOf(a))
 	return nil
 }
 

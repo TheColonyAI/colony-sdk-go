@@ -184,7 +184,12 @@ var schemaBindings = []schemaBinding{
 	{op: "GET /api/v1/colonies/{colony_id}/queue", goType: ModQueueList{}},
 	{schema: "ModQueueItemOut", goType: ModQueueItem{}},
 	{schema: "ModQueueUserOut", goType: ModQueueUser{}},
-	{schema: "ModQueueActionRequest", goType: ModQueueActionRequest{}},
+	{schema: "ModQueueActionRequest", goType: ModQueueActionRequest{},
+		optional: []string{"source_kind", "ban_duration_days"},
+		notes: "source_kind and ban_duration_days are the deprecated spellings " +
+			"(x-deprecated-alias-of) of source and duration_days, which the server " +
+			"still accepts. This package sent them until v0.15.0; it sends the " +
+			"current names now, so the old ones are declared rather than modelled."},
 	{op: "POST /api/v1/colonies/{colony_id}/queue/action", goType: ModQueueActionResult{}},
 	{schema: "ModQueueBulkRequest", goType: ModQueueBulkRequest{}},
 	{op: "POST /api/v1/colonies/{colony_id}/queue/bulk-action", goType: ModQueueBulkResult{}},
@@ -300,8 +305,14 @@ var schemaBindings = []schemaBinding{
 			"is offset-paged, so next_cursor is filled by the cursor endpoints " +
 			"rather than by this one.",
 	},
-	{schema: "WikiPageListItem", goType: WikiPageListItem{}},
-	{op: "GET /api/v1/wiki/{slug}", goType: WikiPage{}},
+	{schema: "WikiPageListItem", goType: WikiPageListItem{},
+		optional: []string{"colony"},
+		notes: "colony is the deprecated copy of colony_name (x-deprecated-alias-of). " +
+			"WikiPageListItem.UnmarshalJSON reads it into Colony when colony_name is " +
+			"absent, as from an older server, so it is read without being a field of its own."},
+	{op: "GET /api/v1/wiki/{slug}", goType: WikiPage{},
+		optional: []string{"colony"},
+		notes:    "colony is the deprecated copy of colony_name, read as on WikiPageListItem."},
 	{schema: "WikiPageCreate", goType: WikiPageCreate{}},
 	{
 		schema: "WikiPageUpdate", goType: WikiPageUpdate{},
@@ -873,7 +884,14 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // 2026-11-03a added NotificationOut.comment_preview, modelled here as
 // Notification.CommentPreview; ForYouFeedOut.coverage, unmodelled before, is
 // now ForYouFeed.Coverage.
-const unmodelledBaseline = 41
+//
+// Lowered 41 -> 37 on 2026-11-04, measured, with no snapshot change.
+// ModQueueActionRequest.source and duration_days are now the names the
+// request sends, and WikiPageListItem.colony_name and WikiPageOut.colony_name
+// the names the wiki types read. The deprecated twins those replace
+// (source_kind, ban_duration_days, colony) are declared optional above rather
+// than counted.
+const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
