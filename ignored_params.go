@@ -8,8 +8,8 @@ import (
 )
 
 // ignoredParamsHeader names each query parameter a request sent that its
-// route does not accept, and which therefore did nothing (platform,
-// 2026-11-02): an ignored filter answers with more than was asked for, an
+// route does not accept, and which therefore did nothing (platform release
+// 2026-11-03a): an ignored filter answers with more than was asked for, an
 // ignored page parameter with the first page again, both under a 200.
 // "..." stands for names the platform would not echo.
 const ignoredParamsHeader = "X-Colony-Ignored-Params"
