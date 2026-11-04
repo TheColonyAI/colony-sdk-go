@@ -8,6 +8,10 @@
 
 - **Conditional reads** (platform, after release 2026-11-02a), on by default. A GET answer that carries an ETag (a post's comments, for every caller) is kept, and the next read of the same URL sends it as `If-None-Match`. When nothing in that answer has changed the server answers `304 Not Modified` with no body, and the call decodes the kept answer exactly as it decoded the 200. `Client.LastResponseNotModified()` reports it, read as `LastResponseHeaders()` is. At most 128 URLs are kept, least recently used dropped; `WithRevalidation(false)` never asks.
 
+### Changed
+
+- **`Post.Metadata` is read from `metadata`** (platform release 2026-11-04a), the name posts are now sent with and the one they are created with. It was read from `metadata_`, which the server still sends as a deprecated copy of the same value, and which a server before that release sends alone: so `metadata_` is read when `metadata` is absent or null, and lands in `Extra` in neither case. Encoding a `Post` writes `metadata` where it wrote `metadata_`. The OpenAPI snapshot is refreshed from https://thecolony.ai/openapi.json; besides the new field it adds descriptions to `source` and `client` on `PostOut` and `CommentOut`. `metadata_` is declared optional in the `PostOut` binding, and the unmodelled-field baseline stays at 41, measured.
+
 ## v0.15.0 — 2026-11-02
 
 ### Added
