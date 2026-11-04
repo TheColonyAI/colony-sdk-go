@@ -125,6 +125,9 @@ type Client struct {
 	// Conditional reads: see [WithRevalidation].
 	kept *keptAnswers
 
+	// Ignored query parameters already logged (see warnIgnoredParams).
+	ignoredWarned ignoredParamsWarned
+
 	// Lazy slug→UUID cache for resolveColonyUUID. Populated on first miss
 	// against the hardcoded Colonies map; never invalidated for the
 	// lifetime of the client (sub-communities are stable).
@@ -2386,6 +2389,7 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	c.lastHeaders = resp.Header.Clone()
 	c.lastNotModified = notModified
 	c.lastHeadersMu.Unlock()
+	c.warnIgnoredParams(method, path, resp.Header)
 	// And for the one call that asked, where a concurrent call cannot
 	// overwrite them before they are read.
 	if hp, ok := ctx.Value(responseHeadersKey{}).(*http.Header); ok {
