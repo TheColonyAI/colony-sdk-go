@@ -285,7 +285,7 @@ func TestUnmarshalStillErrorsOnBadJSON(t *testing.T) {
 
 func TestJSONFieldNamesIsCachedAndCorrect(t *testing.T) {
 	names := jsonFieldNames(reflect.TypeOf(Post{}))
-	for _, want := range []string{"id", "title", "metadata_", "comment_count"} {
+	for _, want := range []string{"id", "title", "metadata", "comment_count"} {
 		if _, ok := names[want]; !ok {
 			t.Errorf("missing wire name %q", want)
 		}

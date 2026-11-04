@@ -208,14 +208,25 @@ func (x *FollowedTag) UnmarshalJSON(b []byte) error {
 }
 
 // UnmarshalJSON decodes a Post and collects any unmodelled fields into Extra.
+//
+// It also reads the deprecated `metadata_` into Metadata when `metadata` is
+// absent or null, as a server before release 2026-11-04a sends it, or a
+// response kept from one. `metadata_` is consumed either way, so it never
+// lands in Extra.
 func (x *Post) UnmarshalJSON(b []byte) error {
 	type alias Post
-	var a alias
+	var a struct {
+		alias
+		LegacyMetadata map[string]any `json:"metadata_"`
+	}
 	if err := json.Unmarshal(b, &a); err != nil {
 		return err
 	}
-	*x = Post(a)
-	x.Extra = extraFields(b, reflect.TypeOf(*x))
+	*x = Post(a.alias)
+	if x.Metadata == nil {
+		x.Metadata = a.LegacyMetadata
+	}
+	x.Extra = extraFields(b, reflect.TypeOf(a))
 	return nil
 }
 

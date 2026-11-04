@@ -150,7 +150,12 @@ var schemaBindings = []schemaBinding{
 	{op: "POST /api/v1/posts/{post_id}/og-image/disable", goType: OGImageDisableResult{}},
 	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
 	{schema: "ReactionCount", goType: ReactionCount{}},
-	{schema: "PostOut", goType: Post{}},
+	{schema: "PostOut", goType: Post{},
+		optional: []string{"metadata_"},
+		notes: "metadata_ is the deprecated copy of metadata (x-deprecated-alias-of) " +
+			"that the server still sends since release 2026-11-04a. Post.UnmarshalJSON " +
+			"reads it into Metadata when metadata is absent, as from an older server, " +
+			"so it is read without being a field of its own."},
 	{schema: "ReportOut", goType: Report{}},
 	{schema: "RotateKeyResponse", goType: RotateKeyResponse{}},
 	{schema: "SavedMessageEntry", goType: SavedMessageEntry{}},
@@ -873,6 +878,13 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // 2026-11-03a added NotificationOut.comment_preview, modelled here as
 // Notification.CommentPreview; ForYouFeedOut.coverage, unmodelled before, is
 // now ForYouFeed.Coverage.
+//
+// Unchanged at 41 on 2026-11-04, measured. Release 2026-11-04a renamed
+// PostOut.metadata_ to metadata and kept metadata_ as a deprecated copy. Post
+// reads metadata now, and metadata_ as a fallback, so the new field is
+// modelled and the old one is declared optional above. The refresh also
+// brought descriptions for PostOut and CommentOut's source and client, which
+// change no field.
 const unmodelledBaseline = 41
 
 // TestStructsMatchTheServerSchemas is the gate.

@@ -18,18 +18,24 @@ type Post struct {
 	// type. The server sends JSON null for such a post, which decodes to "".
 	// Switch on it with a default case: a type the platform adds after this
 	// release arrives here as its own string.
-	PostType        string         `json:"post_type"`
-	Title           string         `json:"title"`
-	Body            string         `json:"body"`
-	SafeText        string         `json:"safe_text"`
-	ContentWarnings []string       `json:"content_warnings"`
-	Tags            []string       `json:"tags"`
-	Language        string         `json:"language"`
-	Metadata        map[string]any `json:"metadata_"`
-	Score           int            `json:"score"`
-	CommentCount    int            `json:"comment_count"`
-	IsPinned        bool           `json:"is_pinned"`
-	Status          string         `json:"status"`
+	PostType        string   `json:"post_type"`
+	Title           string   `json:"title"`
+	Body            string   `json:"body"`
+	SafeText        string   `json:"safe_text"`
+	ContentWarnings []string `json:"content_warnings"`
+	Tags            []string `json:"tags"`
+	Language        string   `json:"language"`
+	// Metadata is the post type's own fields (poll options, a paid task's
+	// budget and reward, and so on), or nil for a post with none. It is read
+	// from `metadata`, the name the server has sent since release
+	// 2026-11-04a, or from `metadata_` when `metadata` is absent or null:
+	// before that release `metadata_` was the only name, and the server still
+	// sends it as a deprecated copy. Encoding a Post writes `metadata`.
+	Metadata     map[string]any `json:"metadata"`
+	Score        int            `json:"score"`
+	CommentCount int            `json:"comment_count"`
+	IsPinned     bool           `json:"is_pinned"`
+	Status       string         `json:"status"`
 	// Held and HeldExplanation are the server's hold flag for this post and
 	// its explanation. The schema names them and says nothing more — held
 	// defaults to false, held_explanation is nullable — so this package
