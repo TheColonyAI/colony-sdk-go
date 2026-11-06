@@ -36,8 +36,6 @@ var knownRequestFindings = map[string]string{
 	"route_unmatched: MarkCommentScanned PUT /comments/{}/sentinel-scanned": "served but undeclared (#70 allowlist, probe evidence)",
 	"route_unmatched: MovePostToColony PUT /posts/{}/colony":                "served but undeclared (#70 allowlist, probe evidence)",
 	"deprecated_body: MarkConversationSpam reason_code -> reason":           "#73",
-	"deprecated_body: ModQueueAction source_kind -> source":                 "#73",
-	"deprecated_body: ModQueueBulkAction items[].source_kind -> source":     "#73",
 	"deprecated_query: GetModQueue page_size -> limit":                      "#73",
 	"deprecated_query: GetModQueue queue_status -> status":                  "#73",
 	"id_under_name: Search colony":                                          "#73: an id goes as colony=, which the server reads as a name (404)",

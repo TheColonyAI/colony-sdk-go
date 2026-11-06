@@ -259,8 +259,14 @@ func (c *Client) GetModQueue(ctx context.Context, colony string, opts *ModQueueO
 //
 // SourceKind and SourceID are copied from the [ModQueueItem] you are acting
 // on. Action must be one the row's kind accepts.
+//
+// SourceKind is sent as `source` and BanDurationDays as `duration_days`, the
+// names the server's request schema declares. It still accepts the older
+// `source_kind` and `ban_duration_days`, which this type sent until v0.15.0,
+// as deprecated spellings. Responses still say `source_kind`, so
+// [ModQueueItem], [ModQueueActionResult] and [ModQueueBulkFailure] read that.
 type ModQueueActionRequest struct {
-	SourceKind QueueSource `json:"source_kind"`
+	SourceKind QueueSource `json:"source"`
 	SourceID   string      `json:"source_id"`
 	Action     QueueAction `json:"action"`
 	// ReasonID names a removal-reason template from the colony's configured
@@ -276,7 +282,7 @@ type ModQueueActionRequest struct {
 	// maximum 30 for this field, which is where "1 to 30" came from; the
 	// closed set is enforced below the schema, so a client reading only the
 	// machine-readable half cannot see it.
-	BanDurationDays *int `json:"ban_duration_days,omitempty"`
+	BanDurationDays *int `json:"duration_days,omitempty"`
 }
 
 // ModQueueActionResult is what one applied action did.

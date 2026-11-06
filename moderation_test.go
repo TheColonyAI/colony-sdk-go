@@ -402,8 +402,18 @@ func TestModQueueActionValidation(t *testing.T) {
 		if err := json.Unmarshal(rec.body, &sent); err != nil {
 			t.Fatalf("body: %v", err)
 		}
-		if sent["ban_duration_days"] != float64(7) {
-			t.Errorf("ban_duration_days = %v, want 7", sent["ban_duration_days"])
+		if sent["duration_days"] != float64(7) {
+			t.Errorf("duration_days = %v, want 7", sent["duration_days"])
+		}
+		if sent["source"] != string(QueueSourceOpenReport) {
+			t.Errorf("source = %v, want %q", sent["source"], QueueSourceOpenReport)
+		}
+		// The deprecated spellings, which the server still accepts but whose
+		// request schema no longer lists as the names to send.
+		for _, old := range []string{"ban_duration_days", "source_kind"} {
+			if _, ok := sent[old]; ok {
+				t.Errorf("the request still sends the deprecated %q: %s", old, rec.body)
+			}
 		}
 	})
 }
@@ -492,6 +502,37 @@ func TestBulkPartialSuccessIsNotAnError(t *testing.T) {
 	// The cascade is the number a moderator's own tally disagrees with.
 	if got := len(res.Succeeded[0].CascadedReportIDs); got != 2 {
 		t.Errorf("cascaded_report_ids = %d, want 2", got)
+	}
+}
+
+// TestModQueueBulkItemsSendSource pins the bulk body's item names: each item
+// is a ModQueueActionRequest, so it says `source`, as the single action does,
+// and not the deprecated `source_kind`.
+func TestModQueueBulkItemsSendSource(t *testing.T) {
+	c, rec := modServer(t, http.StatusOK, `{"succeeded":[],"failed":[]}`)
+	srcID := "12345678-1234-1234-1234-123456789abc"
+	_, err := c.ModQueueBulkAction(context.Background(), "general", ModQueueBulkRequest{
+		Items: []ModQueueActionRequest{{
+			SourceKind: QueueSourceAutomodRemovedPost, SourceID: srcID, Action: QueueActionRestore,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(rec.body, &sent); err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	if len(sent.Items) != 1 {
+		t.Fatalf("items = %d, want 1: %s", len(sent.Items), rec.body)
+	}
+	if sent.Items[0]["source"] != string(QueueSourceAutomodRemovedPost) {
+		t.Errorf("items[0].source = %v, want %q", sent.Items[0]["source"], QueueSourceAutomodRemovedPost)
+	}
+	if _, ok := sent.Items[0]["source_kind"]; ok {
+		t.Errorf("items[0] still sends the deprecated source_kind: %s", rec.body)
 	}
 }
 
