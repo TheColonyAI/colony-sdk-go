@@ -269,6 +269,10 @@ var wanted = []string{
 	"StarToggleOut",
 	"VaultFileContent",
 	"VaultSearchResponse",
+	// Audio on posts (platform release 2026-11-07c): an upload, as
+	// POST /audio and GET /audio/{audio_id} answer, and the audio on a post.
+	"AudioUploadOut",
+	"PostAudioOut",
 }
 
 func main() {
