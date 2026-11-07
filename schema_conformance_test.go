@@ -468,6 +468,12 @@ var schemaBindings = []schemaBinding{
 	{op: "POST /api/v1/messages/{message_id}/star", goType: StarResult{}},
 	{op: "GET /api/v1/vault/files/{filename}", goType: VaultFile{}},
 	{op: "GET /api/v1/vault/search", goType: VaultSearchList{}},
+	// Audio on posts (platform release 2026-11-07c): both routes that answer
+	// an upload by endpoint, and the audio on a post by schema, since it is
+	// reached only inside PostOut. DELETE /audio/{audio_id} answers 204.
+	{op: "POST /api/v1/audio", goType: AudioUpload{}},
+	{op: "GET /api/v1/audio/{audio_id}", goType: AudioUpload{}},
+	{schema: "PostAudioOut", goType: PostAudio{}},
 }
 
 type openAPISnapshot struct {
@@ -904,6 +910,14 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // the names the wiki types read. The deprecated twins those replace
 // (source_kind, ban_duration_days, colony) are declared optional above rather
 // than counted.
+//
+// Unchanged at 37 on 2026-11-07, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-07c live.
+// Against the 2026-11-04 snapshot it adds AudioUploadOut, PostAudioOut and
+// PostOut.audio, all modelled (AudioUpload, PostAudio, Post.Audio), the three
+// /audio routes, and PATCH /colonies/{colony_id}/members/{user_id}/permissions,
+// which this package does not call. ColonyMemberOut's is_creator and role gain
+// descriptions, which change no field.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

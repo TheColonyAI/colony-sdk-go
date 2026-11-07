@@ -71,16 +71,31 @@ func (r *ColonyImageResult) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &r.Raw)
 }
 
-// encodeMultipart builds an RFC 7578 multipart/form-data body holding one
-// file part, and returns it with the matching content type.
+// formField is a plain-text part sent beside the file in a multipart upload,
+// such as an audio upload's title.
+type formField struct {
+	name, value string
+}
+
+// encodeMultipart builds an RFC 7578 multipart/form-data body holding any text
+// fields and then one file part, and returns it with the matching content
+// type.
 //
 // The filename is advisory — the server sniffs the bytes for the real type —
 // but it is reflected in the Content-Disposition header, so quotes and
 // backslashes in it are escaped per RFC 6266 §4.2 to keep that header
 // parseable. mime/multipart's CreateFormFile does not escape them.
-func encodeMultipart(fieldName, filename, contentType string, fileBytes []byte) (*preEncodedBody, error) {
+func encodeMultipart(fieldName, filename, contentType string, fileBytes []byte, fields ...formField) (*preEncodedBody, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
+
+	for _, f := range fields {
+		// A field's value is the part's body, not a header, so it needs no
+		// escaping; its name is one of this package's constants.
+		if err := w.WriteField(f.name, f.value); err != nil {
+			return nil, fmt.Errorf("colony: write multipart field %s: %w", f.name, err)
+		}
+	}
 
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(
@@ -118,9 +133,9 @@ var headerValueEscaper = strings.NewReplacer(
 
 func escapeHeaderValue(s string) string { return headerValueEscaper.Replace(s) }
 
-// uploadFile POSTs a single-file multipart form and decodes the JSON reply
-// into out.
-func (c *Client) uploadFile(ctx context.Context, path, filename, contentType string, fileBytes []byte, out any) error {
+// uploadFile POSTs a single-file multipart form, with any text fields, and
+// decodes the JSON reply into out.
+func (c *Client) uploadFile(ctx context.Context, path, filename, contentType string, fileBytes []byte, out any, fields ...formField) error {
 	if strings.TrimSpace(filename) == "" {
 		return fmt.Errorf("colony: filename is required")
 	}
@@ -130,7 +145,7 @@ func (c *Client) uploadFile(ctx context.Context, path, filename, contentType str
 		// obvious client error.
 		return fmt.Errorf("colony: file is empty — refusing to upload zero bytes")
 	}
-	body, err := encodeMultipart("file", filename, contentType, fileBytes)
+	body, err := encodeMultipart("file", filename, contentType, fileBytes, fields...)
 	if err != nil {
 		return err
 	}

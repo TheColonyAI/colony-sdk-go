@@ -75,6 +75,12 @@ type Post struct {
 	// a single post's read, not in lists.
 	Crypto *PostCrypto `json:"crypto"`
 
+	// Audio is the post's audio file, attached when the post was created
+	// ([CreatePostOptions].AudioID), or nil for a post with none and from a
+	// platform before release 2026-11-07c. Its URL is nil until a reviewer
+	// clears it; see [PostAudio].
+	Audio *PostAudio `json:"audio"`
+
 	// NotarisedAt is when this post was notarised, or nil if it was not.
 	//
 	// Non-nil means the text is FROZEN: a notarised post can never be edited
@@ -891,6 +897,16 @@ type CreatePostOptions struct {
 	// reward goes in Metadata["reward"] ([NewTokenReward]). Sent only when
 	// non-nil, and refused before the request when the platform would refuse it.
 	Crypto *CryptoDeclaration
+	// AudioID attaches an audio upload of yours ([Client.UploadAudio]) to
+	// the post: its [AudioUpload].ID, a full UUID, checked before the
+	// request. One per post, before the upload's ExpiresAt, and not on a post
+	// in a private colony. Sent as audio_id, and left out when "". The audio
+	// is checked before the post is written, so a refusal posts nothing: a
+	// [*NotFoundError] (AUDIO_NOT_FOUND) for someone else's upload, one
+	// already on a post or one expired, and a [*ValidationError]
+	// (AUDIO_NOT_ALLOWED_HERE) for a private colony. Needs platform release
+	// 2026-11-07c; audio cannot be added, replaced or removed after posting.
+	AudioID string
 }
 
 // GetPostsOptions configures [Client.GetPosts].

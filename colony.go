@@ -420,12 +420,16 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 // read [Post.PostType] on the result rather than assuming "". The refusal the
 // server uses for that switch, 403 POST_TYPELESS_DISABLED ([AuthError]),
 // answers only an explicit JSON null post_type, which this method never sends.
+//
+// Set [CreatePostOptions.AudioID] to attach an MP3 uploaded with
+// [Client.UploadAudio]; the result's [Post.Audio] then describes it.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
 	var crypto *CryptoDeclaration
+	var audioID string
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -434,11 +438,18 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		metadata = opts.Metadata
 		ogImageDisabled = opts.OGImageDisabled
 		crypto = opts.Crypto
+		audioID = opts.AudioID
 	}
 	if crypto != nil {
 		if err := crypto.validate(); err != nil {
 			return nil, err
 		}
+	}
+	// Checked here, before the colony is resolved, so a refused id costs no
+	// request. The platform would refuse it with a 422 and post nothing.
+	if audioID != "" && !uuidRe.MatchString(audioID) {
+		return nil, fmt.Errorf(
+			"colony: AudioID must be an audio upload's id, a full 8-4-4-4-12 UUID (AudioUpload.ID), got %q", audioID)
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
 	if err != nil {
@@ -462,6 +473,9 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if crypto != nil {
 		reqBody["crypto"] = crypto
+	}
+	if audioID != "" {
+		reqBody["audio_id"] = audioID
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
