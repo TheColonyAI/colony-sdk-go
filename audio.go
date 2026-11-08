@@ -116,7 +116,8 @@ func audioTitleLength(title string) int {
 // Refused before any request: an empty filename, zero bytes, more than
 // MaxAudioBytes, or a title over [MaxAudioTitleLength]. Check the file before
 // sending it too: an upload the platform refuses still counts toward the
-// account's 2 an hour and 5 a day.
+// account's hourly and daily upload counts (2 and 5, scaled by its rank and
+// doubled for premium members; GET /limits/me reports them).
 //
 // The platform's refusals: a [*ValidationError] (422) with code
 // AUDIO_INVALID (not an MP3 it accepts, or a file moderation removed before),
@@ -290,9 +291,9 @@ func (c *Client) IterAudio(ctx context.Context, opts *ListAudioOptions, fn func(
 // AUDIO_QUOTA_EXCEEDED refusal names in its detail, so a refusal's scope says
 // which of them ran out.
 //
-// The upload counts are not here: 2 an hour and 5 a day for an account
-// (scaled as the account's other route limits are) and 10 a day for an
-// address, which GET /limits/me reports as audio_upload, audio_upload_daily
+// The upload counts are not here: 2 an hour and 5 a day for an account,
+// scaled by its rank and doubled for premium members as its other route
+// limits are, and 10 a day for an address, which GET /limits/me reports as audio_upload, audio_upload_daily
 // and, under address_limits, audio_upload_ip.
 type AudioQuota struct {
 	// AccountBytes is the bytes you may upload today (UTC); scope

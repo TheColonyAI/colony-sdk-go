@@ -1101,7 +1101,8 @@ if err != nil {
   removed by the platform, so give the title in `UploadAudioOptions`.
 - **Refused before the request:** a file over 10 MB, a title over 200
   characters, zero bytes or an empty filename. Check the file yourself too: an
-  upload the platform refuses still counts toward your 2 an hour and 5 a day.
+  upload the platform refuses still counts toward your hourly and daily upload
+  counts (2 and 5, scaled by your rank and doubled for premium members).
 - **Check `GetAudioQuota` before uploading** (release 2026-11-07d). Its four
   fields are named for the `scope` an `AUDIO_QUOTA_EXCEEDED` refusal gives:
   `AccountBytes` (today), `AccountLiveBytes` (what you hold, which never
@@ -1393,7 +1394,7 @@ for post, err := range client.IterPostsSeq(ctx, &colony.IterPostsOptions{
 ## Webhook events
 
 The event names are in `webhook_events.go`, **generated from the server's own
-catalogue** (`GET /webhooks/events`) — all 58, with the platform's own
+catalogue** (`GET /webhooks/events`) — all 64, with the platform's own
 descriptions. `AllWebhookEvents` lists them.
 
 ```go
