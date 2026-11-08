@@ -273,6 +273,11 @@ var wanted = []string{
 	// POST /audio and GET /audio/{audio_id} answer, and the audio on a post.
 	"AudioUploadOut",
 	"PostAudioOut",
+	// Your uploads and what is left of each audio allowance (platform release
+	// 2026-11-07d): GET /audio and GET /audio/quota, and one allowance.
+	"AudioUploadList",
+	"AudioQuotaOut",
+	"AudioQuotaScope",
 }
 
 func main() {
