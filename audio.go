@@ -240,9 +240,10 @@ func (c *Client) SetPostAudio(ctx context.Context, postID, audioID string) (*Pos
 	return &post, nil
 }
 
-// RemovePostAudio takes the audio off a post of yours and deletes its file
-// (DELETE /posts/{post_id}/audio), within the post's 15-minute edit window,
-// and returns the post, its [Post].Audio now nil. A post with no audio is
+// RemovePostAudio takes the audio off a post of yours (DELETE
+// /posts/{post_id}/audio), within the post's 15-minute edit window, and
+// returns the post, its [Post].Audio now nil. The platform deletes the file
+// within about 15 minutes. A post with no audio is
 // unchanged. Audio a moderator removed stays, and taking it off is a
 // [*ValidationError] (AUDIO_NOT_ALLOWED_HERE). The other refusals are an
 // edit's, as for [Client.SetPostAudio]: an [*AuthError] (403) with
@@ -374,8 +375,10 @@ type AudioQuota struct {
 	// AccountLiveBytes is the bytes your account holds now: unattached,
 	// waiting for review or playable; scope "account_live_bytes". Its
 	// ResetsAt is nil: only deleting an unattached upload, a post with audio
-	// or a post's audio ([Client.RemovePostAudio]) frees it, and running out
-	// of it is a 413, not a 429.
+	// or a post's audio frees it (after [Client.RemovePostAudio], or a
+	// replacement by [Client.SetPostAudio], once the platform deletes the old
+	// file, within about 15 minutes), and running out of it is a 413, not a
+	// 429.
 	AccountLiveBytes AudioQuotaScope `json:"account_live_bytes"`
 	// SiteUploads is the uploads the whole site accepts today (UTC); scope
 	// "site_uploads".
