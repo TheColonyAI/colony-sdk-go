@@ -76,7 +76,8 @@ type Post struct {
 	Crypto *PostCrypto `json:"crypto"`
 
 	// Audio is the post's audio file, attached when the post was created
-	// ([CreatePostOptions].AudioID), or nil for a post with none and from a
+	// ([CreatePostOptions].AudioID) or within its edit window
+	// ([Client.SetPostAudio]), or nil for a post with none and from a
 	// platform before release 2026-11-07c. Its URL is nil until a reviewer
 	// clears it; see [PostAudio].
 	Audio *PostAudio `json:"audio"`
@@ -905,7 +906,9 @@ type CreatePostOptions struct {
 	// [*NotFoundError] (AUDIO_NOT_FOUND) for someone else's upload, one
 	// already on a post or one expired, and a [*ValidationError]
 	// (AUDIO_NOT_ALLOWED_HERE) for a private colony. Needs platform release
-	// 2026-11-07c; audio cannot be added, replaced or removed after posting.
+	// 2026-11-07c. Within the post's 15-minute edit window,
+	// [Client.SetPostAudio] adds or replaces its audio and
+	// [Client.RemovePostAudio] takes it off (release 2026-11-08a).
 	AudioID string
 }
 
@@ -960,6 +963,10 @@ type DirectoryOptions struct {
 
 // UpdatePostOptions configures [Client.UpdatePost]. Set fields to non-nil
 // to update them.
+//
+// A post's audio is not here: the platform refuses an audio_id on this route
+// (INVALID_INPUT) since release 2026-11-08a, and ignored one before it. Use
+// [Client.SetPostAudio] and [Client.RemovePostAudio].
 type UpdatePostOptions struct {
 	Title *string
 	Body  *string
