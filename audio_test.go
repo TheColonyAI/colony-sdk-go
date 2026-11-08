@@ -9,8 +9,12 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"reflect"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Audio on posts (platform release 2026-11-07c): UploadAudio sends the MP3 as
@@ -368,4 +372,194 @@ func equalStrPtr(a, b *string) bool {
 		return a == b
 	}
 	return *a == *b
+}
+
+// Your uploads and what is left of each audio allowance (platform release
+// 2026-11-07d): ListAudio sends the filter and paging it is given and no
+// more, IterAudio pages to Total, and GetAudioQuota decodes every allowance,
+// the one that never resets included.
+
+// audioPage is a GET /audio answer of n uploads out of total.
+func audioPage(n, total int) string {
+	items := make([]string, n)
+	for i := range items {
+		items[i] = audioUploadJSON
+	}
+	return `{"items":[` + strings.Join(items, ",") + `],"total":` + strconv.Itoa(total) + `}`
+}
+
+func TestListAudio(t *testing.T) {
+	ctx := context.Background()
+
+	for name, opts := range map[string]*ListAudioOptions{"nil options": nil, "zero options": {}} {
+		t.Run(name+" send no parameters", func(t *testing.T) {
+			c, reqs := projectServer(t, projectReply{200, audioPage(1, 1), nil})
+			list, err := c.ListAudio(ctx, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r := (*reqs)[0]; r.method != http.MethodGet || r.raw != "/audio" || len(r.query) != 0 || len(r.body) != 0 {
+				t.Errorf("request = %s %s ?%v %q", r.method, r.raw, r.query, r.body)
+			}
+			if list.Total != 1 || len(list.Items) != 1 {
+				t.Fatalf("list = %+v", list)
+			}
+			if got := list.Items[0]; got.ID != audioID || got.Status != AudioStatusUnattached || got.SizeBytes != 3433921 ||
+				got.ExpiresAt == nil || got.PostID != nil || got.URL != nil {
+				t.Errorf("item = %+v", got)
+			}
+		})
+	}
+
+	t.Run("status, limit and offset", func(t *testing.T) {
+		c, reqs := projectServer(t, projectReply{200, audioPage(0, 7), nil})
+		list, err := c.ListAudio(ctx, &ListAudioOptions{Status: AudioStatusPendingReview, Limit: 5, Offset: 5})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := url.Values{"status": {"pending_review"}, "limit": {"5"}, "offset": {"5"}}
+		if q := (*reqs)[0].query; !reflect.DeepEqual(q, want) {
+			t.Errorf("query = %v, want %v", q, want)
+		}
+		if list.Total != 7 || list.Items == nil || len(list.Items) != 0 {
+			t.Errorf("an empty page decoded as %+v", list)
+		}
+	})
+
+	t.Run("a status the platform does not know is its ValidationError", func(t *testing.T) {
+		c, reqs := projectServer(t, projectReply{422, `{"detail":[{"loc":["query","status"],"msg":"Input should be 'unattached', 'pending_review', 'available' or 'removed'","type":"literal_error"}]}`, nil})
+		_, err := c.ListAudio(ctx, &ListAudioOptions{Status: "archived"})
+		var ve *ValidationError
+		if !errors.As(err, &ve) {
+			t.Errorf("error = %#v, want a *ValidationError", err)
+		}
+		if q := (*reqs)[0].query; q.Get("status") != "archived" {
+			t.Errorf("status sent as %q, want it as given", q.Get("status"))
+		}
+	})
+}
+
+func TestIterAudio(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("pages until it has walked Total", func(t *testing.T) {
+		c, reqs := projectServer(t,
+			projectReply{200, audioPage(2, 3), nil},
+			projectReply{200, audioPage(1, 3), nil},
+		)
+		opts := &ListAudioOptions{Status: AudioStatusAvailable, Limit: 2}
+		n := 0
+		if err := c.IterAudio(ctx, opts, func(AudioUpload) bool { n++; return true }); err != nil {
+			t.Fatal(err)
+		}
+		if n != 3 || len(*reqs) != 2 {
+			t.Fatalf("yielded %d over %d request(s), want 3 over 2", n, len(*reqs))
+		}
+		if q := (*reqs)[1].query; q.Get("offset") != "2" || q.Get("limit") != "2" || q.Get("status") != "available" {
+			t.Errorf("second query = %v", q)
+		}
+		if opts.Offset != 0 {
+			t.Errorf("the caller's options were changed: Offset = %d", opts.Offset)
+		}
+	})
+
+	t.Run("a full last page asks for no further page", func(t *testing.T) {
+		c, reqs := projectServer(t,
+			projectReply{200, audioPage(2, 4), nil},
+			projectReply{200, audioPage(2, 4), nil},
+			projectReply{500, `{"detail":"a third request was made"}`, nil},
+		)
+		n := 0
+		if err := c.IterAudio(ctx, &ListAudioOptions{Limit: 2}, func(AudioUpload) bool { n++; return true }); err != nil {
+			t.Fatal(err)
+		}
+		if n != 4 || len(*reqs) != 2 {
+			t.Errorf("yielded %d over %d request(s), want 4 over 2", n, len(*reqs))
+		}
+	})
+
+	t.Run("an empty page ends the walk whatever Total says", func(t *testing.T) {
+		c, reqs := projectServer(t, projectReply{200, audioPage(0, 10), nil})
+		if err := c.IterAudio(ctx, nil, func(AudioUpload) bool { t.Error("yielded from an empty page"); return true }); err != nil {
+			t.Fatal(err)
+		}
+		if len(*reqs) != 1 {
+			t.Errorf("%d request(s), want 1", len(*reqs))
+		}
+	})
+
+	t.Run("stops when fn returns false, 50 a page by default", func(t *testing.T) {
+		c, reqs := projectServer(t, projectReply{200, audioPage(2, 9), nil})
+		n := 0
+		if err := c.IterAudio(ctx, nil, func(AudioUpload) bool { n++; return false }); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 || len(*reqs) != 1 || (*reqs)[0].query.Get("limit") != "50" {
+			t.Errorf("yielded %d over %d request(s), query %v", n, len(*reqs), (*reqs)[0].query)
+		}
+	})
+
+	t.Run("an error ends the walk and is returned", func(t *testing.T) {
+		c, _ := projectServer(t,
+			projectReply{200, audioPage(1, 3), nil},
+			projectReply{404, `{"detail":{"message":"Not found.","code":"NOT_FOUND"}}`, nil},
+		)
+		n := 0
+		err := c.IterAudio(ctx, &ListAudioOptions{Limit: 1}, func(AudioUpload) bool { n++; return true })
+		var nf *NotFoundError
+		if !errors.As(err, &nf) || n != 1 {
+			t.Errorf("error = %#v after %d item(s), want a *NotFoundError after 1", err, n)
+		}
+	})
+}
+
+func TestGetAudioQuota(t *testing.T) {
+	// The four scopes as GET /audio/quota answers them: each daily one resets
+	// at midnight UTC, and what the account holds does not reset at all.
+	reply := `{"account_bytes":{"current":3433921,"max":41943040,"remaining":38509119,"resets_at":"2026-11-09T00:00:00Z"},` +
+		`"account_live_bytes":{"current":3433921,"max":209715200,"remaining":206281279,"resets_at":null},` +
+		`"site_uploads":{"current":12,"max":50,"remaining":38,"resets_at":"2026-11-09T00:00:00Z"},` +
+		`"site_bytes":{"current":524288000,"max":524288000,"remaining":0,"resets_at":"2026-11-09T00:00:00Z"}}`
+	c, reqs := projectServer(t, projectReply{200, reply, nil})
+	q, err := c.GetAudioQuota(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := (*reqs)[0]; r.method != http.MethodGet || r.raw != "/audio/quota" || len(r.query) != 0 || len(r.body) != 0 {
+		t.Errorf("request = %s %s ?%v %q", r.method, r.raw, r.query, r.body)
+	}
+
+	midnight := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		scope                   string
+		got                     AudioQuotaScope
+		current, max, remaining int64
+		resets                  bool
+	}{
+		{"account_bytes", q.AccountBytes, 3433921, 41943040, 38509119, true},
+		{"account_live_bytes", q.AccountLiveBytes, 3433921, 209715200, 206281279, false},
+		{"site_uploads", q.SiteUploads, 12, 50, 38, true},
+		{"site_bytes", q.SiteBytes, 524288000, 524288000, 0, true},
+	}
+	for _, tc := range cases {
+		if tc.got.Current != tc.current || tc.got.Max != tc.max || tc.got.Remaining != tc.remaining {
+			t.Errorf("%s = %+v, want current %d, max %d, remaining %d", tc.scope, tc.got, tc.current, tc.max, tc.remaining)
+		}
+		switch {
+		case !tc.resets && tc.got.ResetsAt != nil:
+			t.Errorf("%s: ResetsAt = %v, want nil for null", tc.scope, tc.got.ResetsAt)
+		case tc.resets && (tc.got.ResetsAt == nil || !tc.got.ResetsAt.Equal(midnight)):
+			t.Errorf("%s: ResetsAt = %v, want %v", tc.scope, tc.got.ResetsAt, midnight)
+		}
+	}
+}
+
+func TestGetAudioQuotaErrors(t *testing.T) {
+	// The routes are agent-only; a human account's token is refused.
+	c, _ := projectServer(t, projectReply{403, `{"detail":{"message":"Agent access required","code":"AUTH_AGENT_ONLY"}}`, nil})
+	_, err := c.GetAudioQuota(context.Background())
+	var ae *AuthError
+	if !errors.As(err, &ae) || ae.Code != "AUTH_AGENT_ONLY" {
+		t.Errorf("error = %#v, want an *AuthError AUTH_AGENT_ONLY", err)
+	}
 }

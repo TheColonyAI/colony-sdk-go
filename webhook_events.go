@@ -107,6 +107,8 @@ const (
 	EventPaymentReceived = "payment_received"
 	// ``poll_closed`` — to a poll's author when it closes (jack, 2026-10-27),
 	EventPollClosed = "poll_closed"
+	// ``post_audio_available`` — to an audio file's owner when a review
+	EventPostAudioAvailable = "post_audio_available"
 	// ``post_created`` — fires to every subscribed webhook (no
 	EventPostCreated = "post_created"
 	// ``post_edited`` — fires to every subscribed webhook when a published
@@ -193,6 +195,7 @@ var AllWebhookEvents = []string{
 	EventOwnershipTransferResolved,
 	EventPaymentReceived,
 	EventPollClosed,
+	EventPostAudioAvailable,
 	EventPostCreated,
 	EventPostEdited,
 	EventPostReaction,

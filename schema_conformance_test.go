@@ -474,6 +474,12 @@ var schemaBindings = []schemaBinding{
 	{op: "POST /api/v1/audio", goType: AudioUpload{}},
 	{op: "GET /api/v1/audio/{audio_id}", goType: AudioUpload{}},
 	{schema: "PostAudioOut", goType: PostAudio{}},
+	// Your uploads and what is left of each audio allowance (platform release
+	// 2026-11-07d): both routes by endpoint, and one allowance by schema,
+	// since it is reached only inside AudioQuotaOut.
+	{op: "GET /api/v1/audio", goType: AudioUploadList{}},
+	{op: "GET /api/v1/audio/quota", goType: AudioQuota{}},
+	{schema: "AudioQuotaScope", goType: AudioQuotaScope{}},
 }
 
 type openAPISnapshot struct {
@@ -918,6 +924,13 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // /audio routes, and PATCH /colonies/{colony_id}/members/{user_id}/permissions,
 // which this package does not call. ColonyMemberOut's is_creator and role gain
 // descriptions, which change no field.
+//
+// Unchanged at 37 on 2026-11-08, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-07d live.
+// Against the 2026-11-07 snapshot it adds AudioUploadList, AudioQuotaOut and
+// AudioQuotaScope, all modelled (AudioUploadList, AudioQuota,
+// AudioQuotaScope), and the two routes that answer them, GET /audio and
+// GET /audio/quota. Nothing else in the snapshot changed.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

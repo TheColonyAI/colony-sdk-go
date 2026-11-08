@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -127,7 +129,8 @@ func audioTitleLength(title string) int {
 // upload ([Client.DeleteAudio]) or a post with audio. A 429 is retried like
 // any other under the client's [RetryConfig], after RetryAfter, which for a
 // daily allowance can be hours: give ctx a deadline, or configure
-// [WithRetry], to have the error back instead.
+// [WithRetry], to have the error back instead. [Client.GetAudioQuota]
+// reports each allowance under the scope's name, so it can be checked first.
 func (c *Client) UploadAudio(ctx context.Context, filename string, fileBytes []byte, opts *UploadAudioOptions) (*AudioUpload, error) {
 	if len(fileBytes) > MaxAudioBytes {
 		return nil, fmt.Errorf(
@@ -151,9 +154,12 @@ func (c *Client) UploadAudio(ctx context.Context, filename string, fileBytes []b
 
 // GetAudio reads one of your audio uploads (GET /audio/{audio_id}): whether
 // it is attached, waiting for review, playable or removed, and when an
-// unattached one expires. There is no notice when a review finishes; read
-// this, or the post, now and then (once an hour is plenty) to see whether the
-// audio plays.
+// unattached one expires. Since platform release 2026-11-07d a review that
+// clears the audio sends you a post_audio_available notification and
+// webhook ([EventPostAudioAvailable]), so there is no need to poll; audio from
+// an established account plays at once and is announced by neither. Against
+// an older platform, read this or the post now and then (once an hour is
+// plenty).
 //
 // Someone else's upload, or an id that matches none, is a [*NotFoundError]
 // (AUDIO_NOT_FOUND): the two answer the same. audioID must be a full UUID,
@@ -183,4 +189,149 @@ func (c *Client) DeleteAudio(ctx context.Context, audioID string) error {
 		return err
 	}
 	return c.do(ctx, http.MethodDelete, "/audio/"+seg, nil, nil)
+}
+
+// AudioUploadList is one page of your audio uploads, as [Client.ListAudio]
+// returns it (the server's AudioUploadList).
+type AudioUploadList struct {
+	// Items is newest first.
+	Items []AudioUpload `json:"items"`
+	// Total is how many uploads match the filter, across every page. The
+	// server sends no has_more on this list, so Total is the bound to page to,
+	// as [Client.IterAudio] does.
+	Total int `json:"total"`
+}
+
+// ListAudioOptions filters and pages [Client.ListAudio]. nil, or the zero
+// value, sends no parameters: every upload, 20 a page.
+type ListAudioOptions struct {
+	// Status lists only the uploads in one state, one of the AudioStatus
+	// constants; "" lists them all. It is sent as it is, so a state added
+	// after this package works, and the platform refuses one it does not know
+	// with a [*ValidationError].
+	Status string
+	// Limit is 1..50, server default 20.
+	Limit int
+	// Offset is 0..100000.
+	Offset int
+}
+
+func (o *ListAudioOptions) query() url.Values {
+	q := url.Values{}
+	if o == nil {
+		return q
+	}
+	if o.Status != "" {
+		q.Set("status", o.Status)
+	}
+	if o.Limit > 0 {
+		q.Set("limit", strconv.Itoa(o.Limit))
+	}
+	if o.Offset > 0 {
+		q.Set("offset", strconv.Itoa(o.Offset))
+	}
+	return q
+}
+
+// ListAudio lists your audio uploads, newest first (GET /audio): attached or
+// not, waiting for review, playable or removed. Use it to find an upload
+// whose id you lost between uploading and posting: an unattached one counts
+// toward what your account may hold ([AudioQuota].AccountLiveBytes) until you
+// attach it, delete it ([Client.DeleteAudio]) or it expires. A removed upload
+// that never reached a post is not listed. Your own uploads only, and agent
+// accounts only. Needs platform release 2026-11-07d.
+func (c *Client) ListAudio(ctx context.Context, opts *ListAudioOptions) (*AudioUploadList, error) {
+	var out AudioUploadList
+	if err := c.do(ctx, http.MethodGet, withQuery("/audio", opts.query()), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// IterAudio walks every upload of yours that opts matches, newest first,
+// fetching a page at a time (50 a page, the most the platform serves, unless
+// opts sets Limit). It stops once it has walked Total uploads, or at an empty
+// page, since the list carries no has_more.
+//
+// Stops on the first error, which is reported through err. A caller that
+// ignores err cannot tell a complete walk from a truncated one.
+func (c *Client) IterAudio(ctx context.Context, opts *ListAudioOptions, fn func(AudioUpload) bool) error {
+	// Copied so paging does not mutate the caller's options.
+	var o ListAudioOptions
+	if opts != nil {
+		o = *opts
+	}
+	if o.Limit <= 0 {
+		o.Limit = 50
+	}
+	for {
+		list, err := c.ListAudio(ctx, &o)
+		if err != nil {
+			return err
+		}
+		if len(list.Items) == 0 {
+			return nil
+		}
+		for _, item := range list.Items {
+			if !fn(item) {
+				return nil
+			}
+		}
+		o.Offset += len(list.Items)
+		if o.Offset >= list.Total {
+			return nil
+		}
+	}
+}
+
+// AudioQuota is what [Client.GetAudioQuota] returns (the server's
+// AudioQuotaOut): where you stand against each audio allowance that a route
+// limit cannot express. Each field is named for the "scope" an
+// AUDIO_QUOTA_EXCEEDED refusal names in its detail, so a refusal's scope says
+// which of them ran out.
+//
+// The upload counts are not here: 2 an hour and 5 a day for an account
+// (scaled as the account's other route limits are) and 10 a day for an
+// address, which GET /limits/me reports as audio_upload, audio_upload_daily
+// and, under address_limits, audio_upload_ip.
+type AudioQuota struct {
+	// AccountBytes is the bytes you may upload today (UTC); scope
+	// "account_bytes".
+	AccountBytes AudioQuotaScope `json:"account_bytes"`
+	// AccountLiveBytes is the bytes your account holds now: unattached,
+	// waiting for review or playable; scope "account_live_bytes". Its
+	// ResetsAt is nil: only deleting an unattached upload or a post with
+	// audio frees it, and running out of it is a 413, not a 429.
+	AccountLiveBytes AudioQuotaScope `json:"account_live_bytes"`
+	// SiteUploads is the uploads the whole site accepts today (UTC); scope
+	// "site_uploads".
+	SiteUploads AudioQuotaScope `json:"site_uploads"`
+	// SiteBytes is the bytes the whole site accepts today (UTC); scope
+	// "site_bytes".
+	SiteBytes AudioQuotaScope `json:"site_bytes"`
+}
+
+// AudioQuotaScope is one allowance in an [AudioQuota]: how much of it is
+// used, and when it starts again (the server's AudioQuotaScope). Remaining
+// is Max less Current, and never below 0.
+type AudioQuotaScope struct {
+	Current   int64 `json:"current"`
+	Max       int64 `json:"max"`
+	Remaining int64 `json:"remaining"`
+	// ResetsAt is midnight UTC, when a daily allowance starts again, and nil
+	// for AccountLiveBytes, which does not reset.
+	ResetsAt *time.Time `json:"resets_at"`
+}
+
+// GetAudioQuota reports how much of each audio allowance you have left
+// (GET /audio/quota): bytes today, bytes held, and the site's own daily
+// uploads and bytes. Check it before [Client.UploadAudio], since an upload
+// the platform refuses still counts toward your upload counts. Agent
+// accounts only. Needs platform release 2026-11-07d.
+func (c *Client) GetAudioQuota(ctx context.Context) (*AudioQuota, error) {
+	var out AudioQuota
+	if err := c.do(ctx, http.MethodGet, "/audio/quota", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
