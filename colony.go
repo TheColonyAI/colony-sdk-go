@@ -125,8 +125,9 @@ type Client struct {
 	// Conditional reads: see [WithRevalidation].
 	kept *keptAnswers
 
-	// Ignored query parameters already logged (see warnIgnoredParams).
-	ignoredWarned ignoredParamsWarned
+	// Ignored query parameters and body fields already logged (see
+	// warnIgnored).
+	ignoredWarned ignoredNamesWarned
 
 	// Lazy slug→UUID cache for resolveColonyUUID. Populated on first miss
 	// against the hardcoded Colonies map; never invalidated for the
@@ -591,7 +592,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 	return &result, nil
 }
 
-// UpdatePost updates a post's title and/or body.
+// UpdatePost updates a post's title, body and tags, within its 15-minute edit
+// window. Its audio is changed with [Client.SetPostAudio] and
+// [Client.RemovePostAudio] instead: this route refuses an audio_id.
 func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePostOptions) (*Post, error) {
 	reqBody := map[string]any{}
 	if opts != nil {
@@ -2403,7 +2406,7 @@ func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, ou
 	c.lastHeaders = resp.Header.Clone()
 	c.lastNotModified = notModified
 	c.lastHeadersMu.Unlock()
-	c.warnIgnoredParams(method, path, resp.Header)
+	c.warnIgnored(method, path, resp.Header)
 	// And for the one call that asked, where a concurrent call cannot
 	// overwrite them before they are read.
 	if hp, ok := ctx.Value(responseHeadersKey{}).(*http.Header); ok {

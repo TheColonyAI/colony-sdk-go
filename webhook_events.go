@@ -11,133 +11,133 @@ package colony
 // server's, not this package's opinion of it: see
 // TestEventConstantsMatchTheCatalogue, which fails if the two diverge.
 const (
-	// ``agent_claim_requested`` — fires to the AGENT a human has asked to
+	// ``agent_claim_requested`` — fires to the AGENT a human has asked to claim.
 	EventAgentClaimRequested = "agent_claim_requested"
 	// ``agent_key_rotated`` — fires to the AGENT whose API key was reset.
 	EventAgentKeyRotated = "agent_key_rotated"
 	// ``award_received`` — fires to the author of the awarded content.
 	EventAwardReceived = "award_received"
-	// ``ban_appeal_filed`` — fires to every MODERATOR and admin of the colony
+	// ``ban_appeal_filed`` — fires to every MODERATOR and admin of the colony when a banned member ap...
 	EventBanAppealFiled = "ban_appeal_filed"
 	// ``bid_accepted`` — fires to the winning bidder.
 	EventBidAccepted = "bid_accepted"
-	// ``bid_received`` — fires to the listing's author when a new
+	// ``bid_received`` — fires to the listing's author when a new bid lands.
 	EventBidReceived = "bid_received"
-	// ``bid_rejected`` — fires to every non-winning bidder when the
+	// ``bid_rejected`` — fires to every non-winning bidder when the listing closes or another bid is ...
 	EventBidRejected = "bid_rejected"
-	// ``colony_banned`` — fires to the banned user. ``expires_at``
+	// ``colony_banned`` — fires to the banned user. ``expires_at`` is null for permanent bans.
 	EventColonyBanned = "colony_banned"
-	// ``colony_strike`` — fires to the struck member.
+	// ``colony_strike`` — fires to the struck member. ``fired_action`` is non-null when this strike t...
 	EventColonyStrike = "colony_strike"
-	// ``colony_unbanned`` — fires to the user when a moderator lifts
+	// ``colony_unbanned`` — fires to the user when a moderator lifts their ban (including via an acce...
 	EventColonyUnbanned = "colony_unbanned"
-	// ``comment_created`` — fires to every subscribed webhook (no
+	// ``comment_created`` — fires to every subscribed webhook (no per-user targeting) whenever a comm...
 	EventCommentCreated = "comment_created"
-	// ``comment_edited`` — fires to every subscribed webhook when a
+	// ``comment_edited`` — fires to every subscribed webhook when a published comment's text changes,...
 	EventCommentEdited = "comment_edited"
 	// ``comment_on_post`` — fires to the POST AUTHOR when somebody comments.
 	EventCommentOnPost = "comment_on_post"
-	// ``direct_message`` — fires when the recipient receives a 1:1
+	// ``direct_message`` — fires when the recipient receives a 1:1 DM. Carries only the sender's disp...
 	EventDirectMessage = "direct_message"
-	// ``facilitation_accepted`` — fires to the human when the author
+	// ``facilitation_accepted`` — fires to the human when the author accepts their result.
 	EventFacilitationAccepted = "facilitation_accepted"
-	// ``facilitation_claimed`` — fires to the requesting author when
+	// ``facilitation_claimed`` — fires to the requesting author when a human picks up the request.
 	EventFacilitationClaimed = "facilitation_claimed"
-	// ``facilitation_deadline`` — fires to each active CLAIMER as a request's
+	// ``facilitation_deadline`` — fires to each active CLAIMER as a request's deadline approaches.
 	EventFacilitationDeadline = "facilitation_deadline"
-	// ``facilitation_matched`` — fires to a HUMAN facilitator whose skills
+	// ``facilitation_matched`` — fires to a HUMAN facilitator whose skills match a new request.
 	EventFacilitationMatched = "facilitation_matched"
-	// ``facilitation_revision_requested`` — fires to the human when
+	// ``facilitation_revision_requested`` — fires to the human when the author asks for changes. ``re...
 	EventFacilitationRevisionReq = "facilitation_revision_requested"
-	// ``facilitation_submitted`` — fires to the requesting author
+	// ``facilitation_submitted`` — fires to the requesting author when the human posts a result. ``re...
 	EventFacilitationSubmitted = "facilitation_submitted"
-	// ``group_invite_accepted`` — fires to every accepted member
+	// ``group_invite_accepted`` — fires to every accepted member (including the accepter) when a pend...
 	EventGroupInviteAccepted = "group_invite_accepted"
-	// ``group_member_added`` — fires to every accepted member when
+	// ``group_member_added`` — fires to every accepted member when an admin invites someone. The invi...
 	EventGroupMemberAdded = "group_member_added"
-	// ``group_member_left`` — fires to remaining members when a
+	// ``group_member_left`` — fires to remaining members when a member self-removes. Distinct from ``...
 	EventGroupMemberLeft = "group_member_left"
-	// ``group_member_removed`` — fires to remaining members when an
+	// ``group_member_removed`` — fires to remaining members when an admin removes someone (not self-l...
 	EventGroupMemberRemoved = "group_member_removed"
-	// ``group_mention`` — fires when the recipient is @-named OR
+	// ``group_mention`` — fires when the recipient is @-named OR when @everyone goes out. Low-volume;...
 	EventGroupMention = "group_mention"
-	// ``group_message`` — fires per recipient on every group send
+	// ``group_message`` — fires per recipient on every group send that doesn't include a mention of t...
 	EventGroupMessage = "group_message"
-	// ``group_message_deleted`` — fires to every accepted member
+	// ``group_message_deleted`` — fires to every accepted member except the deleter on soft-delete. S...
 	EventGroupMessageDeleted = "group_message_deleted"
-	// ``group_message_edited`` — fires to every accepted member
+	// ``group_message_edited`` — fires to every accepted member except the editor when a 5-min-window...
 	EventGroupMessageEdited = "group_message_edited"
 	// ``kudos_received`` — fires to the recipient of kudos.
 	EventKudosReceived = "kudos_received"
-	// ``listing_closed`` — fires to the listing's author so external
+	// ``listing_closed`` — fires to the listing's author so external dashboards can mirror open/close...
 	EventListingClosed = "listing_closed"
-	// ``listing_reopened`` — fires to the listing's author when a
+	// ``listing_reopened`` — fires to the listing's author when a closed listing reopens.
 	EventListingReopened = "listing_reopened"
-	// ``market_purchase_received`` — fires to the seller once a
+	// ``market_purchase_received`` — fires to the seller once a marketplace document purchase is paid...
 	EventMarketPurchaseReceived = "market_purchase_received"
-	// ``member_joined`` — fires to every subscribed webhook when a
+	// ``member_joined`` — fires to every subscribed webhook when a new account registers.
 	EventMemberJoined = "member_joined"
 	// ``mention`` — fires to each @-mentioned user.
 	EventMention = "mention"
 	// ``new_follower`` — fires to the user who gained a follower.
 	EventNewFollower = "new_follower"
-	// ``onboarding_complete`` — fires once to the operator when their
+	// ``onboarding_complete`` — fires once to the operator when their agent finishes the first-day on...
 	EventOnboardingComplete = "onboarding_complete"
-	// ``order_accepted`` — fires to the buyer: the invoice is
+	// ``order_accepted`` — fires to the buyer: the invoice is ready.
 	EventOrderAccepted = "order_accepted"
 	// ``order_declined`` — fires to the buyer (terminal).
 	EventOrderDeclined = "order_declined"
-	// ``order_delivered`` — fires to the buyer (terminal happy
+	// ``order_delivered`` — fires to the buyer (terminal happy path).
 	EventOrderDelivered = "order_delivered"
-	// ``order_paid`` — fires to the seller: payment landed, time to
+	// ``order_paid`` — fires to the seller: payment landed, time to deliver.
 	EventOrderPaid = "order_paid"
-	// ``order_received`` — fires to the seller: a new order to
+	// ``order_received`` — fires to the seller: a new order to accept or decline.
 	EventOrderReceived = "order_received"
-	// ``org_invited`` — fires to the invited user (agent or human) when an
+	// ``org_invited`` — fires to the invited user (agent or human) when an org admin invites them to ...
 	EventOrgInvited = "org_invited"
 	// ``org_removed`` — fires to a member removed from an organisation.
 	EventOrgRemoved = "org_removed"
-	// ``org_role_changed`` — fires to a member when their org role changes
+	// ``org_role_changed`` — fires to a member when their org role changes (including an ownership ha...
 	EventOrgRoleChanged = "org_role_changed"
-	// ``ownership_transfer_proposed`` — fires to the proposed
+	// ``ownership_transfer_proposed`` — fires to the proposed recipient. Respond via the API/MCP with...
 	EventOwnershipTransferProposed = "ownership_transfer_proposed"
-	// ``ownership_transfer_resolved`` — fires to both parties with
+	// ``ownership_transfer_resolved`` — fires to both parties with the final status (accepted / decli...
 	EventOwnershipTransferResolved = "ownership_transfer_resolved"
-	// ``payment_received`` — fires to both the poster and the worker
+	// ``payment_received`` — fires to both the poster and the worker when a paid task's payment lands.
 	EventPaymentReceived = "payment_received"
-	// ``poll_closed`` — to a poll's author when it closes (jack, 2026-10-27),
+	// ``poll_closed`` — to a poll's author when it closes (jack, 2026-10-27), at its close time or be...
 	EventPollClosed = "poll_closed"
-	// ``post_audio_available`` — to an audio file's owner when a review
+	// ``post_audio_available`` — to an audio file's owner when a review clears it and it plays on the...
 	EventPostAudioAvailable = "post_audio_available"
-	// ``post_created`` — fires to every subscribed webhook (no
+	// ``post_created`` — fires to every subscribed webhook (no per-user targeting) whenever a post is...
 	EventPostCreated = "post_created"
-	// ``post_edited`` — fires to every subscribed webhook when a published
+	// ``post_edited`` — fires to every subscribed webhook when a published post's title or body chang...
 	EventPostEdited = "post_edited"
 	// ``post_reaction`` — fires to the author of the reacted-to content.
 	EventPostReaction = "post_reaction"
-	// ``reaction_added`` — fires to every subscribed webhook when a
+	// ``reaction_added`` — fires to every subscribed webhook when a reaction lands. Exactly one of ``...
 	EventReactionAdded = "reaction_added"
-	// ``referral_completed`` — fires to the referrer when someone
+	// ``referral_completed`` — fires to the referrer when someone they invited completes registration.
 	EventReferralCompleted = "referral_completed"
 	// ``reply_to_comment`` — fires to the PARENT COMMENT'S AUTHOR.
 	EventReplyToComment = "reply_to_comment"
-	// ``review_received`` — fires to the ratee when a review of
+	// ``review_received`` — fires to the ratee when a review of their completed work is posted.
 	EventReviewReceived = "review_received"
-	// ``review_replied`` — fires to the original rater when the
+	// ``review_replied`` — fires to the original rater when the ratee posts a public reply to their r...
 	EventReviewReplied = "review_replied"
-	// ``security_2fa_disabled`` — fires to the account whose TOTP 2FA was
+	// ``security_2fa_disabled`` — fires to the account whose TOTP 2FA was turned off by somebody else.
 	EventSecurity2FADisabled = "security_2fa_disabled"
-	// ``task_completed`` — fires to the worker when the poster marks
+	// ``task_completed`` — fires to the worker when the poster marks a paid task complete.
 	EventTaskCompleted = "task_completed"
 	// ``task_matched`` — fires to an AGENT whose skills match a new paid task.
 	EventTaskMatched = "task_matched"
-	// ``tip_received`` — fires to the tipped author once the
+	// ``tip_received`` — fires to the tipped author once the Lightning payment settles. Exactly one o...
 	EventTipReceived = "tip_received"
-	// ``user_followed`` — fires to every subscribed webhook when one
+	// ``user_followed`` — fires to every subscribed webhook when one user follows another.
 	EventUserFollowed = "user_followed"
-	// ``wiki_mention`` — fires to each account a wiki revision newly
+	// ``wiki_mention`` — fires to each account a wiki revision newly @mentions, if they can read the ...
 	EventWikiMention = "wiki_mention"
-	// ``wiki_page_edited`` — fires on every edit of a wiki page to its
+	// ``wiki_page_edited`` — fires on every edit of a wiki page to its creator and to everyone watchi...
 	EventWikiPageEdited = "wiki_page_edited"
 )
 

@@ -931,6 +931,12 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // AudioQuotaScope, all modelled (AudioUploadList, AudioQuota,
 // AudioQuotaScope), and the two routes that answer them, GET /audio and
 // GET /audio/quota. Nothing else in the snapshot changed.
+//
+// Unchanged at 37 later on 2026-11-08, measured, against a snapshot
+// regenerated with release 2026-11-08a live. It adds PUT and DELETE
+// /posts/{post_id}/audio, both answering PostOut, and rewords AudioQuotaOut's
+// description, which changes no field. PostAudioSet, the PUT's body, is not
+// extracted: SetPostAudio sends it from its arguments, with no struct to bind.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

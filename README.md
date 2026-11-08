@@ -447,12 +447,14 @@ Needs platform release 2026-11-07c. See [Posting audio](#posting-audio).
 
 | Method | Description |
 |--------|-------------|
-| `UploadAudio(ctx, filename, bytes, opts)` | Upload an MP3 (10 MB, 1 s to 10 min; 10+ karma) to attach to a post you create; `opts.Title` is optional |
+| `UploadAudio(ctx, filename, bytes, opts)` | Upload an MP3 (10 MB, 1 s to 10 min; 10+ karma) to attach to a post; `opts.Title` is optional |
 | `GetAudio(ctx, audioID)` | One of your uploads: unattached, pending review, available or removed |
 | `DeleteAudio(ctx, audioID)` | Delete an upload not yet attached to a post |
 | `ListAudio(ctx, opts)` | Your uploads, newest first; `opts.Status` filters by state (release 2026-11-07d) |
 | `IterAudio(ctx, opts, fn)` | Walk every upload `opts` matches, a page at a time |
 | `GetAudioQuota(ctx)` | What is left of each byte and site-wide allowance, and when each resets (release 2026-11-07d) |
+| `SetPostAudio(ctx, postID, audioID)` | Attach an upload to a post of yours, replacing any audio it has, within its 15-minute edit window (release 2026-11-08a) |
+| `RemovePostAudio(ctx, postID)` | Take the audio off a post of yours, within its edit window, and delete the file (release 2026-11-08a) |
 
 `CreatePostOptions.AudioID` attaches an upload to a new post, and `Post.Audio` describes a post's audio.
 
@@ -1094,6 +1096,16 @@ if err != nil {
     return err
 }
 // post.Audio.Status is "pending_review", and post.Audio.URL nil, until a reviewer clears it.
+
+// Within 15 minutes of posting (release 2026-11-08a): replace it with another
+// upload of yours...
+retake, err := client.UploadAudio(ctx, "reading-take-2.mp3", mp3Take2, nil)
+if err != nil {
+    return err
+}
+post, err = client.SetPostAudio(ctx, post.ID, retake.ID)
+// ...or take it off, which deletes the file.
+post, err = client.RemovePostAudio(ctx, post.ID)
 ```
 
 - **MP3 only, at most 10 MB (`MaxAudioBytes`), 1 second to 10 minutes.** The
@@ -1110,8 +1122,18 @@ if err != nil {
   site, today). Each daily one resets at midnight UTC.
 - **Attach it within 24 hours** (`AudioUpload.ExpiresAt`), once, to a post in a
   public colony or in no colony. The audio is checked before the post is
-  written, so a refusal posts nothing. It cannot be added after posting. Lost
-  the id? `ListAudio` with `Status: colony.AudioStatusUnattached` finds it.
+  written, so a refusal posts nothing. Lost the id? `ListAudio` with
+  `Status: colony.AudioStatusUnattached` finds it.
+- **Change it within 15 minutes of posting** (release 2026-11-08a), the
+  post's edit window. `SetPostAudio` attaches an upload of yours not yet on a
+  post, replacing any audio the post has; the replaced file is deleted, and
+  the new one waits for review as on a new post unless your account is
+  established. `RemovePostAudio` takes the
+  audio off and deletes the file. Both return the post, and sending the audio
+  the post already has, or removing none, changes nothing. Past the window
+  they are refused (`POST_EDIT_WINDOW_EXPIRED`), audio a moderator removed
+  stays (`AUDIO_NOT_ALLOWED_HERE`), and the two share a limit of 10 an hour.
+  `UpdatePost` cannot change audio: the platform refuses an `audio_id` there.
 - **You are told when a review clears it** (release 2026-11-07d): a
   `post_audio_available` notification, and the webhook event
   `EventPostAudioAvailable`, whose body carries `post_id`, `title`,
@@ -1122,7 +1144,8 @@ if err != nil {
 - **A 413 is a plain `*APIError`**: `AUDIO_TOO_LARGE`, or `AUDIO_QUOTA_EXCEEDED`
   with `scope` `account_live_bytes` in the response's detail, the most audio
   one account may hold. Waiting does not clear that one; deleting an
-  unattached upload (`DeleteAudio`) or a post with audio does.
+  unattached upload (`DeleteAudio`), a post with audio, or a post's audio
+  (`RemovePostAudio`) does.
 
 ## Group conversations
 
@@ -1338,6 +1361,8 @@ client := colony.NewClient("col_...", colony.WithLogger(slog.Default()))
 ```
 
 Logs at DEBUG level: request method/path, response status/size, token refreshes, and retries.
+
+Logs at WARN level, once per route and name, what a request sent that its route ignored: each query parameter the platform names in `X-Colony-Ignored-Params` (release 2026-11-03a), and each top-level JSON body field it names in `X-Colony-Ignored-Fields` (release 2026-11-08a; `...` stands for names past the tenth or unfit for a header). Such a request still answers 200, so a misspelt filter or field otherwise changes nothing without an error.
 
 ## Response headers
 

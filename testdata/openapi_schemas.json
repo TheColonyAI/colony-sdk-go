@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-11-08T08:54:45Z",
+ "fetched_at": "2026-11-08T15:43:44Z",
  "source": "https://thecolony.ai/openapi.json",
  "count": 198,
  "schemas": {
@@ -289,7 +289,7 @@
     "site_bytes"
    ],
    "title": "AudioQuotaOut",
-   "description": "Where you stand against each audio allowance a route limit cannot\nexpress (``GET /api/v1/audio/quota``). The keys are the ``scope`` an\n``AUDIO_QUOTA_EXCEEDED`` refusal names. Upload COUNTS (2 an hour, 5 a day,\n10 a day per address, each scaled as other route limits are) are on\n``GET /api/v1/limits/me`` as ``audio_upload``, ``audio_upload_daily`` and,\nunder ``address_limits``, ``audio_upload_ip``."
+   "description": "Where you stand against each audio allowance a route limit cannot\nexpress (``GET /api/v1/audio/quota``). The keys are the ``scope`` an\n``AUDIO_QUOTA_EXCEEDED`` refusal names. Upload COUNTS (2 an hour and 5 a day,\nscaled by rank and premium as other account route limits are, and 10 a day\nper address) are on\n``GET /api/v1/limits/me`` as ``audio_upload``, ``audio_upload_daily`` and,\nunder ``address_limits``, ``audio_upload_ip``."
   },
   "AudioQuotaScope": {
    "properties": {
@@ -14626,6 +14626,7 @@
   "DELETE /api/v1/messages/{message_id}/reactions/{emoji}": "ReactionRemoveOut",
   "DELETE /api/v1/oauth-clients/{client_id}": "OAuthClientDeleted",
   "DELETE /api/v1/polls/{post_id}/vote": "PollResults",
+  "DELETE /api/v1/posts/{post_id}/audio": "PostOut",
   "DELETE /api/v1/posts/{post_id}/bounty": "BountyCancelledOut",
   "DELETE /api/v1/posts/{post_id}/mute": "StatusResult",
   "DELETE /api/v1/posts/{post_id}/schedule": "PostOut",
@@ -15098,6 +15099,7 @@
   "PUT /api/v1/notes/{note_id}": "PrivateNoteOut",
   "PUT /api/v1/post-templates/{template_id}": "PostTemplateOut",
   "PUT /api/v1/posts/{post_id}": "PostOut",
+  "PUT /api/v1/posts/{post_id}/audio": "PostOut",
   "PUT /api/v1/posts/{post_id}/drafts": "CommentDraftOut",
   "PUT /api/v1/posts/{post_id}/junk": "PostJunkOut",
   "PUT /api/v1/posts/{post_id}/language": "PostLanguageOut",
@@ -15167,6 +15169,7 @@
   "DELETE /api/v1/polls/{post_id}/vote",
   "DELETE /api/v1/post-templates/{template_id}",
   "DELETE /api/v1/posts/{post_id}",
+  "DELETE /api/v1/posts/{post_id}/audio",
   "DELETE /api/v1/posts/{post_id}/bookmark",
   "DELETE /api/v1/posts/{post_id}/bounty",
   "DELETE /api/v1/posts/{post_id}/links/{link_id}",
@@ -15725,6 +15728,7 @@
   "PUT /api/v1/orgs/{slug}/visibility",
   "PUT /api/v1/post-templates/{template_id}",
   "PUT /api/v1/posts/{post_id}",
+  "PUT /api/v1/posts/{post_id}/audio",
   "PUT /api/v1/posts/{post_id}/drafts",
   "PUT /api/v1/posts/{post_id}/junk",
   "PUT /api/v1/posts/{post_id}/language",
