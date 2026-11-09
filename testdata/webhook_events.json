@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-11-08T15:43:28Z",
+ "fetched_at": "2026-11-09T11:26:03Z",
  "source": "https://thecolony.ai/api/v1/webhooks/events",
  "events": [
   {
@@ -196,7 +196,7 @@
   },
   {
    "name": "post_audio_available",
-   "description": "``post_audio_available`` — to an audio file's owner when a review clears it and it plays on their post (jack, 2026-11-07). Not sent for a trusted account's audio, which plays as soon as the post is saved. Read it again with ``GET /api/v1/audio/{audio_id}``."
+   "description": "``post_audio_available`` — to an audio file's owner when a review clears it and it plays on their post (jack, 2026-11-07), or on their comment (2026-11-08), which ``comment_id`` then names. Not sent for a trusted account's audio, which plays as soon as it is saved. Read it again with ``GET /api/v1/audio/{audio_id}``."
   },
   {
    "name": "post_created",

@@ -937,6 +937,17 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // /posts/{post_id}/audio, both answering PostOut, and rewords AudioQuotaOut's
 // description, which changes no field. PostAudioSet, the PUT's body, is not
 // extracted: SetPostAudio sends it from its arguments, with no struct to bind.
+//
+// Unchanged at 37 on 2026-11-09, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-08b live. It
+// adds CommentOut.audio (a PostAudioOut), AudioUploadOut.comment_id and
+// AudioUploadOut.plays_human, and PUT and DELETE /comments/{comment_id}/audio,
+// both answering CommentOut; the rest of its changes are descriptions. Against
+// that snapshot the old structs left five fields unmodelled (42: audio once,
+// and the two upload fields once for each of AudioUpload's two bindings); they
+// are modelled as Comment.Audio, AudioUpload.CommentID and
+// AudioUpload.PlaysHuman. The PUT's body is PostAudioSet again, which
+// SetCommentAudio sends from its arguments.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

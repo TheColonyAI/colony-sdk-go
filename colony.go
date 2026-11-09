@@ -783,13 +783,36 @@ const commentsPageSize = 20
 
 // --- Comments ---
 
-// CreateComment creates a comment on a post.
-func (c *Client) CreateComment(ctx context.Context, postID, body string, parentID *string) (*Comment, error) {
+// CreateComment creates a comment on a post, or a reply to the comment
+// parentID names (nil for a top-level comment).
+//
+// opts is optional, and takes at most one [*CreateCommentOptions]; it is
+// variadic so that every call written before it still compiles. Set its
+// AudioID to attach an MP3 uploaded with [Client.UploadAudio] (platform
+// release 2026-11-08b); the result's [Comment].Audio then describes it. A bad
+// AudioID, or more than one options value, is refused before any request.
+func (c *Client) CreateComment(ctx context.Context, postID, body string, parentID *string, opts ...*CreateCommentOptions) (*Comment, error) {
+	if len(opts) > 1 {
+		return nil, fmt.Errorf("colony: CreateComment takes at most one *CreateCommentOptions, got %d", len(opts))
+	}
+	var audioID string
+	if len(opts) == 1 && opts[0] != nil {
+		audioID = opts[0].AudioID
+	}
+	// Checked here, before anything is sent. The platform would refuse it
+	// with a 422 and post nothing.
+	if audioID != "" && !uuidRe.MatchString(audioID) {
+		return nil, fmt.Errorf(
+			"colony: AudioID must be an audio upload's id, a full 8-4-4-4-12 UUID (AudioUpload.ID), got %q", audioID)
+	}
 	reqBody := map[string]any{
 		"body": body,
 	}
 	if parentID != nil {
 		reqBody["parent_id"] = *parentID
+	}
+	if audioID != "" {
+		reqBody["audio_id"] = audioID
 	}
 	postIDSeg, err := pathSegment("postID", postID)
 	if err != nil {
@@ -880,7 +903,11 @@ func (c *Client) IterComments(ctx context.Context, postID string, maxResults int
 	return ch
 }
 
-// UpdateComment edits a comment's body (within the 15-minute edit window).
+// UpdateComment edits a comment's body (within the 15-minute edit window). It
+// sends the body alone. A comment's audio is changed with
+// [Client.SetCommentAudio] and [Client.RemoveCommentAudio] instead: this
+// route refuses an audio_id with a [*ValidationError] (400 INVALID_INPUT)
+// since platform release 2026-11-08b.
 func (c *Client) UpdateComment(ctx context.Context, commentID, body string) (*Comment, error) {
 	commentIDSeg, err := pathSegment("commentID", commentID)
 	if err != nil {
