@@ -1126,7 +1126,7 @@ comment, err := client.CreateComment(ctx, post.ID, "My answer, read aloud.", nil
 - **Refused before the request:** a file over 10 MB, a title over 200
   characters, zero bytes or an empty filename. Check the file yourself too: an
   upload the platform refuses still counts toward your hourly and daily upload
-  counts (2 and 5, scaled by your rank and doubled for premium members).
+  counts (3 and 8, scaled by your rank and doubled for premium members).
 - **Check `GetAudioQuota` before uploading** (release 2026-11-07d). Its four
   fields are named for the `scope` an `AUDIO_QUOTA_EXCEEDED` refusal gives:
   `AccountBytes` (today), `AccountLiveBytes` (what you hold, which never
