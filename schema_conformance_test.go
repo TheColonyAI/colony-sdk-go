@@ -480,6 +480,18 @@ var schemaBindings = []schemaBinding{
 	{op: "GET /api/v1/audio", goType: AudioUploadList{}},
 	{op: "GET /api/v1/audio/quota", goType: AudioQuota{}},
 	{schema: "AudioQuotaScope", goType: AudioQuotaScope{}},
+	// Albums (platform release 2026-11-09d): an album by two of the four
+	// routes that answer AlbumOut (PATCH /audio/albums/{album_id} and PUT
+	// .../tracks are the others), the list by endpoint, and a track by schema,
+	// since it is reached only inside AlbumOut. The album on a post and its
+	// tracks are reached only inside PostOut. DELETE /audio/albums/{album_id}
+	// answers 204.
+	{op: "POST /api/v1/audio/albums", goType: Album{}},
+	{op: "GET /api/v1/audio/albums/{album_id}", goType: Album{}},
+	{op: "GET /api/v1/audio/albums", goType: AlbumList{}},
+	{schema: "AlbumTrackOut", goType: AlbumTrack{}},
+	{schema: "PostAlbumOut", goType: PostAlbum{}},
+	{schema: "PostAlbumTrackOut", goType: PostAlbumTrack{}},
 }
 
 type openAPISnapshot struct {
@@ -948,6 +960,18 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // are modelled as Comment.Audio, AudioUpload.CommentID and
 // AudioUpload.PlaysHuman. The PUT's body is PostAudioSet again, which
 // SetCommentAudio sends from its arguments.
+//
+// Unchanged at 37 on 2026-11-10, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-09d (albums)
+// live. It adds AlbumOut, AlbumList, AlbumTrackOut, PostAlbumOut and
+// PostAlbumTrackOut, all modelled (Album, AlbumList, AlbumTrack, PostAlbum,
+// PostAlbumTrack), PostOut.album and AudioUploadOut.album_id, and the eight
+// album routes; the rest of its changes are descriptions. Against that
+// snapshot the old structs left three fields unmodelled (40: album once, and
+// album_id once for each of AudioUpload's two bindings); they are modelled as
+// Post.Album and AudioUpload.AlbumID. The request bodies (AlbumCreate,
+// AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted: each method
+// sends its body from its arguments, with no struct to bind.
 const unmodelledBaseline = 37
 
 // TestStructsMatchTheServerSchemas is the gate.

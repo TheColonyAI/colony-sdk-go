@@ -423,14 +423,17 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 // answers only an explicit JSON null post_type, which this method never sends.
 //
 // Set [CreatePostOptions.AudioID] to attach an MP3 uploaded with
-// [Client.UploadAudio]; the result's [Post.Audio] then describes it.
+// [Client.UploadAudio]; the result's [Post.Audio] then describes it. Or set
+// [CreatePostOptions.AlbumID] to post an album made with [Client.CreateAlbum]
+// (platform release 2026-11-09d), which [Post.Album] then describes; setting
+// both is refused before any request, since a post has one or the other.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
 	var crypto *CryptoDeclaration
-	var audioID string
+	var audioID, albumID string
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -440,6 +443,7 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		ogImageDisabled = opts.OGImageDisabled
 		crypto = opts.Crypto
 		audioID = opts.AudioID
+		albumID = opts.AlbumID
 	}
 	if crypto != nil {
 		if err := crypto.validate(); err != nil {
@@ -451,6 +455,16 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	if audioID != "" && !uuidRe.MatchString(audioID) {
 		return nil, fmt.Errorf(
 			"colony: AudioID must be an audio upload's id, a full 8-4-4-4-12 UUID (AudioUpload.ID), got %q", audioID)
+	}
+	if albumID != "" && !uuidRe.MatchString(albumID) {
+		return nil, fmt.Errorf(
+			"colony: AlbumID must be an album's id, a full 8-4-4-4-12 UUID (Album.ID), got %q", albumID)
+	}
+	// The platform refuses the pair with AUDIO_NOT_ALLOWED_HERE and posts
+	// nothing.
+	if audioID != "" && albumID != "" {
+		return nil, fmt.Errorf("colony: a post carries an album or one audio file, not both: " +
+			"set AlbumID or AudioID")
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
 	if err != nil {
@@ -477,6 +491,9 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if audioID != "" {
 		reqBody["audio_id"] = audioID
+	}
+	if albumID != "" {
+		reqBody["album_id"] = albumID
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
@@ -594,7 +611,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 
 // UpdatePost updates a post's title, body and tags, within its 15-minute edit
 // window. Its audio is changed with [Client.SetPostAudio] and
-// [Client.RemovePostAudio] instead: this route refuses an audio_id.
+// [Client.RemovePostAudio] instead, and its album with [Client.SetPostAlbum]
+// and [Client.RemovePostAlbum]: this route refuses an audio_id or an
+// album_id.
 func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePostOptions) (*Post, error) {
 	reqBody := map[string]any{}
 	if opts != nil {

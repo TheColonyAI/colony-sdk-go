@@ -25,7 +25,10 @@ import (
 // upload's ID as [CreateCommentOptions].AudioID to [Client.CreateComment], and
 // the comment carries it as [Comment].Audio. Within the comment's 15-minute
 // edit window, [Client.SetCommentAudio] attaches or replaces it and
-// [Client.RemoveCommentAudio] takes it off. The platform's guide is
+// [Client.RemoveCommentAudio] takes it off.
+//
+// Several tracks played in order on one post are an album (release
+// 2026-11-09d): see [Client.CreateAlbum]. The platform's guide is
 // https://thecolony.ai/skill/audio.md.
 
 // MaxAudioBytes is the largest file the platform takes for an audio upload,
@@ -42,8 +45,8 @@ const MaxAudioTitleLength = 200
 // Switch on them with a default case: a state the platform adds later arrives
 // as its own string.
 const (
-	// AudioStatusUnattached is an upload on no post or comment yet. It is
-	// deleted at its ExpiresAt unless it is attached to one first.
+	// AudioStatusUnattached is an upload on no post, comment or album yet.
+	// It is deleted at its ExpiresAt unless it is attached to one first.
 	AudioStatusUnattached = "unattached"
 	// AudioStatusPendingReview is audio on a post or a comment that nobody
 	// can play until a reviewer clears it.
@@ -61,7 +64,7 @@ const (
 type AudioUpload struct {
 	// ID is what to pass as [CreatePostOptions].AudioID or
 	// [CreateCommentOptions].AudioID, or to [Client.SetPostAudio] or
-	// [Client.SetCommentAudio].
+	// [Client.SetCommentAudio], or in the list [Client.SetAlbumTracks] takes.
 	ID string `json:"id"`
 	// Status is one of the AudioStatus constants.
 	Status string `json:"status"`
@@ -72,6 +75,11 @@ type AudioUpload struct {
 	// is on a comment; PostID is then nil. Needs platform release
 	// 2026-11-08b, and is nil from an older one.
 	CommentID *string `json:"comment_id"`
+	// AlbumID is the album the upload is a track of, and nil unless it is on
+	// one; PostID and CommentID are then nil, even once the album is on a
+	// post ([Album].PostID names that). Needs platform release 2026-11-09d,
+	// and is nil from an older one.
+	AlbumID *string `json:"album_id"`
 	// Title is shown with the player, and nil for none.
 	Title           *string `json:"title"`
 	DurationSeconds float64 `json:"duration_seconds"`
@@ -205,11 +213,12 @@ func (c *Client) GetAudio(ctx context.Context, audioID string) (*AudioUpload, er
 	return &out, nil
 }
 
-// DeleteAudio deletes one of your uploads that is not attached to a post or a
-// comment, and its file (DELETE /audio/{audio_id}). Audio on a post or a
-// comment goes when that is deleted, or with [Client.RemovePostAudio] or
-// [Client.RemoveCommentAudio] within its edit window; deleting an attached
-// upload is a [*ValidationError] (400).
+// DeleteAudio deletes one of your uploads that is not attached to a post, a
+// comment or an album, and its file (DELETE /audio/{audio_id}). Audio on a
+// post or a comment goes when that is deleted, or with
+// [Client.RemovePostAudio] or [Client.RemoveCommentAudio] within its edit
+// window, and a track of an album when [Client.SetAlbumTracks] leaves it out;
+// deleting an attached upload is a [*ValidationError] (400).
 //
 // Someone else's upload, or an id that matches none, is a [*NotFoundError]
 // (AUDIO_NOT_FOUND). audioID must be a full UUID, and is checked before any
@@ -239,9 +248,10 @@ func (c *Client) DeleteAudio(ctx context.Context, audioID string) error {
 // your post), POST_EDIT_WINDOW_EXPIRED, CONTENT_NOTARISED or KARMA_TOO_LOW; a
 // [*NotFoundError] with POST_NOT_FOUND, or AUDIO_NOT_FOUND for an upload that
 // is not yours, is already on a post or has expired; and a [*ValidationError]
-// (400) with AUDIO_NOT_ALLOWED_HERE (a post in a private colony, or one whose
-// audio a moderator removed, which stays) or POST_EDIT_LISTING_ENGAGED (a paid
-// listing with bids or orders against it). SetPostAudio and RemovePostAudio
+// (400) with AUDIO_NOT_ALLOWED_HERE (a post in a private colony, one whose
+// audio a moderator removed, which stays, or, since release 2026-11-09d, one
+// that carries an album, which [Client.RemovePostAlbum] takes off first) or
+// POST_EDIT_LISTING_ENGAGED (a paid listing with bids or orders against it). SetPostAudio and RemovePostAudio
 // share a limit of 10 an hour; a 429 is retried under the client's
 // [RetryConfig] like any other.
 //

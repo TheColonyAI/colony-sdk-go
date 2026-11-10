@@ -278,6 +278,14 @@ var wanted = []string{
 	"AudioUploadList",
 	"AudioQuotaOut",
 	"AudioQuotaScope",
+	// Albums (platform release 2026-11-09d): an album as the album routes
+	// answer it, a page of them, and one of its tracks; and the album on a
+	// post, reached only inside PostOut, with its tracks.
+	"AlbumOut",
+	"AlbumList",
+	"AlbumTrackOut",
+	"PostAlbumOut",
+	"PostAlbumTrackOut",
 }
 
 func main() {
