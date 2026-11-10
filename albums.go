@@ -328,13 +328,20 @@ func (c *Client) RenameAlbum(ctx context.Context, albumID, title string) (*Album
 // album keeps its file and its review; any other must be an upload of yours
 // from [Client.UploadAudio] not yet attached to a post, comment or album, and
 // joins the review queue, its 24-hour expiry stopped. A track left out is
-// taken off and deleted, and so an empty (or nil) audioIDs deletes every
-// track. A draft can change; an album on a post only within the post's
-// 15-minute edit window, where a new track waits for its review unless your
-// account is established. Needs platform release 2026-11-09d.
+// taken off and deleted. A draft can change; an album on a post only within
+// the post's 15-minute edit window, where a new track waits for its review
+// unless your account is established. Needs platform release 2026-11-09d.
+//
+// An empty (or nil) audioIDs empties a draft, deleting every track. On an
+// album that is on a post, the platform refuses an empty list with a
+// [*ValidationError] (400 INVALID_INPUT) from release 2026-11-10a, since an
+// album on a post keeps at least one track: take the album off with
+// [Client.RemovePostAlbum] instead, which deletes it.
 //
 // Refused before any request: an albumID or an audio id that is not a full
-// UUID, more than [MaxAlbumTracks] ids, and the same id twice.
+// UUID, more than [MaxAlbumTracks] ids, and the same id twice. (The
+// platform's own answer to more than 30 is a [*ValidationError], 400
+// AUDIO_ALBUM_FULL with max_tracks in its detail, from release 2026-11-10a.)
 //
 // The platform's refusals: a [*NotFoundError] with AUDIO_ALBUM_NOT_FOUND for
 // an album that is not yours, or AUDIO_NOT_FOUND for an id that is not your

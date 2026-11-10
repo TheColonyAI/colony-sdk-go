@@ -303,8 +303,8 @@ func TestSetAlbumTracks(t *testing.T) {
 	}
 	checkDraftAlbum(t, got)
 
-	// An empty list takes every track off; nil is the same list, and is sent
-	// as [], since the platform refuses null.
+	// An empty list empties a draft; nil is the same list, and is sent as [],
+	// since the platform refuses null.
 	for name, empty := range map[string][]string{"nil": nil, "empty": {}} {
 		c, reqs := projectServer(t, projectReply{200, emptyAlbumJSON, nil})
 		if _, err := c.SetAlbumTracks(ctx, albumID, empty); err != nil {
@@ -546,6 +546,23 @@ func TestAlbumRefusals(t *testing.T) {
 		var ve *ValidationError
 		if !errors.As(err, &ve) || ve.Status != 400 || ve.Code != "AUDIO_NOT_ALLOWED_HERE" {
 			t.Errorf("error = %#v, want a *ValidationError 400 AUDIO_NOT_ALLOWED_HERE", err)
+		}
+	})
+
+	// From release 2026-11-10a an album on a post keeps at least one track:
+	// an empty list is refused there, and RemovePostAlbum takes it off.
+	t.Run("SetAlbumTracks: an empty list on a posted album is a ValidationError", func(t *testing.T) {
+		c, reqs := projectServer(t, albumRefusal(400, "INVALID_INPUT"))
+		a, err := c.SetAlbumTracks(ctx, albumID, nil)
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Status != 400 || ve.Code != "INVALID_INPUT" {
+			t.Errorf("error = %#v, want a *ValidationError 400 INVALID_INPUT", err)
+		}
+		if a != nil {
+			t.Errorf("album = %+v alongside the error", a)
+		}
+		if len(*reqs) != 1 {
+			t.Errorf("%d requests, want 1: a 400 is not retried", len(*reqs))
 		}
 	})
 

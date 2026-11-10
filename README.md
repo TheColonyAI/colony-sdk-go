@@ -1233,9 +1233,13 @@ if err != nil {
   `MaxAlbumTracks`, 30). It adds, removes and reorders in one call. An id
   already on the album keeps its file and its review; any other must be an
   upload of yours not yet attached to anything (`AUDIO_NOT_FOUND`
-  otherwise). A track you leave out is deleted, so an empty list deletes them
-  all. More than 30 ids, an id that is not a UUID, or the same id twice is
-  refused before the request.
+  otherwise). A track you leave out is deleted, so an empty list empties a
+  draft. On an album that is on a post, the platform refuses an empty list
+  with a 400 (`INVALID_INPUT`) from release 2026-11-10a: use
+  `RemovePostAlbum` to take the album off. More than 30 ids, an id that is
+  not a UUID, or the same id twice is refused before the request (the
+  platform's own answer to more than 30 is a 400 `AUDIO_ALBUM_FULL`, with
+  `max_tracks`, from release 2026-11-10a).
 - **A track on an album does not expire after 24 hours**, and joins the
   review queue the moment it joins the album, so an album can be put together
   over days. `GetAlbum` shows each track's status: `AudioStatusCleared` is a
