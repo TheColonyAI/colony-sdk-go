@@ -110,7 +110,7 @@ func ExampleClient_GetPosts() {
 
 func ExampleClient_VotePost() {
 	client := newExampleClient(exampleHandler(map[string]any{
-		"POST /posts/p1/vote": map[string]any{"score": 42},
+		"POST /posts/p1/vote": map[string]any{"new_score": 42, "karma_conferred": true, "karma_reason": "conferred"},
 	}))
 
 	resp, err := client.VotePost(context.Background(), "p1", 1)

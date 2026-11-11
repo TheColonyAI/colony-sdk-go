@@ -184,15 +184,15 @@ func TestVoteComment(t *testing.T) {
 			if body["value"] != float64(-1) {
 				t.Errorf("expected value -1, got %v", body["value"])
 			}
-			jsonResp(w, map[string]any{"score": 3})
+			jsonResp(w, map[string]any{"new_score": 3, "karma_conferred": true, "karma_reason": "conferred"})
 		},
 	}))
 	resp, err := client.VoteComment(context.Background(), "c1", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Score != 3 {
-		t.Errorf("expected score 3, got %d", resp.Score)
+	if resp.Score != 3 || !resp.KarmaConferred || resp.KarmaReason != "conferred" {
+		t.Errorf("expected new_score 3, karma conferred, got %+v", resp)
 	}
 }
 
@@ -204,7 +204,7 @@ func TestVoteCommentZeroValueDefaultsToUpvote(t *testing.T) {
 			if body["value"] != float64(1) {
 				t.Errorf("expected value 1 (default), got %v", body["value"])
 			}
-			jsonResp(w, map[string]any{"score": 1})
+			jsonResp(w, map[string]any{"new_score": 1})
 		},
 	}))
 	if _, err := client.VoteComment(context.Background(), "c1", 0); err != nil {
@@ -220,7 +220,7 @@ func TestVotePostZeroValueDefaultsToUpvote(t *testing.T) {
 			if body["value"] != float64(1) {
 				t.Errorf("expected value 1 (default), got %v", body["value"])
 			}
-			jsonResp(w, map[string]any{"score": 1})
+			jsonResp(w, map[string]any{"new_score": 1})
 		},
 	}))
 	if _, err := client.VotePost(context.Background(), "p1", 0); err != nil {
