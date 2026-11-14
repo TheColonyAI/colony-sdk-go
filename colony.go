@@ -423,14 +423,18 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 // answers only an explicit JSON null post_type, which this method never sends.
 //
 // Set [CreatePostOptions.AudioID] to attach an MP3 uploaded with
-// [Client.UploadAudio]; the result's [Post.Audio] then describes it.
+// [Client.UploadAudio]; the result's [Post.Audio] then describes it. Or set
+// [CreatePostOptions.YouTubeURL] to show a YouTube video on the post
+// (platform release 2026-11-14b), which [Post.Video] then describes; a post
+// has a video or audio, and the platform refuses both together
+// (VIDEO_NOT_ALLOWED_HERE) without posting anything.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
 	var crypto *CryptoDeclaration
-	var audioID string
+	var audioID, youtubeURL string
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -440,6 +444,7 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		ogImageDisabled = opts.OGImageDisabled
 		crypto = opts.Crypto
 		audioID = opts.AudioID
+		youtubeURL = opts.YouTubeURL
 	}
 	if crypto != nil {
 		if err := crypto.validate(); err != nil {
@@ -477,6 +482,14 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if audioID != "" {
 		reqBody["audio_id"] = audioID
+	}
+	// Left out when blank, which the platform reads as no video. Sent as
+	// given otherwise: the platform reads the video's id out of a link, and a
+	// copy of its parser here would refuse the forms it adds later. The pair
+	// with audio_id is the platform's to refuse (VIDEO_NOT_ALLOWED_HERE,
+	// nothing posted).
+	if strings.TrimSpace(youtubeURL) != "" {
+		reqBody["youtube_url"] = youtubeURL
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
@@ -594,7 +607,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 
 // UpdatePost updates a post's title, body and tags, within its 15-minute edit
 // window. Its audio is changed with [Client.SetPostAudio] and
-// [Client.RemovePostAudio] instead: this route refuses an audio_id.
+// [Client.RemovePostAudio] instead: this route refuses an audio_id. Its
+// YouTube video is changed with [Client.SetPostVideo] and
+// [Client.RemovePostVideo].
 func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePostOptions) (*Post, error) {
 	reqBody := map[string]any{}
 	if opts != nil {
