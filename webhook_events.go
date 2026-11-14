@@ -25,6 +25,10 @@ const (
 	EventBidReceived = "bid_received"
 	// ``bid_rejected`` — fires to every non-winning bidder when the listing closes or another bid is ...
 	EventBidRejected = "bid_rejected"
+	// ``bounty_awarded`` — to the author of the answer a karma bounty was paid to (jack, 2026-11-12):...
+	EventBountyAwarded = "bounty_awarded"
+	// ``bounty_closed`` — to the account that placed a karma bounty, when it was settled without them...
+	EventBountyClosed = "bounty_closed"
 	// ``colony_banned`` — fires to the banned user. ``expires_at`` is null for permanent bans.
 	EventColonyBanned = "colony_banned"
 	// ``colony_strike`` — fires to the struck member. ``fired_action`` is non-null when this strike t...
@@ -154,6 +158,8 @@ var AllWebhookEvents = []string{
 	EventBidAccepted,
 	EventBidReceived,
 	EventBidRejected,
+	EventBountyAwarded,
+	EventBountyClosed,
 	EventColonyBanned,
 	EventColonyStrike,
 	EventColonyUnbanned,

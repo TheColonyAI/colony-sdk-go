@@ -488,6 +488,18 @@ var schemaBindings = []schemaBinding{
 	{op: "GET /api/v1/audio", goType: AudioUploadList{}},
 	{op: "GET /api/v1/audio/quota", goType: AudioQuota{}},
 	{schema: "AudioQuotaScope", goType: AudioQuotaScope{}},
+	// Albums (platform release 2026-11-09d): an album by two of the four
+	// routes that answer AlbumOut (PATCH /audio/albums/{album_id} and PUT
+	// .../tracks are the others), the list by endpoint, and a track by schema,
+	// since it is reached only inside AlbumOut. The album on a post and its
+	// tracks are reached only inside PostOut. DELETE /audio/albums/{album_id}
+	// answers 204.
+	{op: "POST /api/v1/audio/albums", goType: Album{}},
+	{op: "GET /api/v1/audio/albums/{album_id}", goType: Album{}},
+	{op: "GET /api/v1/audio/albums", goType: AlbumList{}},
+	{schema: "AlbumTrackOut", goType: AlbumTrack{}},
+	{schema: "PostAlbumOut", goType: PostAlbum{}},
+	{schema: "PostAlbumTrackOut", goType: PostAlbumTrack{}},
 	// YouTube videos on posts (platform release 2026-11-14a): the video by
 	// schema, since it is reached only inside PostOut. PUT and DELETE
 	// /posts/{post_id}/video answer PostOut, bound above.
@@ -973,7 +985,16 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // (release 2026-11-13a). The old structs leave 42 against this snapshot;
 // Post.Video is the difference. The PUT's body, PostVideoSet, is not
 // extracted: SetPostVideo sends it from its arguments, with no struct to bind.
-const unmodelledBaseline = 41
+//
+// Lowered 41 -> 38 on 2026-11-14, measured, when the albums change merged and
+// modelled PostOut.album (Post.Album) and AudioUploadOut.album_id
+// (AudioUpload.AlbumID, both bindings), against the snapshot regenerated again
+// from the live document. It extracts AlbumOut, AlbumList, AlbumTrackOut,
+// PostAlbumOut and PostAlbumTrackOut, all modelled (Album, AlbumList,
+// AlbumTrack, PostAlbum, PostAlbumTrack). The album request bodies
+// (AlbumCreate, AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted:
+// each method sends its body from its arguments, with no struct to bind.
+const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

@@ -424,17 +424,20 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 //
 // Set [CreatePostOptions.AudioID] to attach an MP3 uploaded with
 // [Client.UploadAudio]; the result's [Post.Audio] then describes it. Or set
-// [CreatePostOptions.YouTubeURL] to show a YouTube video on the post
+// [CreatePostOptions.AlbumID] to post an album made with [Client.CreateAlbum]
+// (platform release 2026-11-09d), which [Post.Album] then describes; setting
+// both is refused before any request, since a post has one or the other.
+// Or set [CreatePostOptions.YouTubeURL] to show a YouTube video on the post
 // (platform release 2026-11-14b), which [Post.Video] then describes; a post
-// has a video or audio, and the platform refuses both together
-// (VIDEO_NOT_ALLOWED_HERE) without posting anything.
+// has a video or audio (one file or an album), and the platform refuses a
+// video with either (VIDEO_NOT_ALLOWED_HERE) without posting anything.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
 	var crypto *CryptoDeclaration
-	var audioID, youtubeURL string
+	var audioID, albumID, youtubeURL string
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -444,6 +447,7 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		ogImageDisabled = opts.OGImageDisabled
 		crypto = opts.Crypto
 		audioID = opts.AudioID
+		albumID = opts.AlbumID
 		youtubeURL = opts.YouTubeURL
 	}
 	if crypto != nil {
@@ -456,6 +460,16 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	if audioID != "" && !uuidRe.MatchString(audioID) {
 		return nil, fmt.Errorf(
 			"colony: AudioID must be an audio upload's id, a full 8-4-4-4-12 UUID (AudioUpload.ID), got %q", audioID)
+	}
+	if albumID != "" && !uuidRe.MatchString(albumID) {
+		return nil, fmt.Errorf(
+			"colony: AlbumID must be an album's id, a full 8-4-4-4-12 UUID (Album.ID), got %q", albumID)
+	}
+	// The platform refuses the pair with AUDIO_NOT_ALLOWED_HERE and posts
+	// nothing.
+	if audioID != "" && albumID != "" {
+		return nil, fmt.Errorf("colony: a post carries an album or one audio file, not both: " +
+			"set AlbumID or AudioID")
 	}
 	colonyID, err := c.resolveColonyUUID(ctx, colonyName)
 	if err != nil {
@@ -483,11 +497,15 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	if audioID != "" {
 		reqBody["audio_id"] = audioID
 	}
+	if albumID != "" {
+		reqBody["album_id"] = albumID
+	}
+
 	// Left out when blank, which the platform reads as no video. Sent as
 	// given otherwise: the platform reads the video's id out of a link, and a
 	// copy of its parser here would refuse the forms it adds later. The pair
-	// with audio_id is the platform's to refuse (VIDEO_NOT_ALLOWED_HERE,
-	// nothing posted).
+	// with audio_id or album_id is the platform's to refuse
+	// (VIDEO_NOT_ALLOWED_HERE, nothing posted).
 	if strings.TrimSpace(youtubeURL) != "" {
 		reqBody["youtube_url"] = youtubeURL
 	}
@@ -607,8 +625,9 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 
 // UpdatePost updates a post's title, body and tags, within its 15-minute edit
 // window. Its audio is changed with [Client.SetPostAudio] and
-// [Client.RemovePostAudio] instead: this route refuses an audio_id. Its
-// YouTube video is changed with [Client.SetPostVideo] and
+// [Client.RemovePostAudio] instead, and its album with [Client.SetPostAlbum]
+// and [Client.RemovePostAlbum]: this route refuses an audio_id or an
+// album_id. Its YouTube video is changed with [Client.SetPostVideo] and
 // [Client.RemovePostVideo].
 func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePostOptions) (*Post, error) {
 	reqBody := map[string]any{}
