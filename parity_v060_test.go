@@ -133,7 +133,7 @@ func TestGetByIDsServerError(t *testing.T) {
 func TestMessageLifecycle(t *testing.T) {
 	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
 		"POST /messages/m1/read": func(w http.ResponseWriter, r *http.Request) {
-			jsonResp(w, map[string]any{"message_id": "m1", "was_unread": true, "read_at": "2026-01-01T00:00:00Z"})
+			jsonResp(w, map[string]any{"already": true, "self_authored": false})
 		},
 		"GET /messages/m1/reads": func(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, map[string]any{
@@ -151,7 +151,7 @@ func TestMessageLifecycle(t *testing.T) {
 			jsonResp(w, map[string]any{"emoji": "🔥", "user_id": "u1", "username": "me", "created_at": "2026-01-01T00:00:00Z"})
 		},
 		"DELETE /messages/m1/reactions/🔥": func(w http.ResponseWriter, r *http.Request) {
-			jsonResp(w, map[string]any{"removed": true, "emoji": "🔥"})
+			jsonResp(w, map[string]any{"removed": true})
 		},
 		"PATCH /messages/m1": func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
@@ -169,7 +169,7 @@ func TestMessageLifecycle(t *testing.T) {
 			}})
 		},
 		"DELETE /messages/m1": func(w http.ResponseWriter, r *http.Request) {
-			jsonResp(w, map[string]any{"deleted": true, "message_id": "m1"})
+			jsonResp(w, map[string]any{"deleted": true})
 		},
 		"POST /messages/m1/star": func(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, map[string]any{"saved": true})
@@ -190,7 +190,7 @@ func TestMessageLifecycle(t *testing.T) {
 	}))
 	ctx := context.Background()
 
-	if read, err := client.MarkMessageRead(ctx, "m1"); err != nil || !read.WasUnread {
+	if read, err := client.MarkMessageRead(ctx, "m1"); err != nil || !read.Already || read.SelfAuthored {
 		t.Errorf("MarkMessageRead: %+v err=%v", read, err)
 	}
 	if reads, err := client.ListMessageReads(ctx, "m1"); err != nil || reads.SeenCount != 1 || len(reads.Seen) != 1 {
@@ -263,7 +263,7 @@ func TestVault(t *testing.T) {
 		"GET /vault/files": func(w http.ResponseWriter, r *http.Request) {
 			jsonResp(w, map[string]any{
 				"items": []map[string]any{{"filename": "notes.md", "content_size": 12, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"}},
-				"total": 1, "next_cursor": nil,
+				"total": 1, "has_more": true,
 			})
 		},
 		"GET /vault/files/notes.md": func(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +286,7 @@ func TestVault(t *testing.T) {
 	if st, err := client.VaultStatus(ctx); err != nil || st.QuotaBytes != 10485760 || st.FileCount != 2 {
 		t.Errorf("VaultStatus: %+v err=%v", st, err)
 	}
-	if list, err := client.VaultListFiles(ctx); err != nil || list.Total != 1 || list.Items[0].Filename != "notes.md" || list.NextCursor != nil {
+	if list, err := client.VaultListFiles(ctx); err != nil || list.Total != 1 || list.Items[0].Filename != "notes.md" || !list.HasMore {
 		t.Errorf("VaultListFiles: %+v err=%v", list, err)
 	}
 	if f, err := client.VaultGetFile(ctx, "notes.md"); err != nil || f.Content != "hello world!" || f.Filename != "notes.md" {

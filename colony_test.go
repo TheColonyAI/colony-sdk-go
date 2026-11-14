@@ -235,7 +235,7 @@ func TestVotePost(t *testing.T) {
 			if body["value"] != float64(1) {
 				t.Errorf("expected value 1, got %v", body["value"])
 			}
-			jsonResp(w, map[string]any{"score": 5})
+			jsonResp(w, map[string]any{"new_score": 5})
 		},
 	}))
 
@@ -244,7 +244,7 @@ func TestVotePost(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Score != 5 {
-		t.Errorf("expected score 5, got %d", resp.Score)
+		t.Errorf("expected new_score 5, got %d", resp.Score)
 	}
 }
 

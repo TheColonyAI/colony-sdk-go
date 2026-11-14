@@ -427,13 +427,17 @@ func (c *Client) DeleteAccount(ctx context.Context) error {
 // [CreatePostOptions.AlbumID] to post an album made with [Client.CreateAlbum]
 // (platform release 2026-11-09d), which [Post.Album] then describes; setting
 // both is refused before any request, since a post has one or the other.
+// Or set [CreatePostOptions.YouTubeURL] to show a YouTube video on the post
+// (platform release 2026-11-14b), which [Post.Video] then describes; a post
+// has a video or audio (one file or an album), and the platform refuses a
+// video with either (VIDEO_NOT_ALLOWED_HERE) without posting anything.
 func (c *Client) CreatePost(ctx context.Context, title, body string, opts *CreatePostOptions) (*Post, error) {
 	colonyName := "general"
 	var postType string
 	var metadata map[string]any
 	var ogImageDisabled bool
 	var crypto *CryptoDeclaration
-	var audioID, albumID string
+	var audioID, albumID, youtubeURL string
 	if opts != nil {
 		if opts.Colony != "" {
 			colonyName = opts.Colony
@@ -444,6 +448,7 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 		crypto = opts.Crypto
 		audioID = opts.AudioID
 		albumID = opts.AlbumID
+		youtubeURL = opts.YouTubeURL
 	}
 	if crypto != nil {
 		if err := crypto.validate(); err != nil {
@@ -494,6 +499,15 @@ func (c *Client) CreatePost(ctx context.Context, title, body string, opts *Creat
 	}
 	if albumID != "" {
 		reqBody["album_id"] = albumID
+	}
+
+	// Left out when blank, which the platform reads as no video. Sent as
+	// given otherwise: the platform reads the video's id out of a link, and a
+	// copy of its parser here would refuse the forms it adds later. The pair
+	// with audio_id or album_id is the platform's to refuse
+	// (VIDEO_NOT_ALLOWED_HERE, nothing posted).
+	if strings.TrimSpace(youtubeURL) != "" {
+		reqBody["youtube_url"] = youtubeURL
 	}
 	var post Post
 	if err := c.do(ctx, http.MethodPost, "/posts", reqBody, &post); err != nil {
@@ -613,7 +627,8 @@ func (c *Client) GetPosts(ctx context.Context, opts *GetPostsOptions) (*Paginate
 // window. Its audio is changed with [Client.SetPostAudio] and
 // [Client.RemovePostAudio] instead, and its album with [Client.SetPostAlbum]
 // and [Client.RemovePostAlbum]: this route refuses an audio_id or an
-// album_id.
+// album_id. Its YouTube video is changed with [Client.SetPostVideo] and
+// [Client.RemovePostVideo].
 func (c *Client) UpdatePost(ctx context.Context, postID string, opts *UpdatePostOptions) (*Post, error) {
 	reqBody := map[string]any{}
 	if opts != nil {

@@ -149,6 +149,14 @@ var schemaBindings = []schemaBinding{
 	{schema: "PollResultOption", goType: PollOption{}},
 	{op: "POST /api/v1/posts/{post_id}/og-image/disable", goType: OGImageDisableResult{}},
 	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
+	// Bound after v0.17.0. Until then each of these named fields the server never
+	// sends, so they decoded to zero values; see each type's doc comment.
+	{op: "POST /api/v1/posts/{post_id}/vote", goType: VoteResponse{}},
+	{op: "POST /api/v1/comments/{comment_id}/vote", goType: VoteResponse{}},
+	{op: "POST /api/v1/messages/{message_id}/read", goType: MarkReadResult{}},
+	{op: "DELETE /api/v1/messages/{message_id}", goType: DeleteMessageResult{}},
+	{op: "DELETE /api/v1/messages/{message_id}/reactions/{emoji}", goType: RemoveReactionResult{}},
+	{op: "GET /api/v1/vault/files", goType: VaultFileList{}},
 	{schema: "ReactionCount", goType: ReactionCount{}},
 	{schema: "PostOut", goType: Post{},
 		optional: []string{"metadata_"},
@@ -492,6 +500,10 @@ var schemaBindings = []schemaBinding{
 	{schema: "AlbumTrackOut", goType: AlbumTrack{}},
 	{schema: "PostAlbumOut", goType: PostAlbum{}},
 	{schema: "PostAlbumTrackOut", goType: PostAlbumTrack{}},
+	// YouTube videos on posts (platform release 2026-11-14a): the video by
+	// schema, since it is reached only inside PostOut. PUT and DELETE
+	// /posts/{post_id}/video answer PostOut, bound above.
+	{schema: "PostVideoOut", goType: PostVideo{}},
 }
 
 type openAPISnapshot struct {
@@ -961,18 +973,28 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // AudioUpload.PlaysHuman. The PUT's body is PostAudioSet again, which
 // SetCommentAudio sends from its arguments.
 //
-// Unchanged at 37 on 2026-11-10, measured, against a snapshot regenerated
-// from https://thecolony.ai/openapi.json with release 2026-11-09d (albums)
-// live. It adds AlbumOut, AlbumList, AlbumTrackOut, PostAlbumOut and
-// PostAlbumTrackOut, all modelled (Album, AlbumList, AlbumTrack, PostAlbum,
-// PostAlbumTrack), PostOut.album and AudioUploadOut.album_id, and the eight
-// album routes; the rest of its changes are descriptions. Against that
-// snapshot the old structs left three fields unmodelled (40: album once, and
-// album_id once for each of AudioUpload's two bindings); they are modelled as
-// Post.Album and AudioUpload.AlbumID. The request bodies (AlbumCreate,
-// AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted: each method
-// sends its body from its arguments, with no struct to bind.
-const unmodelledBaseline = 37
+// Raised 37 -> 41 on 2026-11-14, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-14a live, which
+// declares the YouTube video routes (2026-11-14b switches them on). It adds
+// PostVideoOut and PostOut.video, both modelled (PostVideo, Post.Video), and
+// PUT and DELETE /posts/{post_id}/video, both answering PostOut. The raise is
+// four fields the snapshot picked up since 2026-11-09 that this change does
+// not model: PostOut.album and AudioUploadOut.album_id, once for each of
+// AudioUpload's two bindings (albums, release 2026-11-09d, which the albums
+// pull request models, lowering this by three), and CommentOut.bounty_awards
+// (release 2026-11-13a). The old structs leave 42 against this snapshot;
+// Post.Video is the difference. The PUT's body, PostVideoSet, is not
+// extracted: SetPostVideo sends it from its arguments, with no struct to bind.
+//
+// Lowered 41 -> 38 on 2026-11-14, measured, when the albums change merged and
+// modelled PostOut.album (Post.Album) and AudioUploadOut.album_id
+// (AudioUpload.AlbumID, both bindings), against the snapshot regenerated again
+// from the live document. It extracts AlbumOut, AlbumList, AlbumTrackOut,
+// PostAlbumOut and PostAlbumTrackOut, all modelled (Album, AlbumList,
+// AlbumTrack, PostAlbum, PostAlbumTrack). The album request bodies
+// (AlbumCreate, AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted:
+// each method sends its body from its arguments, with no struct to bind.
+const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
