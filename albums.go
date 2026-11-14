@@ -154,23 +154,37 @@ type PostAlbumTrack struct {
 }
 
 // albumTitleLength counts an album title as the platform's request model
-// does: white space trimmed from both ends (Python's str.strip, whose white
-// space is Go's plus the four ASCII separators U+001C..U+001F), then
-// characters (code points).
+// does before anything else: white space trimmed from both ends, then
+// characters (code points). The model trims with pydantic's
+// str_strip_whitespace, which removes Unicode White_Space only, the set
+// [unicode.IsSpace] tests; it does NOT trim the ASCII separators
+// U+001C..U+001F, so "\x1c" + 200 characters + "\x1f" is 202 long and refused
+// with a 422.
 func albumTitleLength(title string) int {
-	return utf8.RuneCountInString(strings.TrimFunc(title, func(r rune) bool {
+	return utf8.RuneCountInString(strings.TrimFunc(title, unicode.IsSpace))
+}
+
+// albumTitleBlank reports whether the platform's handler would find no title
+// left: it collapses white space with Python's str.split, whose white space is
+// Go's plus U+001C..U+001F, so a title made only of those is refused with a
+// 400 INVALID_INPUT ("An album needs a title."), though the model let it
+// through.
+func albumTitleBlank(title string) bool {
+	return strings.TrimFunc(title, func(r rune) bool {
 		return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f)
-	}))
+	}) == ""
 }
 
 // checkAlbumTitle refuses, before any request, a title the platform would
-// refuse with a 422.
+// refuse: one with nothing but white space (a 422 from the request model, or
+// a 400 INVALID_INPUT from the handler for the separators U+001C..U+001F),
+// and one longer than [MaxAlbumTitleLength] once Unicode white space is
+// trimmed from its ends (a 422).
 func checkAlbumTitle(title string) error {
-	n := albumTitleLength(title)
-	if n == 0 {
+	if albumTitleBlank(title) {
 		return fmt.Errorf("colony: an album needs a title")
 	}
-	if n > MaxAlbumTitleLength {
+	if n := albumTitleLength(title); n > MaxAlbumTitleLength {
 		return fmt.Errorf("colony: the album title is %d characters; the most is %d", n, MaxAlbumTitleLength)
 	}
 	return nil
@@ -241,7 +255,9 @@ func (c *Client) ListAlbums(ctx context.Context, opts *ListAlbumsOptions) (*Albu
 // IterAlbums walks every album of yours, newest first, fetching a page at a
 // time (50 a page, the most the platform serves, unless opts sets Limit). It
 // stops once it has walked Total albums, or at an empty page, since the list
-// carries no has_more.
+// carries no has_more. It pages by offset, as [Client.IterAudio] does, so an
+// album created or deleted during the walk can shift the pages: one may be
+// walked twice, or missed.
 //
 // Stops on the first error, which is reported through err. A caller that
 // ignores err cannot tell a complete walk from a truncated one.
@@ -332,11 +348,13 @@ func (c *Client) RenameAlbum(ctx context.Context, albumID, title string) (*Album
 // the post's 15-minute edit window, where a new track waits for its review
 // unless your account is established. Needs platform release 2026-11-09d.
 //
-// An empty (or nil) audioIDs empties a draft, deleting every track. On an
-// album that is on a post, the platform refuses an empty list with a
-// [*ValidationError] (400 INVALID_INPUT) from release 2026-11-10a, since an
-// album on a post keeps at least one track: take the album off with
-// [Client.RemovePostAlbum] instead, which deletes it.
+// An empty (or nil) audioIDs empties a draft, deleting every track: a nil
+// slice is sent as [], so a variable that was never filled in empties the
+// draft too. On an album that is on a post, the platform refuses an empty
+// list with a [*ValidationError] (400 INVALID_INPUT) from release 2026-11-10a,
+// since an album on a post keeps at least one track: take the album off with
+// [Client.RemovePostAlbum] instead, which deletes it. (Before that release an
+// empty list emptied an album on a post as well.)
 //
 // Refused before any request: an albumID or an audio id that is not a full
 // UUID, more than [MaxAlbumTracks] ids, and the same id twice. (The

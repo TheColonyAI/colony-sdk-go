@@ -106,9 +106,13 @@ func TestCreateAlbum(t *testing.T) {
 	}
 }
 
-// A title is checked as the platform's request model checks it: trimmed at
-// both ends, then counted in characters. What passes is sent as it was given;
-// the platform collapses white space when it stores it.
+// A title is checked as the platform checks it, in two steps. Its request
+// model trims Unicode white space at both ends and counts characters (a 422
+// past 200), and that trim leaves the ASCII separators U+001C..U+001F alone.
+// Its handler then collapses white space with Python's str.split, which does
+// count the separators, and refuses a title with nothing left (400
+// INVALID_INPUT). What passes is sent as it was given; the platform collapses
+// white space when it stores it.
 func TestAlbumTitlesAreCheckedBeforeAnyRequest(t *testing.T) {
 	ctx := context.Background()
 	long := strings.Repeat("é", MaxAlbumTitleLength)
@@ -117,7 +121,14 @@ func TestAlbumTitlesAreCheckedBeforeAnyRequest(t *testing.T) {
 		"RenameAlbum": func(c *Client, title string) (*Album, error) { return c.RenameAlbum(ctx, albumID, title) },
 	}
 	for name, call := range calls {
-		for _, bad := range []string{"", "   ", "\t\n", "　", "\x1c\x1f", long + "e"} {
+		for _, bad := range []string{
+			"", "   ", "\t\n", "　", long + "e",
+			// Only separators: the model lets it through, the handler finds
+			// no title.
+			"\x1c\x1f",
+			// The model counts the separators: 202 characters.
+			"\x1c" + long + "\x1f",
+		} {
 			c, reqs := projectServer(t, projectReply{200, albumJSON, nil})
 			if _, err := call(c, bad); err == nil || !strings.Contains(err.Error(), "title") {
 				t.Errorf("%s(%q): error = %v", name, bad, err)
@@ -127,9 +138,10 @@ func TestAlbumTitlesAreCheckedBeforeAnyRequest(t *testing.T) {
 			}
 		}
 		// MaxAlbumTitleLength characters, in code points not bytes, with
-		// white space (Python's, the ASCII separators included) at the ends
-		// that the platform trims before it counts.
-		for _, ok := range []string{"A", long, "  " + long + "\n", "\x1c" + long + "\x1f", "Act  one"} {
+		// Unicode white space at the ends that the model trims before it
+		// counts; and separators around a title that fits with them counted.
+		fits := strings.Repeat("é", MaxAlbumTitleLength-2)
+		for _, ok := range []string{"A", long, "  " + long + "\n", "　" + long + "\u2028", "\x1c" + fits + "\x1f", "Act  one"} {
 			c, reqs := projectServer(t, projectReply{200, albumJSON, nil})
 			if _, err := call(c, ok); err != nil {
 				t.Errorf("%s(%d characters): %v", name, len([]rune(ok)), err)

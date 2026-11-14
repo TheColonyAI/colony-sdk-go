@@ -48,8 +48,8 @@ const (
 	// AudioStatusUnattached is an upload on no post, comment or album yet.
 	// It is deleted at its ExpiresAt unless it is attached to one first.
 	AudioStatusUnattached = "unattached"
-	// AudioStatusPendingReview is audio on a post or a comment that nobody
-	// can play until a reviewer clears it.
+	// AudioStatusPendingReview is audio on a post or a comment, or a track of
+	// an album, that nobody can play until a reviewer clears it.
 	AudioStatusPendingReview = "pending_review"
 	// AudioStatusAvailable is audio that plays where it is attached; URL is
 	// the MP3.
@@ -193,7 +193,9 @@ func (c *Client) UploadAudio(ctx context.Context, filename string, fileBytes []b
 // unattached one expires. Since platform release 2026-11-07d a review that
 // clears the audio sends you a post_audio_available notification and
 // webhook ([EventPostAudioAvailable]; for audio on a comment, since release
-// 2026-11-08b, its body's comment_id names the comment), so there is no need
+// 2026-11-08b, its body's comment_id names the comment, and for a track of the
+// album on a post, since release 2026-11-09d, album_id names the album, one
+// event a track), so there is no need
 // to poll; audio from an established account plays at once and is announced
 // by neither. Against an older platform, read this or the post now and then
 // (once an hour is plenty).
