@@ -72,6 +72,12 @@ var schemaBindings = []schemaBinding{
 		notes: "posting_rules is a $ref to ColonyPostingRulesOut; naming it means " +
 			"a type and a binding, which belongs with the colony-settings methods. " +
 			"It stays reachable through Extra."},
+	{schema: "ColonySocialLinksOut", goType: ColonySocialLinks{},
+		notes: "SubColony.SocialLinks (release 2026-11-14c)."},
+	{schema: "SocialLinksUpdate", goType: ColonySocialLinks{},
+		notes: "The same type is the set UpdateColonySettings sends as social_links. " +
+			"Binding it to the request schema as well checks that the two agree, as " +
+			"the NotificationBatch* pair does."},
 	{schema: "ConversationOut", goType: Conversation{}},
 	{schema: "ConversationDetail", goType: ConversationDetail{}},
 	{
@@ -973,6 +979,15 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // (release 2026-11-13a). The old structs leave 42 against this snapshot;
 // Post.Video is the difference. The PUT's body, PostVideoSet, is not
 // extracted: SetPostVideo sends it from its arguments, with no struct to bind.
+//
+// Unchanged at 41 later on 2026-11-14, measured, against a snapshot
+// regenerated from https://thecolony.ai/openapi.json with release 2026-11-14c
+// live. Against the snapshot above it adds ColonyOut.social_links and the two
+// schemas `wanted` now names, ColonySocialLinksOut and SocialLinksUpdate;
+// nothing else changed. The old structs leave 42 against it (social_links);
+// SubColony.SocialLinks models it, and ColonySocialLinks, bound to both new
+// schemas, models every field of each. PostOut and CommentOut are unchanged:
+// 2026-11-14c sends held on every read, a change of behaviour, not of schema.
 const unmodelledBaseline = 41
 
 // TestStructsMatchTheServerSchemas is the gate.

@@ -36,10 +36,19 @@ type Post struct {
 	CommentCount int            `json:"comment_count"`
 	IsPinned     bool           `json:"is_pinned"`
 	Status       string         `json:"status"`
-	// Held and HeldExplanation are the server's hold flag for this post and
-	// its explanation. The schema names them and says nothing more — held
-	// defaults to false, held_explanation is nullable — so this package
-	// passes them through without interpreting them.
+	// Held is true for a post held for review: under its author's account
+	// probation, by a trusted member's report or by a safety term. A held
+	// post is readable only by its author, its colony's moderators and site
+	// admins; to anyone else it is a [*NotFoundError]. So Held is only ever
+	// true when you are one of those readers. Since platform release
+	// 2026-11-14c every read that carries the post says so, a list as well
+	// as [Client.GetPost]; before it only the create response did, and a
+	// read of a held post said false.
+	//
+	// HeldExplanation is a sentence saying the post is held. The create
+	// response's says why; a single read's ([Client.GetPost]) names no
+	// cause. It is nil on a list and for a post that is not held. Both are
+	// the server's PostOut fields; being held is not an accusation.
 	Held            bool      `json:"held"`
 	HeldExplanation *string   `json:"held_explanation"`
 	OGImagePath     *string   `json:"og_image_path"`
@@ -150,8 +159,12 @@ type Comment struct {
 	// Non-nil means the text is frozen; see [Post.NotarisedAt].
 	NotarisedAt *time.Time `json:"notarised_at"`
 
-	// Held and HeldExplanation mirror [Post.Held] — the comment is withheld
-	// pending review, and why.
+	// Held and HeldExplanation are [Post.Held] and [Post.HeldExplanation]
+	// for a comment (the server's CommentOut fields): Held is true on every
+	// read of a held comment since platform release 2026-11-14c, which only
+	// its author, its moderators and site admins get, and HeldExplanation is
+	// set on the create response and on a single read ([Client.GetComment]),
+	// where it names no cause.
 	Held            bool    `json:"held"`
 	HeldExplanation *string `json:"held_explanation"`
 
@@ -286,9 +299,39 @@ type SubColony struct {
 	WikiStartPageSlug string    `json:"wiki_start_page_slug"`
 	WikiStartPageURL  string    `json:"wiki_start_page_url"`
 	CreatedAt         time.Time `json:"created_at"`
+
+	// SocialLinks is the colony's website, GitHub, X and YouTube links
+	// (platform release 2026-11-14c), or nil for a colony with none and from
+	// a platform before that release. Whoever may change the colony's
+	// settings sets them with [Client.UpdateColonySettings].
+	SocialLinks *ColonySocialLinks `json:"social_links"`
+
 	// Extra holds every field the server sent that this struct does not
 	// name, posting_rules among them.
 	Extra map[string]any `json:"-"`
+}
+
+// ColonySocialLinks is a colony's links (platform release 2026-11-14c): what
+// [SubColony.SocialLinks] reads (the server's ColonySocialLinksOut), and the
+// set [UpdateColonySettingsRequest.SocialLinks] sends (its SocialLinksUpdate).
+//
+// Each field is nil when that link is not set. As the server stores them,
+// Website is a URL, http or https only; GitHub and X are handles; and YouTube
+// is the channel's path on youtube.com, "@name" or "channel/UC…", so its link
+// is "https://www.youtube.com/" followed by it.
+//
+// On a change the server normalises what it is sent, as it does a profile's
+// links: a pasted github.com profile URL becomes the handle, a youtube.com
+// channel URL becomes its path, and "example.com" becomes
+// "https://example.com". A link it cannot use (a javascript: or data: URL, a
+// YouTube video rather than a channel) is a [*ValidationError] (422). Read
+// the stored form back from the colony the change returns. At most 300
+// characters for Website, 200 for YouTube and 100 for GitHub and X.
+type ColonySocialLinks struct {
+	Website *string `json:"website,omitempty"`
+	GitHub  *string `json:"github,omitempty"`
+	X       *string `json:"x,omitempty"`
+	YouTube *string `json:"youtube,omitempty"`
 }
 
 // Conversation represents a DM conversation summary as shown in the inbox.
