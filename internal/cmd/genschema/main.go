@@ -286,6 +286,9 @@ var wanted = []string{
 	"MessageDeleteOut",
 	"ReactionRemoveOut",
 	"PaginatedList_VaultFileInfo_",
+	// YouTube videos on posts (platform release 2026-11-14a): the video on a
+	// post, reached only inside PostOut.
+	"PostVideoOut",
 }
 
 func main() {

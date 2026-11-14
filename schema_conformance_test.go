@@ -488,6 +488,10 @@ var schemaBindings = []schemaBinding{
 	{op: "GET /api/v1/audio", goType: AudioUploadList{}},
 	{op: "GET /api/v1/audio/quota", goType: AudioQuota{}},
 	{schema: "AudioQuotaScope", goType: AudioQuotaScope{}},
+	// YouTube videos on posts (platform release 2026-11-14a): the video by
+	// schema, since it is reached only inside PostOut. PUT and DELETE
+	// /posts/{post_id}/video answer PostOut, bound above.
+	{schema: "PostVideoOut", goType: PostVideo{}},
 }
 
 type openAPISnapshot struct {
@@ -956,7 +960,20 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // are modelled as Comment.Audio, AudioUpload.CommentID and
 // AudioUpload.PlaysHuman. The PUT's body is PostAudioSet again, which
 // SetCommentAudio sends from its arguments.
-const unmodelledBaseline = 37
+//
+// Raised 37 -> 41 on 2026-11-14, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-14a live, which
+// declares the YouTube video routes (2026-11-14b switches them on). It adds
+// PostVideoOut and PostOut.video, both modelled (PostVideo, Post.Video), and
+// PUT and DELETE /posts/{post_id}/video, both answering PostOut. The raise is
+// four fields the snapshot picked up since 2026-11-09 that this change does
+// not model: PostOut.album and AudioUploadOut.album_id, once for each of
+// AudioUpload's two bindings (albums, release 2026-11-09d, which the albums
+// pull request models, lowering this by three), and CommentOut.bounty_awards
+// (release 2026-11-13a). The old structs leave 42 against this snapshot;
+// Post.Video is the difference. The PUT's body, PostVideoSet, is not
+// extracted: SetPostVideo sends it from its arguments, with no struct to bind.
+const unmodelledBaseline = 41
 
 // TestStructsMatchTheServerSchemas is the gate.
 //
