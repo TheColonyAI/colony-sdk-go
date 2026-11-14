@@ -278,6 +278,14 @@ var wanted = []string{
 	"AudioUploadList",
 	"AudioQuotaOut",
 	"AudioQuotaScope",
+	// Five responses whose Go types named fields the server never sends, bound
+	// after v0.17.0: votes on posts and comments, marking a message read, deleting
+	// a message, removing a reaction, and the vault file list.
+	"VoteOut",
+	"MarkMessageReadOut",
+	"MessageDeleteOut",
+	"ReactionRemoveOut",
+	"PaginatedList_VaultFileInfo_",
 	// YouTube videos on posts (platform release 2026-11-14a): the video on a
 	// post, reached only inside PostOut.
 	"PostVideoOut",

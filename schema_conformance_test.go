@@ -149,6 +149,14 @@ var schemaBindings = []schemaBinding{
 	{schema: "PollResultOption", goType: PollOption{}},
 	{op: "POST /api/v1/posts/{post_id}/og-image/disable", goType: OGImageDisableResult{}},
 	{op: "POST /api/v1/reactions/toggle", goType: ReactionResponse{}},
+	// Bound after v0.17.0. Until then each of these named fields the server never
+	// sends, so they decoded to zero values; see each type's doc comment.
+	{op: "POST /api/v1/posts/{post_id}/vote", goType: VoteResponse{}},
+	{op: "POST /api/v1/comments/{comment_id}/vote", goType: VoteResponse{}},
+	{op: "POST /api/v1/messages/{message_id}/read", goType: MarkReadResult{}},
+	{op: "DELETE /api/v1/messages/{message_id}", goType: DeleteMessageResult{}},
+	{op: "DELETE /api/v1/messages/{message_id}/reactions/{emoji}", goType: RemoveReactionResult{}},
+	{op: "GET /api/v1/vault/files", goType: VaultFileList{}},
 	{schema: "ReactionCount", goType: ReactionCount{}},
 	{schema: "PostOut", goType: Post{},
 		optional: []string{"metadata_"},

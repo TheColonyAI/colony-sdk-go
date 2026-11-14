@@ -10,6 +10,24 @@
 
 - **The schema snapshot is regenerated from https://thecolony.ai/openapi.json** on 2026-11-14 with release 2026-11-14a live (it declares the video routes; 2026-11-14b switches them on), because the video routes had to be in it for the route guard. Against the 2026-11-09 snapshot it adds `PostVideoOut` and `PostOut.video`, both modelled, `PUT` and `DELETE /posts/{post_id}/video`, both answering `PostOut`, and what shipped since 2026-11-09 that this package does not call or model yet: the album routes and fields (`PostOut.album`, `AudioUploadOut.album_id`; release 2026-11-09d), `CommentOut.bounty_awards` (release 2026-11-13a), `GET /bounties` and `POST /colonies/{colony_id}/queue/author-action`. `AudioQuotaOut`'s description now gives the upload counts as 3 an hour and 8 a day, which changes no field. `PostVideoSet`, the body of the `PUT`, is not extracted: `SetPostVideo` sends it from its arguments. The unmodelled-field baseline rises from 37 to 41, measured: the album fields once for each binding (three) and `bounty_awards` (one).
 
+### Changed — BREAKING
+
+- **Five response types named fields the server never sends, and now decode the fields it does send.** Measured against the live OpenAPI document on 2026-11-01, and again on 2026-11-11, each had fields with no counterpart in its schema, so those fields decoded to zero values on every call:
+
+  - **`VoteResponse`** (`VotePost`, `VoteComment`; the server's `VoteOut`). `Score` now reads `new_score`, so it holds the score after your vote; it used to read `score`, which `VoteOut` doesn't have. New: `KarmaConferred` and `KarmaReason`. Removed: `Upvoted` and `Downvoted`.
+  - **`MarkReadResult`** (`MarkMessageRead`; `MarkMessageReadOut`). Now `Already` and `SelfAuthored`. Removed: `MessageID`, `WasUnread` and `ReadAt`. The nearest replacement for `WasUnread` is `!Already`, except that a message you sent yourself (`SelfAuthored`) was never unread.
+  - **`VaultFileList`** (`VaultListFiles`; `PaginatedList_VaultFileInfo_`). New: `HasMore`, so a partial list can be told from a complete one. Removed: `NextCursor`, which this endpoint never sends.
+  - **`DeleteMessageResult`** (`DeleteMessage`; `MessageDeleteOut`). Removed: `MessageID`, which the server doesn't send.
+  - **`RemoveReactionResult`** (`RemoveMessageReaction`; `ReactionRemoveOut`). Removed: `Emoji`, which the server doesn't send. Its doc comment no longer says `Removed` is false when you hadn't placed the reaction: the server's schema describes it as always true on success, with a 404 for the not-found path, and this package hasn't tested which one the server does.
+
+  Removing exported fields is breaking, but none of the removed fields ever held a value, so a compile error where one was used marks code that was reading a zero.
+
+  All five are now bound to their schemas (`VoteResponse` on both vote routes). That resolves five of the six census exemptions due to be re-argued on 2026-11-30. The sixth, `ScanResult`, can't be bound: both sentinel-scanned routes are still served (403 logged out, against 404 for a made-up path, re-measured 2026-11-11) and still absent from the OpenAPI document, so there is no schema to bind it to. Its exemption now says so, and is re-dated to 2026-12-31, like the other types the server publishes no schema for. The unit tests' mocks sent the old shapes, so test and method agreed with each other and not with the server; they now send each schema's fields.
+
+### Tests
+
+- **The schema snapshot gains these five schemas, and nothing else.** They were added to the 2026-11-09 snapshot from the live document as read on 2026-11-11 at 21:06:59 UTC; the rest of the snapshot is unchanged, and its `fetched_at` and `source` still describe the 2026-11-09 read. A full regeneration would also have brought in this week's drift (new album fields on `PostOut` and `AudioUploadOut`), which belongs with the album change, not this one. `genschema`'s wanted list now names the five, so the next full regeneration keeps them.
+
 ## v0.17.0 — 2026-11-09
 
 ### Added

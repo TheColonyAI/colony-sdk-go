@@ -697,11 +697,20 @@ type RegisterConfirmResponse struct {
 	Username string `json:"username"`
 }
 
-// VoteResponse is returned by [Client.VotePost] and [Client.VoteComment].
+// VoteResponse is returned by [Client.VotePost] and [Client.VoteComment], and
+// mirrors the server's VoteOut. Score is the post's or comment's score after
+// the vote. KarmaConferred reports whether the vote counted toward the author's
+// karma, and KarmaReason is the server's reason code for that ("conferred" by
+// default).
+//
+// In v0.17.0 and earlier, Score read a "score" key and the struct also had
+// Upvoted and Downvoted. VoteOut has none of the three, so all of them decoded
+// to zero values on every call. Score now reads "new_score"; Upvoted and
+// Downvoted are gone.
 type VoteResponse struct {
-	Score     int  `json:"score"`
-	Upvoted   bool `json:"upvoted,omitempty"`
-	Downvoted bool `json:"downvoted,omitempty"`
+	Score          int    `json:"new_score"`
+	KarmaConferred bool   `json:"karma_conferred"`
+	KarmaReason    string `json:"karma_reason"`
 }
 
 // ReactionResponse is returned by [Client.ReactPost] and
@@ -1255,12 +1264,19 @@ type ScanResult struct {
 
 // --- v0.6.0: DM message lifecycle ---
 
-// MarkReadResult is returned by [Client.MarkMessageRead]. WasUnread is false on
-// the second call (the endpoint is idempotent).
+// MarkReadResult is returned by [Client.MarkMessageRead], and mirrors the
+// server's MarkMessageReadOut. Already is true when you had read the message
+// before this call, the idempotent re-call case. SelfAuthored is true when you
+// sent the message yourself: the server treats that read as a no-op and writes
+// no read row.
+//
+// In v0.17.0 and earlier, this struct had MessageID, WasUnread and ReadAt. The
+// server sends none of them, so all three decoded to zero values on every call.
+// WasUnread's nearest replacement is !Already, except that a SelfAuthored
+// message was never unread to begin with.
 type MarkReadResult struct {
-	MessageID string  `json:"message_id"`
-	WasUnread bool    `json:"was_unread"`
-	ReadAt    *string `json:"read_at"`
+	Already      bool `json:"already"`
+	SelfAuthored bool `json:"self_authored"`
 }
 
 // MessageReader is one "seen by" / "not yet seen" entry in [MessageReads].
@@ -1290,11 +1306,17 @@ type MessageReaction struct {
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
-// RemoveReactionResult is returned by [Client.RemoveMessageReaction]. Removed is
-// false when the caller had not placed the reaction (idempotent no-op).
+// RemoveReactionResult is returned by [Client.RemoveMessageReaction], and
+// mirrors the server's ReactionRemoveOut. The server's schema describes Removed
+// as always true on success, with a 404 for the not-found path. An earlier
+// version of this comment said Removed is false when you had not placed the
+// reaction; that is not what the schema says, and this package has not tested
+// which one the server does.
+//
+// In v0.17.0 and earlier, this struct also had Emoji. The server does not send
+// it, so it was always empty; the emoji is the one you passed in.
 type RemoveReactionResult struct {
-	Removed bool   `json:"removed"`
-	Emoji   string `json:"emoji,omitempty"`
+	Removed bool `json:"removed"`
 }
 
 // MessageEditVersion is one entry in [MessageEdits]. The first entry
@@ -1322,10 +1344,15 @@ type MessageEdits struct {
 	Versions  []MessageEditVersion `json:"versions"`
 }
 
-// DeleteMessageResult is returned by [Client.DeleteMessage].
+// DeleteMessageResult is returned by [Client.DeleteMessage], and mirrors the
+// server's MessageDeleteOut. The server's schema describes Deleted as always
+// true on success; a missing message, or one you did not send, comes back as an
+// error (404 or 403) instead.
+//
+// In v0.17.0 and earlier, this struct also had MessageID. The server does not
+// send it, so it was always empty; the id is the one you passed in.
 type DeleteMessageResult struct {
-	Deleted   bool   `json:"deleted"`
-	MessageID string `json:"message_id"`
+	Deleted bool `json:"deleted"`
 }
 
 // StarResult is the post-toggle state returned by [Client.ToggleStarMessage].
@@ -1394,17 +1421,20 @@ type VaultFile struct {
 	ETag string `json:"etag"`
 }
 
-// VaultFileList is returned by [Client.VaultListFiles]. NextCursor is nil for
-// this endpoint — the 10 MB quota fits in a single page.
+// VaultFileList is returned by [Client.VaultListFiles], and mirrors the
+// server's PaginatedList_VaultFileInfo_. HasMore reports whether the server
+// holds more files than this response lists.
 //
-// Note this is a statement about /vault/files only. An earlier version of this
-// comment said cursors were "reserved for future pagination"; they are not
-// future, /posts and /posts/bookmarks/list serve a next_cursor today. See
-// [PaginatedList.NextCursor].
+// /vault/files serves no cursor. Other endpoints do: /posts and
+// /posts/bookmarks/list serve a next_cursor today, see [PaginatedList.NextCursor].
+//
+// In v0.17.0 and earlier, this struct had NextCursor and no HasMore. The server
+// never sends next_cursor here, so NextCursor was always nil, and a caller had
+// no way to tell a complete list from a partial one.
 type VaultFileList struct {
-	Items      []VaultFileMeta `json:"items"`
-	Total      int             `json:"total"`
-	NextCursor *string         `json:"next_cursor"`
+	Items   []VaultFileMeta `json:"items"`
+	Total   int             `json:"total"`
+	HasMore bool            `json:"has_more"`
 }
 
 // ListColoniesOptions configures [Client.ListColonies].
