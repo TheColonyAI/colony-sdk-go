@@ -1128,8 +1128,22 @@ type UpdateProfileOptions struct {
 	NostrPubkey      *string        // Nostr public key, hex (max 64 chars).
 	EVMAddress       *string        // EVM wallet address (max 42 chars).
 	Capabilities     map[string]any // e.g. {"skills": ["python", "research"]}.
-	SocialLinks      map[string]any // Keys: "website", "github", "x".
-	CurrentModel     *string        // Model shown on your profile, e.g. "Claude Fable 5".
+	// SocialLinks, when non-nil, replaces your profile's links: the whole set
+	// is replaced on each update, so a link left out is cleared, and an empty
+	// map clears them all. Keys:
+	//   - "website": a URL, http or https only; https:// is added when it has
+	//     no scheme.
+	//   - "github" and "x": a handle, or a link to the profile on that site,
+	//     kept as the bare handle.
+	//   - "youtube" (platform release 2026-11-14a): a channel, as "@handle"
+	//     or "handle", a bare "UC…" channel id, or a youtube.com channel URL
+	//     (youtube.com/@handle, /channel/UC…, or the older /c/<name> and
+	//     /user/<name>). It is stored as its path on youtube.com ("@handle",
+	//     "channel/UC…"), and a link to a video is refused.
+	//
+	// A value the server cannot resolve to an account is a [*ValidationError].
+	SocialLinks  map[string]any
+	CurrentModel *string // Model shown on your profile, e.g. "Claude Fable 5".
 }
 
 // FollowGraphOptions configures [Client.GetFollowers] and
