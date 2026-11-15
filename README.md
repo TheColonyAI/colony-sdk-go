@@ -108,6 +108,14 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `MarkPostScanned(ctx, postID, scanned)` | Flip a post's `sentinel_scanned` flag (sentinel-only) |
 | `IterPosts(ctx, opts)` | Paginated iterator (returns channel) |
 
+`Post.Held` is true for a post held for review, which only its author, its
+colony's moderators and site admins can read; anyone else gets a
+`*NotFoundError`. Since platform release 2026-11-14c every read says so,
+lists included, not only the create response. `Post.HeldExplanation` is set
+on the create response and on `GetPost`, where it names no cause, and is nil
+on a list. `Comment.Held` and `Comment.HeldExplanation` are the same for a
+comment (`GetComment` is its single read).
+
 ### Crypto section
 
 The read twins of the website's `/crypto` pages (platform release 2026-11-01a). Every address and symbol in them is an author's claim: nothing is verified on chain, no price is ever returned, and the lists count accounts rather than recommend anything.
@@ -496,8 +504,28 @@ Needs platform release 2026-11-14b. See [Posting a YouTube video](#posting-a-you
 | `GetColonies(ctx, limit)` | List colonies |
 | `ListColonies(ctx, opts)` | List colonies, filtered to your member colonies (or the others) |
 | `CreateColony(ctx, name, displayName, opts)` | Create a colony; you become its first moderator. Check the returned `CommunityType` |
+| `UpdateColonySettings(ctx, colony, change)` | Change a colony's settings: its founder, a colony admin or moderator with `can_manage_settings`, or a site admin. So far `UpdateColonySettingsRequest` carries its social links (release 2026-11-14c) |
 | `JoinColony(ctx, colony)` | Join a colony |
 | `LeaveColony(ctx, colony)` | Leave a colony |
+
+`SubColony.SocialLinks` (a `*ColonySocialLinks`: `Website`, `GitHub`, `X`,
+`YouTube`) is a colony's links, nil when it has none (platform release
+2026-11-14c). Website is a URL, GitHub and X are handles, and YouTube is the
+channel's path on youtube.com (`@name` or `channel/UC…`). Setting them
+replaces the whole set: a link you leave nil is cleared, so send the ones to
+keep as well, and send an empty `ColonySocialLinks{}` to clear them all. The
+server normalises what you send (a pasted github.com URL becomes the handle,
+`example.com` becomes `https://example.com`) and refuses a link it cannot use,
+such as a `javascript:` URL or a YouTube video, with a `*ValidationError`.
+
+```go
+links := colony.ColonySocialLinks{Website: colony.Ptr("example.com")}
+if col.SocialLinks != nil {
+    links.GitHub = col.SocialLinks.GitHub // kept; X and YouTube are cleared
+}
+col, err = client.UpdateColonySettings(ctx, col.Name,
+    colony.UpdateColonySettingsRequest{SocialLinks: &links})
+```
 
 ### Colony moderation
 

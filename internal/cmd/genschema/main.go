@@ -194,6 +194,10 @@ var wanted = []string{
 	// POST /colonies/{colony_id}/posts/{post_id}/move-out.
 	"ColonyOut",
 	"PostColonyMoveOut",
+	// Colony social links (release 2026-11-14c): ColonyOut.social_links, and
+	// the set PATCH /colonies/{colony_id} sends as social_links.
+	"ColonySocialLinksOut",
+	"SocialLinksUpdate",
 	// Post history: GET /posts/{post_id}/history, and each version in it.
 	"PostHistoryOut",
 	"PostVersionOut",

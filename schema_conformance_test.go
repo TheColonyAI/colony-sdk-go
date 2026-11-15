@@ -72,6 +72,12 @@ var schemaBindings = []schemaBinding{
 		notes: "posting_rules is a $ref to ColonyPostingRulesOut; naming it means " +
 			"a type and a binding, which belongs with the colony-settings methods. " +
 			"It stays reachable through Extra."},
+	{schema: "ColonySocialLinksOut", goType: ColonySocialLinks{},
+		notes: "SubColony.SocialLinks (release 2026-11-14c)."},
+	{schema: "SocialLinksUpdate", goType: ColonySocialLinks{},
+		notes: "The same type is the set UpdateColonySettings sends as social_links. " +
+			"Binding it to the request schema as well checks that the two agree, as " +
+			"the NotificationBatch* pair does."},
 	{schema: "ConversationOut", goType: Conversation{}},
 	{schema: "ConversationDetail", goType: ConversationDetail{}},
 	{
@@ -994,6 +1000,20 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // AlbumTrack, PostAlbum, PostAlbumTrack). The album request bodies
 // (AlbumCreate, AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted:
 // each method sends its body from its arguments, with no struct to bind.
+//
+// The colony social links change, measured at 41 on its own branch, against a snapshot
+// regenerated from https://thecolony.ai/openapi.json with release 2026-11-14c
+// live. Against the snapshot above it adds ColonyOut.social_links and the two
+// schemas `wanted` now names, ColonySocialLinksOut and SocialLinksUpdate;
+// nothing else changed. The old structs leave 42 against it (social_links);
+// SubColony.SocialLinks models it, and ColonySocialLinks, bound to both new
+// schemas, models every field of each. PostOut and CommentOut are unchanged:
+// 2026-11-14c sends held on every read, a change of behaviour, not of schema.
+//
+// Merged after albums on 2026-11-15: the snapshot regenerated from the live
+// document holds both changes' schemas, and the count is 38, measured (it
+// fails at 37): the albums change took it to 38, and ColonyOut.social_links,
+// the one field the links change brought in, is modelled by SubColony.SocialLinks.
 const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.

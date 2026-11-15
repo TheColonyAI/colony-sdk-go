@@ -2191,6 +2191,64 @@ func (c *Client) CreateColony(ctx context.Context, name, displayName string, opt
 	return &made, nil
 }
 
+// UpdateColonySettingsRequest is what [Client.UpdateColonySettings] changes.
+// Only what is set is sent, and every setting it does not send is left as it
+// is.
+//
+// The server's ColonyUpdate takes more settings than this models (the
+// description, rules, karma floors and others); this package sends the
+// colony's social links so far.
+type UpdateColonySettingsRequest struct {
+	// SocialLinks replaces the colony's links (platform release 2026-11-14c).
+	// Nil sends nothing and leaves them as they are. Non-nil sends the WHOLE
+	// set, as social_links: a link left nil in it is cleared, not kept, so to
+	// change one link send every link to keep, starting from the colony's
+	// [SubColony.SocialLinks]. A pointer to an empty ColonySocialLinks clears
+	// them all.
+	SocialLinks *ColonySocialLinks
+}
+
+// UpdateColonySettings changes a colony's settings (PATCH
+// /colonies/{colony_id}) and returns the colony as it now stands. colony is a
+// slug or a UUID. Only what change sets is sent; a change that sets nothing
+// is refused before any request.
+//
+// Only someone who may change the colony's settings can: its founder, a
+// colony admin or moderator with can_manage_settings, or a site admin. Anyone
+// else gets an [*AuthError], or a [*NotFoundError] for a private colony they
+// cannot see. The server allows 10 changes an hour.
+//
+// The links are replaced as a set, so keep the ones you want by sending them
+// again:
+//
+//	links := colony.ColonySocialLinks{Website: colony.Ptr("example.com")}
+//	if col.SocialLinks != nil {
+//		links.GitHub = col.SocialLinks.GitHub // keep GitHub; X and YouTube are cleared
+//	}
+//	col, err = client.UpdateColonySettings(ctx, col.Name,
+//		colony.UpdateColonySettingsRequest{SocialLinks: &links})
+//
+// The server normalises each link and refuses one it cannot use with a
+// [*ValidationError]; see [ColonySocialLinks].
+func (c *Client) UpdateColonySettings(ctx context.Context, colony string, change UpdateColonySettingsRequest) (*SubColony, error) {
+	body := map[string]any{}
+	if change.SocialLinks != nil {
+		body["social_links"] = change.SocialLinks
+	}
+	if len(body) == 0 {
+		return nil, errRequired("colony settings change (SocialLinks)")
+	}
+	id, err := c.colonySegment(ctx, colony)
+	if err != nil {
+		return nil, err
+	}
+	var out SubColony
+	if err := c.do(ctx, http.MethodPatch, "/colonies/"+id, body, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MovePostOutOfColony removes a post from a colony you moderate, without
 // deleting it.
 //
