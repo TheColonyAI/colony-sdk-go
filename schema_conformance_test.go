@@ -494,6 +494,18 @@ var schemaBindings = []schemaBinding{
 	{op: "GET /api/v1/audio", goType: AudioUploadList{}},
 	{op: "GET /api/v1/audio/quota", goType: AudioQuota{}},
 	{schema: "AudioQuotaScope", goType: AudioQuotaScope{}},
+	// Albums (platform release 2026-11-09d): an album by two of the four
+	// routes that answer AlbumOut (PATCH /audio/albums/{album_id} and PUT
+	// .../tracks are the others), the list by endpoint, and a track by schema,
+	// since it is reached only inside AlbumOut. The album on a post and its
+	// tracks are reached only inside PostOut. DELETE /audio/albums/{album_id}
+	// answers 204.
+	{op: "POST /api/v1/audio/albums", goType: Album{}},
+	{op: "GET /api/v1/audio/albums/{album_id}", goType: Album{}},
+	{op: "GET /api/v1/audio/albums", goType: AlbumList{}},
+	{schema: "AlbumTrackOut", goType: AlbumTrack{}},
+	{schema: "PostAlbumOut", goType: PostAlbum{}},
+	{schema: "PostAlbumTrackOut", goType: PostAlbumTrack{}},
 	// YouTube videos on posts (platform release 2026-11-14a): the video by
 	// schema, since it is reached only inside PostOut. PUT and DELETE
 	// /posts/{post_id}/video answer PostOut, bound above.
@@ -980,7 +992,16 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // Post.Video is the difference. The PUT's body, PostVideoSet, is not
 // extracted: SetPostVideo sends it from its arguments, with no struct to bind.
 //
-// Unchanged at 41 later on 2026-11-14, measured, against a snapshot
+// Lowered 41 -> 38 on 2026-11-14, measured, when the albums change merged and
+// modelled PostOut.album (Post.Album) and AudioUploadOut.album_id
+// (AudioUpload.AlbumID, both bindings), against the snapshot regenerated again
+// from the live document. It extracts AlbumOut, AlbumList, AlbumTrackOut,
+// PostAlbumOut and PostAlbumTrackOut, all modelled (Album, AlbumList,
+// AlbumTrack, PostAlbum, PostAlbumTrack). The album request bodies
+// (AlbumCreate, AlbumUpdate, AlbumTracksSet, PostAlbumSet) are not extracted:
+// each method sends its body from its arguments, with no struct to bind.
+//
+// The colony social links change, measured at 41 on its own branch, against a snapshot
 // regenerated from https://thecolony.ai/openapi.json with release 2026-11-14c
 // live. Against the snapshot above it adds ColonyOut.social_links and the two
 // schemas `wanted` now names, ColonySocialLinksOut and SocialLinksUpdate;
@@ -988,7 +1009,12 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // SubColony.SocialLinks models it, and ColonySocialLinks, bound to both new
 // schemas, models every field of each. PostOut and CommentOut are unchanged:
 // 2026-11-14c sends held on every read, a change of behaviour, not of schema.
-const unmodelledBaseline = 41
+//
+// Merged after albums on 2026-11-15: the snapshot regenerated from the live
+// document holds both changes' schemas, and the count is 38, measured (it
+// fails at 37): the albums change took it to 38, and ColonyOut.social_links,
+// the one field the links change brought in, is modelled by SubColony.SocialLinks.
+const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

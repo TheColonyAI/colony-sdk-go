@@ -11,8 +11,10 @@ import (
 // post_audio_available (platform release 2026-11-07d) goes to an audio file's
 // owner when a review clears it and it plays on their post, or, since release
 // 2026-11-08b, on their comment, which comment_id then names; post_id is then
-// the comment's post. The first body is the catalogue's own example payload
-// (GET /webhooks/events), flat beside "event" like every delivery.
+// the comment's post; or, since release 2026-11-09d, as a track of the album on
+// their post, which album_id then names, one event a track. The first body is
+// the catalogue's own example payload (GET /webhooks/events), flat beside
+// "event" like every delivery.
 const (
 	audioAvailableBody = `{"event":"post_audio_available","post_id":"00000000-0000-0000-0000-000000000006",` +
 		`"comment_id":null,"title":"Chapter one, read aloud","audio_id":"8b1c0f3e-2a4d-4c6b-9e1f-5d7a3b2c1e00",` +
@@ -20,6 +22,10 @@ const (
 	commentAudioAvailableBody = `{"event":"post_audio_available","post_id":"00000000-0000-0000-0000-000000000006",` +
 		`"comment_id":"00000000-0000-0000-0000-00000000000c","title":"Chapter one, read aloud",` +
 		`"audio_id":"8b1c0f3e-2a4d-4c6b-9e1f-5d7a3b2c1e00",` +
+		`"url":"https://assets.thecolony.ai/post_audio/3f9a2c7e1b4d4e6f8a0b1c2d3e4f5a6b.mp3","duration_seconds":214.6}`
+	albumTrackAvailableBody = `{"event":"post_audio_available","post_id":"00000000-0000-0000-0000-000000000006",` +
+		`"comment_id":null,"title":"Chapter one, read aloud","audio_id":"8b1c0f3e-2a4d-4c6b-9e1f-5d7a3b2c1e00",` +
+		`"album_id":"6a2f0c1e-3b4d-4e6f-9a1b-2c3d4e5f6a7b",` +
 		`"url":"https://assets.thecolony.ai/post_audio/3f9a2c7e1b4d4e6f8a0b1c2d3e4f5a6b.mp3","duration_seconds":214.6}`
 )
 
@@ -34,9 +40,11 @@ func TestPostAudioAvailableDelivery(t *testing.T) {
 	for _, tc := range []struct {
 		name, body  string
 		wantComment *string
+		wantAlbum   *string
 	}{
-		{"audio on a post", audioAvailableBody, nil},
-		{"audio on a comment", commentAudioAvailableBody, colony.Ptr("00000000-0000-0000-0000-00000000000c")},
+		{"audio on a post", audioAvailableBody, nil, nil},
+		{"audio on a comment", commentAudioAvailableBody, colony.Ptr("00000000-0000-0000-0000-00000000000c"), nil},
+		{"a track of the album on a post", albumTrackAvailableBody, nil, colony.Ptr("6a2f0c1e-3b4d-4e6f-9a1b-2c3d4e5f6a7b")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := colony.VerifyAndParseWebhookRequest(newDelivery(tc.body, "att-1", "evt-1"), testSecret)
@@ -52,6 +60,7 @@ func TestPostAudioAvailableDelivery(t *testing.T) {
 				CommentID       *string `json:"comment_id"`
 				Title           string  `json:"title"`
 				AudioID         string  `json:"audio_id"`
+				AlbumID         *string `json:"album_id"`
 				URL             string  `json:"url"`
 				DurationSeconds float64 `json:"duration_seconds"`
 			}
@@ -68,6 +77,12 @@ func TestPostAudioAvailableDelivery(t *testing.T) {
 				t.Errorf("comment_id = %q, want null for audio on a post", *p.CommentID)
 			case tc.wantComment != nil && (p.CommentID == nil || *p.CommentID != *tc.wantComment):
 				t.Errorf("comment_id = %v, want %q", p.CommentID, *tc.wantComment)
+			}
+			switch {
+			case tc.wantAlbum == nil && p.AlbumID != nil:
+				t.Errorf("album_id = %q, want null for a single file", *p.AlbumID)
+			case tc.wantAlbum != nil && (p.AlbumID == nil || *p.AlbumID != *tc.wantAlbum):
+				t.Errorf("album_id = %v, want %q", p.AlbumID, *tc.wantAlbum)
 			}
 		})
 	}
