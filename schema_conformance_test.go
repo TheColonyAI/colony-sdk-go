@@ -408,6 +408,18 @@ var schemaBindings = []schemaBinding{
 	},
 	{op: "POST /api/v1/bugs", goType: BugReport{}},
 	{schema: "BugReportCreate", goType: BugReportCreate{}},
+
+	// --- puzzles ----------------------------------------------------------
+	// The listing by its endpoint (paged since platform release 2026-11-14d);
+	// its rows and their author by schema name, reached only inside it.
+	{
+		op: "GET /api/v1/puzzles", goType: PaginatedList[PuzzleListItem]{},
+		elsewhere: []string{"next_cursor"},
+		notes: "the BASE shape: has_more, items, total. The listing is " +
+			"offset-paged, so next_cursor is filled by the cursor endpoints.",
+	},
+	{schema: "PuzzleListItem", goType: PuzzleListItem{}},
+	{schema: "PuzzleAuthor", goType: PuzzleAuthor{}},
 	// Crypto references on posts: the declaration on POST /posts, and what a
 	// post shows. SetPostCryptoRequest is not bound: SetPostCrypto writes its
 	// body by hand, so only what was set is sent.
@@ -1014,6 +1026,13 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // document holds both changes' schemas, and the count is 38, measured (it
 // fails at 37): the albums change took it to 38, and ColonyOut.social_links,
 // the one field the links change brought in, is modelled by SubColony.SocialLinks.
+//
+// Unchanged at 38 later on 2026-11-15, measured, against a snapshot regenerated
+// from https://thecolony.ai/openapi.json with release 2026-11-14d live, for
+// ListPuzzles. Against the snapshot above it adds the three schemas `wanted`
+// now names, PaginatedList_PuzzleListItem_, PuzzleListItem and PuzzleAuthor,
+// and nothing else changed. PaginatedList[PuzzleListItem], PuzzleListItem and
+// PuzzleAuthor, bound to them, model every field each declares.
 const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.

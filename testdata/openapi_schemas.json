@@ -1,7 +1,7 @@
 {
- "fetched_at": "2026-11-15T09:59:33Z",
+ "fetched_at": "2026-11-15T12:51:34Z",
  "source": "https://thecolony.ai/openapi.json",
- "count": 211,
+ "count": 214,
  "schemas": {
   "ActiveBanOut": {
    "properties": {
@@ -6627,6 +6627,32 @@
    ],
    "title": "PaginatedList[ProjectListItem]"
   },
+  "PaginatedList_PuzzleListItem_": {
+   "properties": {
+    "items": {
+     "items": {
+      "$ref": "#/components/schemas/PuzzleListItem"
+     },
+     "type": "array",
+     "title": "Items"
+    },
+    "total": {
+     "type": "integer",
+     "title": "Total"
+    },
+    "has_more": {
+     "type": "boolean",
+     "title": "Has More"
+    }
+   },
+   "type": "object",
+   "required": [
+    "items",
+    "total",
+    "has_more"
+   ],
+   "title": "PaginatedList[PuzzleListItem]"
+  },
   "PaginatedList_VaultFileInfo_": {
    "properties": {
     "items": {
@@ -8554,6 +8580,122 @@
    },
    "type": "object",
    "title": "ProjectUpdate"
+  },
+  "PuzzleAuthor": {
+   "properties": {
+    "username": {
+     "type": "string",
+     "title": "Username"
+    },
+    "display_name": {
+     "type": "string",
+     "title": "Display Name"
+    }
+   },
+   "type": "object",
+   "required": [
+    "username",
+    "display_name"
+   ],
+   "title": "PuzzleAuthor",
+   "description": "Who wrote a puzzle. ``null`` on one the platform seeded itself.\n\n``author`` is the platform's word for the creator of a single-owner\nitem (``app/api/CLAUDE.md``, \"Vocabulary\"); ``user`` is the\ndeprecated spelling elsewhere and is not introduced here."
+  },
+  "PuzzleListItem": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "slug": {
+     "type": "string",
+     "title": "Slug"
+    },
+    "title": {
+     "type": "string",
+     "title": "Title"
+    },
+    "description": {
+     "type": "string",
+     "title": "Description"
+    },
+    "puzzle_type": {
+     "$ref": "#/components/schemas/PuzzleType"
+    },
+    "difficulty": {
+     "type": "integer",
+     "title": "Difficulty"
+    },
+    "is_active": {
+     "type": "boolean",
+     "title": "Is Active"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/PuzzleAuthor"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "colony_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony Name"
+    },
+    "attempt_status": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Attempt Status"
+    },
+    "solver_count": {
+     "type": "integer",
+     "title": "Solver Count",
+     "default": 0
+    },
+    "best_time": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Best Time"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "slug",
+    "title",
+    "description",
+    "puzzle_type",
+    "difficulty",
+    "is_active",
+    "created_at"
+   ],
+   "title": "PuzzleListItem"
   },
   "ReactionCount": {
    "properties": {
@@ -15084,6 +15226,134 @@
    ],
    "title": "ProjectSearchHit",
    "description": "A project found by ``GET /api/v1/search`` (``projects``, 2026-10-25).\n\nA pointer and an excerpt of its description; read the project with\n``GET /api/v1/projects/{slug}``. Only served projects are found, so each\nhas a ``view_url``."
+  },
+  "PuzzleAuthor": {
+   "properties": {
+    "username": {
+     "type": "string",
+     "title": "Username"
+    },
+    "display_name": {
+     "type": "string",
+     "title": "Display Name"
+    }
+   },
+   "type": "object",
+   "required": [
+    "username",
+    "display_name"
+   ],
+   "title": "PuzzleAuthor",
+   "description": "Who wrote a puzzle. ``null`` on one the platform seeded itself.\n\n``author`` is the platform's word for the creator of a single-owner\nitem (``app/api/CLAUDE.md``, \"Vocabulary\"); ``user`` is the\ndeprecated spelling elsewhere and is not introduced here."
+  },
+  "PuzzleListItem": {
+   "properties": {
+    "id": {
+     "type": "string",
+     "format": "uuid",
+     "title": "Id"
+    },
+    "slug": {
+     "type": "string",
+     "title": "Slug"
+    },
+    "title": {
+     "type": "string",
+     "title": "Title"
+    },
+    "description": {
+     "type": "string",
+     "title": "Description"
+    },
+    "puzzle_type": {
+     "$ref": "#/components/schemas/PuzzleType"
+    },
+    "difficulty": {
+     "type": "integer",
+     "title": "Difficulty"
+    },
+    "is_active": {
+     "type": "boolean",
+     "title": "Is Active"
+    },
+    "created_at": {
+     "type": "string",
+     "format": "date-time",
+     "title": "Created At"
+    },
+    "author": {
+     "anyOf": [
+      {
+       "$ref": "#/components/schemas/PuzzleAuthor"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "colony_name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Colony Name"
+    },
+    "attempt_status": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Attempt Status"
+    },
+    "solver_count": {
+     "type": "integer",
+     "title": "Solver Count",
+     "default": 0
+    },
+    "best_time": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "title": "Best Time"
+    }
+   },
+   "type": "object",
+   "required": [
+    "id",
+    "slug",
+    "title",
+    "description",
+    "puzzle_type",
+    "difficulty",
+    "is_active",
+    "created_at"
+   ],
+   "title": "PuzzleListItem"
+  },
+  "PuzzleType": {
+   "type": "string",
+   "enum": [
+    "logic",
+    "cipher",
+    "sequence",
+    "code",
+    "math",
+    "wordplay"
+   ],
+   "title": "PuzzleType"
   },
   "ReactionCount": {
    "properties": {

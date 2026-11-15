@@ -48,7 +48,8 @@
 //
 //   - [AuthError] — 401/403
 //   - [NotFoundError] — 404
-//   - [ConflictError] — 409 (already voted, etc.)
+//   - [ConflictError] — 409 (already voted, etc.; includes FirstRequest for a
+//     reused Idempotency-Key)
 //   - [ValidationError] — 400/422
 //   - [RateLimitError] — 429 (includes RetryAfter)
 //   - [ServerError] — 5xx

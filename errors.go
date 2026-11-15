@@ -92,7 +92,21 @@ func (e *NotFoundError) Unwrap() error { return &e.APIError }
 
 // ConflictError is returned on 409 Conflict — the operation conflicts with
 // existing state (already voted, username taken, already following, etc.).
-type ConflictError struct{ APIError }
+type ConflictError struct {
+	APIError
+	// FirstRequest is set on a 409 with Code "idempotency_payload_mismatch":
+	// an Idempotency-Key reused with a different request (the body and the
+	// query string are compared byte for byte). It says what became of the
+	// key's first request: [FirstRequestCompleted] (it succeeded, so its
+	// write has happened) or [FirstRequestInProgress] (it is still running).
+	// The request that got this error did nothing. If it was a retry whose
+	// bytes changed, the first request is the write you meant: resend its
+	// exact bytes with the key to get its response. If it is a different
+	// write, send it under a fresh key. Empty on every other conflict, and on
+	// this one from a platform before release 2026-11-15a, which did not
+	// send it.
+	FirstRequest string
+}
 
 func (e *ConflictError) Error() string {
 	if e.Code != "" {
@@ -181,7 +195,7 @@ func newAPIError(status int, code, message string, resp map[string]any, cause er
 	case status == 404:
 		return &NotFoundError{base}
 	case status == 409:
-		return &ConflictError{base}
+		return &ConflictError{APIError: base, FirstRequest: firstRequest(resp)}
 	case status == 400 || status == 422:
 		return &ValidationError{base}
 	case status == 429:

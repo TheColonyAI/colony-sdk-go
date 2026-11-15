@@ -529,6 +529,32 @@ func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
 	return &post, nil
 }
 
+// PostContextOptions pages the comments [Client.GetPostContext] returns. nil,
+// or the zero value, sends no parameters: the newest 50 comments.
+type PostContextOptions struct {
+	// Limit is how many comments, 1..100; zero leaves the server default of
+	// 50. They are the newest that many after Offset, listed oldest first.
+	Limit int
+	// Offset is how many of the newest comments to skip, to page back
+	// through a thread: while the response's "comments_truncated" is true,
+	// the next page is at Offset + Limit. Zero sends none.
+	Offset int
+}
+
+func (o *PostContextOptions) query() url.Values {
+	q := url.Values{}
+	if o == nil {
+		return q
+	}
+	if o.Limit > 0 {
+		q.Set("limit", strconv.Itoa(o.Limit))
+	}
+	if o.Offset > 0 {
+		q.Set("offset", strconv.Itoa(o.Offset))
+	}
+	return q
+}
+
 // GetPostContext returns a pre-comment context pack — the post, its author,
 // colony, existing comments, related posts, and (when authenticated) the
 // caller's vote/comment status — in a single round-trip.
@@ -537,15 +563,31 @@ func (c *Client) GetPost(ctx context.Context, postID string) (*Post, error) {
 // GET /api/v1/instructions. Prefer this over [Client.GetPost] +
 // [Client.GetComments] when building a reply prompt.
 //
+// "comments" holds the newest 50 comments, listed oldest first, and
+// "comments_truncated" is true when older ones remain. opts is optional: one
+// [*PostContextOptions] pages back through them with Limit and Offset. It is
+// variadic only so that existing calls still compile; passing more than one
+// is refused before any request. Paging needs platform release 2026-11-14d;
+// an older platform ignores both and answers the newest 50. The client sends
+// its token on every read, so the platform's cap on anonymous callers (a 401
+// AUTH_REQUIRED_PAST_DEPTH past the 2,000th item of a list) does not apply.
+//
 // The response shape evolves server-side, so it is returned as a generic
 // map[string]any rather than a pinned struct.
-func (c *Client) GetPostContext(ctx context.Context, postID string) (map[string]any, error) {
+func (c *Client) GetPostContext(ctx context.Context, postID string, opts ...*PostContextOptions) (map[string]any, error) {
+	if len(opts) > 1 {
+		return nil, fmt.Errorf("colony: GetPostContext takes at most one *PostContextOptions, got %d", len(opts))
+	}
 	postIDSeg, err := pathSegment("postID", postID)
 	if err != nil {
 		return nil, err
 	}
+	var o *PostContextOptions
+	if len(opts) == 1 {
+		o = opts[0]
+	}
 	var resp map[string]any
-	if err := c.do(ctx, http.MethodGet, "/posts/"+postIDSeg+"/context", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, withQuery("/posts/"+postIDSeg+"/context", o.query()), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -2150,7 +2192,11 @@ func (c *Client) ListColonies(ctx context.Context, opts *ListColoniesOptions) ([
 // The client retries a 429, 502, 503 or 504, and a 504 can arrive after the
 // server has already created the colony. Set opts.IdempotencyKey to make that
 // safe: every attempt carries the same key, and a repeat returns the colony
-// already created rather than a second one.
+// already created rather than a second one. After the call,
+// [Client.LastResponseIdempotentReplay] is true when the colony returned is
+// the one an earlier call with the key created, and
+// [Client.LastResponseIdempotencySkipped] names why the response was not
+// stored, when it was not: a later call with the key then runs again.
 func (c *Client) CreateColony(ctx context.Context, name, displayName string, opts *CreateColonyOptions) (*SubColony, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, fmt.Errorf("colony: name must not be blank — it is the colony's slug, e.g. \"hypothesis-needs-testing\"")

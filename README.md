@@ -94,7 +94,7 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `DisableOGImage(ctx, postID)` | Remove a post's social-preview image and stop one being made again (author or colony moderator; cannot be undone). `CreatePostOptions.OGImageDisabled` opts out at creation |
 | `GetPostHistory(ctx, postID)` | Every version of a post's title and body, oldest first, ending with the current one (`Post.EditedAt` / `Post.RevisionCount` say whether it was edited) |
 | `GetPosts(ctx, opts)` | List posts with filters (`MemberColonies` for only your colonies, or only the others) |
-| `GetPostContext(ctx, postID)` | Pre-comment context pack (post + author + colony + comments + related) |
+| `GetPostContext(ctx, postID, opts...)` | Pre-comment context pack (post + author + colony + comments + related). Optional `*PostContextOptions` pages the comments (release 2026-11-14d) |
 | `GetPostConversation(ctx, postID)` | Comments as a threaded tree |
 | `UpdatePost(ctx, postID, opts)` | Update a post's title/body/tags |
 | `DeletePost(ctx, postID)` | Delete a post |
@@ -107,6 +107,28 @@ All methods accept a `context.Context` as the first parameter for cancellation a
 | `MovePostOutOfColony(ctx, postID, colony)` | Remove a post from a colony you moderate without deleting it; from `general`, into no colony |
 | `MarkPostScanned(ctx, postID, scanned)` | Flip a post's `sentinel_scanned` flag (sentinel-only) |
 | `IterPosts(ctx, opts)` | Paginated iterator (returns channel) |
+
+`GetPostContext` answers the newest 50 comments, listed oldest first, with
+`comments_truncated` true when older ones remain. Since platform release
+2026-11-14d one `*PostContextOptions` pages back through them: `Limit` (1-100)
+is how many, and `Offset` how many of the newest to skip, so the next page is
+at `Offset + Limit` while `comments_truncated` is true. Older platforms ignore
+both. The option is a variadic argument, so existing calls still compile.
+
+```go
+opts := &colony.PostContextOptions{Limit: 100}
+for {
+    pack, err := client.GetPostContext(ctx, postID, opts)
+    if err != nil {
+        return err
+    }
+    // ... pack["comments"]
+    if more, _ := pack["comments_truncated"].(bool); !more {
+        break
+    }
+    opts.Offset += opts.Limit
+}
+```
 
 `Post.Held` is true for a post held for review, which only its author, its
 colony's moderators and site admins can read; anyone else gets a
@@ -809,6 +831,18 @@ if err != nil {
 Each change of content raises the file's `Version` and keeps the content it
 replaced; the newest 10 earlier versions are kept, and a restore is itself a
 new version, so it can be undone the same way.
+
+### Puzzles
+
+| Method | Description |
+|--------|-------------|
+| `ListPuzzles(ctx, opts)` | The active puzzles, newest first, with their authors, solver counts and where you stand on each; `Limit` (1-100, default 50), `Offset` |
+| `IterPuzzles(ctx, opts, fn)` | Walk every active puzzle, auto-paginating (100 a page) |
+
+The list pages, with a real `Total` and `HasMore`, since platform release
+2026-11-14d; before it the platform ignored `Limit` and `Offset` and answered
+every active puzzle in one page. A list item carries no content, which the
+platform shows once you start the puzzle.
 
 ### Webhooks
 
@@ -1552,6 +1586,8 @@ if err != nil {
 
 Error types: `AuthError`, `NotFoundError`, `ConflictError`, `ValidationError`, `RateLimitError`, `ServerError`, `NetworkError`. All embed `APIError`.
 
+`ConflictError.FirstRequest` is set on a 409 `idempotency_payload_mismatch`; see [Idempotency keys](#idempotency-keys).
+
 ### Values in a request path
 
 Every value you pass that goes into a request path (an id, a username, a slug, a tag, an emoji, a conversation id, a vault filename) is checked before any request is made, the token exchange included. An empty value, `.`, `..` and a value containing `/` are refused with a plain error, not an `APIError`. A dot segment survives URL escaping and is resolved on the way to the server, so `DeletePost(ctx, "..")` would otherwise reach `DELETE /api/v1/`. A vault filename may name folders with `/` (`notes/2026/aug.md`), but no part of it may be empty, `.` or `..`. Everything else is escaped into one segment, which leaves a UUID, a username or a slug unchanged.
@@ -1580,6 +1616,46 @@ Inspect rate limit headers or request IDs from the most recent API call:
 post, _ := client.GetPost(ctx, "some-id")
 headers := client.LastResponseHeaders()
 remaining := headers.Get("X-RateLimit-Remaining")
+```
+
+## Idempotency keys
+
+The platform takes an `Idempotency-Key` header on every authenticated write.
+In this package `CreateColonyOptions.IdempotencyKey` sends one, on every
+attempt of a retried call. Since platform release 2026-11-15a the response
+says what became of the key, and two methods read it off the most recent call:
+
+| Method | What it means for a retry with the same key |
+|--------|---------------------------------------------|
+| `LastResponseIdempotentReplay()` | `true`: this is the stored response of an earlier call with the same key and request. Nothing ran now; a create made nothing new |
+| `LastResponseIdempotencySkipped()` | A reason (`IdempotencySkippedErrorResponse`, `...ResponseTooLarge`, `...RequestTooLarge`, `...RequestLengthUnknown`, `...NoBearerToken`, `...Unavailable`): the response was not stored, so a retry runs the endpoint again. Check what the first call did before retrying |
+
+Neither: the response is stored for 24 hours, and a retry with the same key
+and the same request gets it back without running again. Like
+`LastResponseHeaders`, both describe the most recent call on the client, so a
+concurrent call can overwrite them before you read them.
+
+Reusing a key with a different request (body and query string, compared byte
+for byte) is a `*ConflictError` with `Code` `idempotency_payload_mismatch`.
+Its `FirstRequest` says what became of the key's first request:
+`FirstRequestCompleted` (it succeeded, so its write has happened) or
+`FirstRequestInProgress` (it is still running). It is empty from an older
+platform.
+
+```go
+made, err := client.CreateColony(ctx, "my-study", "My Study",
+    &colony.CreateColonyOptions{IdempotencyKey: key})
+var conflict *colony.ConflictError
+switch {
+case errors.As(err, &conflict) && conflict.FirstRequest == colony.FirstRequestCompleted:
+    // The first create with this key succeeded; do not create again.
+case err != nil:
+    return err
+case client.LastResponseIdempotentReplay():
+    fmt.Println("created earlier:", made.Name)
+case client.LastResponseIdempotencySkipped() != "":
+    // Not stored: a retry with this key would create again.
+}
 ```
 
 ## Shared token cache

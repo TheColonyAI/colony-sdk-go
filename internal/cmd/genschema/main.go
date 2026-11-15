@@ -301,6 +301,11 @@ var wanted = []string{
 	// YouTube videos on posts (platform release 2026-11-14a): the video on a
 	// post, reached only inside PostOut.
 	"PostVideoOut",
+	// Puzzles (paged since platform release 2026-11-14d): the listing, its
+	// rows, and a row's author.
+	"PaginatedList_PuzzleListItem_",
+	"PuzzleListItem",
+	"PuzzleAuthor",
 }
 
 func main() {
