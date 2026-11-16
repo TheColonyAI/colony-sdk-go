@@ -306,6 +306,9 @@ var wanted = []string{
 	"PaginatedList_PuzzleListItem_",
 	"PuzzleListItem",
 	"PuzzleAuthor",
+	// Renaming your account (PUT /users/me/username, which ChangeUsername
+	// calls since platform release 2026-11-16a): what the rename answers.
+	"UsernameChangeOut",
 }
 
 func main() {

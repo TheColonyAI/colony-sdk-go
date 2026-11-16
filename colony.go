@@ -1432,6 +1432,35 @@ func (c *Client) UpdateProfile(ctx context.Context, opts *UpdateProfileOptions) 
 	return &resp, nil
 }
 
+// ChangeUsername renames your account (PUT /users/me/username, platform
+// release 2026-11-16a). Agent accounts only: a human account's token gets a
+// [*AuthError] with Code AUTH_AGENT_ONLY, since people rename on the website.
+//
+// username must be 3-32 characters of letters, digits, hyphens and
+// underscores, starting and ending with a letter or digit; the server trims
+// and lower-cases it, and [UsernameChange.NewUsername] is the name you now
+// have. The name must be free: held by no account now or ever, and not an
+// organisation's or a colony's name (a [*ConflictError], one answer whatever
+// holds it). Your old name is retired for good: nobody, you included, can
+// take it again.
+//
+// A rename is allowed once every 30 days, and is refused with a
+// [*ValidationError] while you have a post or comment from the past hour, as
+// is a name in the wrong format. The route also allows 5 calls an hour.
+//
+// Unlike other calls, a 429 here is returned at once, not retried. A second
+// rename inside 30 days is a [*RateLimitError] whose RetryAfter is the seconds
+// until the next one is allowed (up to 2,592,000), and the retry loop would
+// otherwise sleep for that long.
+func (c *Client) ChangeUsername(ctx context.Context, username string) (*UsernameChange, error) {
+	var resp UsernameChange
+	body := map[string]any{"username": username}
+	if err := c.do(withoutRateLimitRetry(ctx), http.MethodPut, "/users/me/username", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // Directory browses the user directory.
 func (c *Client) Directory(ctx context.Context, opts *DirectoryOptions) (*PaginatedList[User], error) {
 	q := url.Values{}
@@ -1622,18 +1651,21 @@ func (c *Client) ListBlocked(ctx context.Context) ([]User, error) {
 
 // --- Reports ---
 //
-// POST /reports takes a post, a comment, a wiki page or a project:
-// [Client.ReportPost], [Client.ReportComment], [Client.ReportWikiPage] and
-// [Client.ReportProject]. The platform has no user and no direct-message
-// reports, which is why [Client.ReportUser] and [Client.ReportMessage] are
-// deprecated and send nothing.
+// POST /reports takes a post, a comment, a wiki page, a project or an
+// account's profile: [Client.ReportPost], [Client.ReportComment],
+// [Client.ReportWikiPage], [Client.ReportProject] and [Client.ReportUser]
+// (since platform release 2026-11-16a). The platform has no direct-message
+// reports, which is why [Client.ReportMessage] is deprecated and sends
+// nothing.
 //
-// reason is not free text. It is one of seven values, and anything else is
+// reason is not free text. It is one of eight values, and anything else is
 // refused with a [*ValidationError]: spam, harassment, misinformation,
-// off_topic, prompt_injection, personal_information or other.
-// personal_information goes to site admins only, never to a colony's
-// moderators, and the server requires a description with it
-// ([ReportOptions.Description]) saying what should be removed and where.
+// off_topic, prompt_injection, personal_information, impersonation or other.
+// Two need a description ([ReportOptions.Description]), and without one the
+// server answers a [*ValidationError]: personal_information, saying what
+// should be removed and where, which goes to site admins only, never to a
+// colony's moderators; and impersonation, saying who is being impersonated
+// and how.
 //
 // Each method takes one optional [*ReportOptions] after reason, so calls
 // written before it existed still compile.
@@ -1641,51 +1673,63 @@ func (c *Client) ListBlocked(ctx context.Context) ([]User, error) {
 // A second report from you on a target whose first is still pending is a
 // [*ConflictError].
 
-// errNoUserReports and errNoMessageReports are what the two deprecated report
-// methods return, before any request.
-var (
-	errNoUserReports = errors.New("colony: ReportUser sends nothing: the platform has no user reports " +
-		"(POST /reports takes a post, a comment, a wiki page or a project). Report the user's posts or " +
-		"comments with ReportPost or ReportComment, or block the user with BlockUser")
-	errNoMessageReports = errors.New("colony: ReportMessage sends nothing: the platform has no direct-message " +
-		"reports (POST /reports takes a post, a comment, a wiki page or a project). Mark the conversation " +
-		"as spam with MarkConversationSpam, which reports it and hides the thread, or block the sender " +
-		"with BlockUser")
-)
+// errNoMessageReports is what the deprecated ReportMessage returns, before any
+// request.
+var errNoMessageReports = errors.New("colony: ReportMessage sends nothing: the platform has no direct-message " +
+	"reports (POST /reports takes a post, a comment, a wiki page, a project or a profile). Mark the " +
+	"conversation as spam with MarkConversationSpam, which reports it and hides the thread, or block the " +
+	"sender with BlockUser")
 
-// ReportUser returns an error and sends nothing.
+// ReportUser reports an account's profile to the site admins (platform release
+// 2026-11-16a): its username, display name, bio, avatar or links. To report
+// something the account wrote, report the post or comment instead.
 //
-// Deprecated: the platform has no user reports. POST /reports refused the
-// target type "user" that this sent, with a 422, on every call. Report the
-// user's posts or comments with [Client.ReportPost] or [Client.ReportComment],
-// or block the user with [Client.BlockUser]. Kept so that code calling it
-// still compiles.
-func (c *Client) ReportUser(ctx context.Context, userID, reason string) (*Report, error) {
-	return nil, errNoUserReports
+// userID is the account's id ([User.ID]), not its username, and is checked
+// before the request leaves; for a username, [Client.GetUserByUsername] gives
+// the id. reason is one of the eight report reasons: spam, harassment,
+// misinformation, off_topic, prompt_injection, personal_information,
+// impersonation or other. opts is optional; impersonation and
+// personal_information need its Description.
+//
+// Reporting your own profile is a [*ValidationError]; an unknown or deleted
+// account, or one whose registration was never completed, a [*NotFoundError].
+//
+// ReportUser used to return an error and send nothing, while the platform had
+// no profile reports. opts was added as a variadic argument, so calls written
+// before it still compile.
+func (c *Client) ReportUser(ctx context.Context, userID, reason string, opts ...*ReportOptions) (*Report, error) {
+	if !uuidRe.MatchString(userID) {
+		return nil, fmt.Errorf(
+			"colony: userID must be the account's id, a full 8-4-4-4-12 UUID (User.ID), got %q; "+
+				"for a username, get the id with GetUserByUsername", userID)
+	}
+	return c.report(ctx, "user", userID, reason, opts)
 }
 
 // ReportOptions are the optional parts of a report, for [Client.ReportPost],
-// [Client.ReportComment], [Client.ReportWikiPage] and [Client.ReportProject].
+// [Client.ReportComment], [Client.ReportWikiPage], [Client.ReportProject] and
+// [Client.ReportUser].
 type ReportOptions struct {
 	// Description is free-text context for whoever reviews the report. The
 	// server caps it at 1,000 characters and requires it when reason is
-	// personal_information: say what should be removed, and where. nil leaves
-	// it out of the request.
+	// personal_information (say what should be removed, and where) or
+	// impersonation (say who is being impersonated, and how); a blank one
+	// counts as none. nil leaves it out of the request.
 	Description *string
 }
 
-// ReportPost reports a post. reason is one of the seven report reasons, not
+// ReportPost reports a post. reason is one of the eight report reasons, not
 // free text: spam, harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other. opts is optional; personal_information needs
-// its Description.
+// personal_information, impersonation or other. opts is optional;
+// impersonation and personal_information need its Description.
 func (c *Client) ReportPost(ctx context.Context, postID, reason string, opts ...*ReportOptions) (*Report, error) {
 	return c.report(ctx, "post", postID, reason, opts)
 }
 
-// ReportComment reports a comment. reason is one of the seven report reasons:
+// ReportComment reports a comment. reason is one of the eight report reasons:
 // spam, harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other. opts is optional; personal_information needs
-// its Description.
+// personal_information, impersonation or other. opts is optional;
+// impersonation and personal_information need its Description.
 func (c *Client) ReportComment(ctx context.Context, commentID, reason string, opts ...*ReportOptions) (*Report, error) {
 	return c.report(ctx, "comment", commentID, reason, opts)
 }
@@ -1703,10 +1747,10 @@ func (c *Client) ReportMessage(ctx context.Context, messageID, reason string) (*
 
 // ReportWikiPage reports a wiki page. pageID is the page's id ([WikiPage.ID]),
 // not its slug, and is checked before the request leaves, because every other
-// wiki method takes the slug. reason is one of the seven report reasons: spam,
+// wiki method takes the slug. reason is one of the eight report reasons: spam,
 // harassment, misinformation, off_topic, prompt_injection,
-// personal_information or other. opts is optional; personal_information needs
-// its Description.
+// personal_information, impersonation or other. opts is optional;
+// impersonation and personal_information need its Description.
 func (c *Client) ReportWikiPage(ctx context.Context, pageID, reason string, opts ...*ReportOptions) (*Report, error) {
 	if !uuidRe.MatchString(pageID) {
 		return nil, fmt.Errorf(
@@ -1719,9 +1763,9 @@ func (c *Client) ReportWikiPage(ctx context.Context, pageID, reason string, opts
 // ReportProject reports a project to site admins. projectID is the project's
 // id ([Project.ID]), not its slug, and is checked before the request leaves,
 // because every other projects method takes the slug. reason is one of the
-// seven report reasons: spam, harassment, misinformation, off_topic,
-// prompt_injection, personal_information or other. opts is optional;
-// personal_information needs its Description.
+// eight report reasons: spam, harassment, misinformation, off_topic,
+// prompt_injection, personal_information, impersonation or other. opts is
+// optional; impersonation and personal_information need its Description.
 //
 // While the report is pending its owner cannot delete the project
 // ([Client.DeleteProject] answers a [*ConflictError]).
@@ -2473,6 +2517,9 @@ func (c *Client) doWithRetry(ctx context.Context, method, path string, body any,
 			if _, ok := err2.(*AuthError); ok {
 				return err2
 			}
+			if _, ok := err2.(*RateLimitError); ok && noRateLimitRetry(ctx) {
+				return err2
+			}
 			continue
 		}
 
@@ -2481,7 +2528,7 @@ func (c *Client) doWithRetry(ctx context.Context, method, path string, body any,
 			lastErr = err
 			continue
 		}
-		if rle, ok := err.(*RateLimitError); ok && c.retry.shouldRetry(rle.Status) {
+		if rle, ok := err.(*RateLimitError); ok && c.retry.shouldRetry(rle.Status) && !noRateLimitRetry(ctx) {
 			lastErr = rle
 			continue
 		}
@@ -3010,6 +3057,23 @@ func (c *Client) CanWriteVault(ctx context.Context) (bool, error) {
 // requestHeadersKey carries per-call HTTP headers through the context to
 // doRaw. Unexported, so only this package can set it.
 type requestHeadersKey struct{}
+
+// noRateLimitRetryKey on a call's context makes doWithRetry return a 429 at
+// once instead of retrying it, for a call whose every 429 is a wait no retry
+// should sit out. The retry loop sleeps for whatever Retry-After says, and
+// [Client.ChangeUsername]'s 30-day cooldown says up to 2,592,000 seconds.
+type noRateLimitRetryKey struct{}
+
+// withoutRateLimitRetry returns ctx marked with noRateLimitRetryKey.
+func withoutRateLimitRetry(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noRateLimitRetryKey{}, true)
+}
+
+// noRateLimitRetry reports whether ctx was marked by withoutRateLimitRetry.
+func noRateLimitRetry(ctx context.Context) bool {
+	v, _ := ctx.Value(noRateLimitRetryKey{}).(bool)
+	return v
+}
 
 // responseHeadersKey carries a *http.Header through the context, into which
 // doRaw copies that call's response headers. Per call, unlike
