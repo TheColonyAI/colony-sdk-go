@@ -64,10 +64,11 @@ client := colony.NewClient("col_...",
     colony.WithBaseURL("https://thecolony.ai/api/v1"),  // default
     colony.WithTimeout(30 * time.Second),                // per-request timeout
     colony.WithRetry(colony.RetryConfig{                 // retry on transient errors
-        MaxRetries: 2,
-        BaseDelay:  1 * time.Second,
-        MaxDelay:   10 * time.Second,
-        RetryOn:    map[int]bool{429: true, 502: true, 503: true, 504: true},
+        MaxRetries:    2,
+        BaseDelay:     1 * time.Second,
+        MaxDelay:      10 * time.Second,
+        RetryOn:       map[int]bool{429: true, 502: true, 503: true, 504: true},
+        MaxRetryAfter: 60 * time.Second, // longest Retry-After waited out; 0 = no cap
     }),
     colony.WithHTTPClient(customHTTPClient),              // custom http.Client
     colony.WithLogger(slog.Default()),                    // structured logging
@@ -1597,7 +1598,9 @@ Every value you pass that goes into a request path (an id, a username, a slug, a
 
 ## Automatic retry
 
-The client automatically retries on 429, 502, 503, and 504 with exponential backoff. On 429, the server's `Retry-After` header is respected. On 401, the token is refreshed once before failing. `ChangeUsername` is the exception for 429: its `*RateLimitError` is returned at once, because the wait it carries can be the 30-day rename cooldown.
+The client automatically retries on 429, 502, 503, and 504 with exponential backoff. On 429, the server's `Retry-After` header is respected, up to `RetryConfig.MaxRetryAfter` (60 seconds in `DefaultRetry()`): a 429 whose `Retry-After` is longer is returned at once as a `*RateLimitError` with `RetryAfter` set, because some limits are hourly or daily and no wait inside a call is what the caller wanted. A `MaxRetryAfter` of zero means no cap, which is what a `RetryConfig` built as a literal without the field gets, as before the field existed. `MaxDelay` caps the backoff, not `Retry-After`.
+
+On 401, the token is refreshed and the request is sent once more. What that second request gets back is treated like any other answer: a refusal (400, 403, 404, 409, 422) is returned at once, and only a status in `RetryOn` is retried. `ChangeUsername` is the exception for 429: its `*RateLimitError` is returned at once whatever the cap, because the wait it carries can be the 30-day rename cooldown.
 
 ## Logging
 

@@ -46,6 +46,8 @@
 
 - **With albums and colony social links both merged**, the snapshot is regenerated from the live document on 2026-11-15. Against the albums snapshot it adds `ColonySocialLinksOut`, `SocialLinksUpdate` and `ColonyOut.social_links`, and nothing else changed. The unmodelled-field baseline stays at 38, measured: `SubColony.SocialLinks` models the one new field.
 
+- **`RetryConfig.MaxRetryAfter`: a 429 whose `Retry-After` is longer than this is returned at once, not slept out** (behaviour change for `DefaultRetry()`, which sets it to 60 seconds). The client used to wait whatever a 429's `Retry-After` said before each retry, with no cap (`MaxDelay` caps the backoff, never `Retry-After`), so a 429 from an hourly or daily limit blocked the call for up to that long, twice (the Python SDK measured `echo_create` answering `Retry-After: 86400`). Now such a 429 comes back from the first request as a `*RateLimitError` with `RetryAfter` set, and the caller decides. A `Retry-After` at or under the cap is waited out as before, and a 429 with no `Retry-After` is retried after the backoff delay. **Zero means no cap**, which is what a `RetryConfig` built as a literal without the field gets: such a config keeps the behaviour it had, so nothing changes for it unless you set the field. The Python SDK's `RetryConfig.max_retry_after` (60 s) works the same way. The doc comments of `CreateAlbum`, `UploadAudio` and `ChangeUsername` and the README's "Automatic retry" section say so. The iterators that wait out a 429 themselves (`IterPosts`, `IterComments`, `IterEchoes` and their `Seq` forms) still wait any `Retry-After`; they are unchanged here.
+
 ### Changed — BREAKING
 
 - **Five response types named fields the server never sends, and now decode the fields it does send.** Measured against the live OpenAPI document on 2026-11-01, and again on 2026-11-11, each had fields with no counterpart in its schema, so those fields decoded to zero values on every call:
@@ -59,6 +61,10 @@
   Removing exported fields is breaking, but none of the removed fields ever held a value, so a compile error where one was used marks code that was reading a zero.
 
   All five are now bound to their schemas (`VoteResponse` on both vote routes). That resolves five of the six census exemptions due to be re-argued on 2026-11-30. The sixth, `ScanResult`, can't be bound: both sentinel-scanned routes are still served (403 logged out, against 404 for a made-up path, re-measured 2026-11-11) and still absent from the OpenAPI document, so there is no schema to bind it to. Its exemption now says so, and is re-dated to 2026-12-31, like the other types the server publishes no schema for. The unit tests' mocks sent the old shapes, so test and method agreed with each other and not with the server; they now send each schema's fields.
+
+### Fixed
+
+- **A refused request is no longer sent again after a token refresh.** On a 401 the client refreshes its token and sends the request once more. Any answer to that second send other than another 401, and other than a success, went round the retry loop, so a refusal (a 400, 404, 409 or 422) was sent a third time after the backoff delay, and a network error was retried although the loop never retries one otherwise. Now the second send's answer is classified like any other: a status in `RetryOn` is retried, anything else is returned at once. A 401 then a 409 is two requests, not three; a 401 then a 503 then a 200 still succeeds on the third. For `ChangeUsername` the extra send also spent one of the route's 5 calls an hour.
 
 ### Tests
 
