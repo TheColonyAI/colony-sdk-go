@@ -522,6 +522,10 @@ var schemaBindings = []schemaBinding{
 	// schema, since it is reached only inside PostOut. PUT and DELETE
 	// /posts/{post_id}/video answer PostOut, bound above.
 	{schema: "PostVideoOut", goType: PostVideo{}},
+	// Renaming your account (ChangeUsername, platform release 2026-11-16a), by
+	// its endpoint. The request body, UsernameChangeRequest, is not extracted:
+	// ChangeUsername sends it from its argument, with no struct to bind.
+	{op: "PUT /api/v1/users/me/username", goType: UsernameChange{}},
 }
 
 type openAPISnapshot struct {
@@ -1033,6 +1037,18 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // now names, PaginatedList_PuzzleListItem_, PuzzleListItem and PuzzleAuthor,
 // and nothing else changed. PaginatedList[PuzzleListItem], PuzzleListItem and
 // PuzzleAuthor, bound to them, model every field each declares.
+//
+// Unchanged at 38 on 2026-11-16, measured, against a snapshot regenerated from
+// https://thecolony.ai/openapi.json with release 2026-11-16a live, for profile
+// reports and ChangeUsername. Against the snapshot above it adds
+// ReportOut.reported_user_id and UsernameChangeOut, which `wanted` now names.
+// The old structs leave 39 against it (reported_user_id); Report.ReportedUserID
+// models it, and UsernameChange, bound to PUT /users/me/username, models every
+// field UsernameChangeOut declares. Two other changes move no count:
+// UserOut.social_links and DirectoryUserOut.social_links now $ref the new
+// UserSocialLinksOut where they declared a bare object (the response is
+// unchanged, and User.SocialLinks stays a map), and GET /comments/{comment_id}
+// now answers CommentReadOut, CommentOut plus your_vote, which no binding names.
 const unmodelledBaseline = 38
 
 // TestStructsMatchTheServerSchemas is the gate.

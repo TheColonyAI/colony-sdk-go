@@ -3,6 +3,7 @@ package colony_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1272,8 +1273,9 @@ func TestReports(t *testing.T) {
 }
 
 // TestReportDescription: the optional description goes in the body only when
-// it is set, on all four report methods, and a call written without options
-// sends exactly what it sent before.
+// it is set, on all five report methods, and a call written without options
+// sends exactly what it sent before. impersonation (platform release
+// 2026-11-16a) is sent like any other reason, with its description.
 func TestReportDescription(t *testing.T) {
 	const id = "5d1c2e3f-4a5b-4c6d-8e7f-901234567802"
 	var bodies []map[string]any
@@ -1306,8 +1308,12 @@ func TestReportDescription(t *testing.T) {
 		"project": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
 			return client.ReportProject(ctx, id, r, o...)
 		},
+		"user": func(r string, o ...*colony.ReportOptions) (*colony.Report, error) {
+			return client.ReportUser(ctx, id, r, o...)
+		},
 	}
 	const doxx = "My home address is in the second paragraph; please remove it."
+	const whom = "Passes itself off as @some-agent: same avatar, same display name."
 	for typ, report := range methods {
 		base := map[string]any{"target_type": typ, "target_id": id, "reason": "spam"}
 		withDesc := map[string]any{"target_type": typ, "target_id": id, "reason": "personal_information", "description": doxx}
@@ -1321,6 +1327,8 @@ func TestReportDescription(t *testing.T) {
 			{"nil options", "spam", []*colony.ReportOptions{nil}, base},
 			{"no description", "spam", []*colony.ReportOptions{{}}, base},
 			{"a description", "personal_information", []*colony.ReportOptions{{Description: colony.Ptr(doxx)}}, withDesc},
+			{"impersonation", "impersonation", []*colony.ReportOptions{{Description: colony.Ptr(whom)}},
+				map[string]any{"target_type": typ, "target_id": id, "reason": "impersonation", "description": whom}},
 			// Sent as given: the server, not this package, decides what an
 			// empty description means.
 			{"an empty description", "spam", []*colony.ReportOptions{{Description: colony.Ptr("")}},
@@ -1349,10 +1357,11 @@ func TestReportDescription(t *testing.T) {
 	}
 }
 
-// TestDeprecatedReportsSendNothing: the platform has no user or message
-// reports, so POST /reports refused the "user" and "message" target types these
-// sent with a 422 on every call. They now fail before any request, the token
-// exchange included, and say what to do instead.
+// TestDeprecatedReportsSendNothing: the platform has no message reports, so
+// POST /reports refused the "message" target type ReportMessage sent with a
+// 422 on every call. It now fails before any request, the token exchange
+// included, and says what to do instead. (ReportUser did the same until
+// platform release 2026-11-16a brought profile reports: TestReportUser.)
 func TestDeprecatedReportsSendNothing(t *testing.T) {
 	var hits atomic.Int32
 	_, client := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -1365,8 +1374,6 @@ func TestDeprecatedReportsSendNothing(t *testing.T) {
 		call func() (*colony.Report, error)
 		want []string
 	}{
-		{"ReportUser", func() (*colony.Report, error) { return client.ReportUser(ctx, "u9", "spam") },
-			[]string{"no user reports", "ReportPost", "ReportComment", "BlockUser"}},
 		{"ReportMessage", func() (*colony.Report, error) { return client.ReportMessage(ctx, "m9", "spam") },
 			[]string{"no direct-message reports", "MarkConversationSpam", "BlockUser"}},
 	} {
@@ -1385,8 +1392,87 @@ func TestDeprecatedReportsSendNothing(t *testing.T) {
 	if _, err := client.ReportWikiPage(ctx, "getting-started", "spam"); err == nil || !strings.Contains(err.Error(), "WikiPage.ID") {
 		t.Errorf("ReportWikiPage with a slug: err = %v, want a refusal naming WikiPage.ID", err)
 	}
+	// ReportUser takes the account's id: a username, or an id cut short, is
+	// refused before any request too.
+	for _, notAnID := range []string{"some-agent", "7a2b3c4d", ""} {
+		rep, err := client.ReportUser(ctx, notAnID, "spam")
+		if err == nil || rep != nil || !strings.Contains(err.Error(), "User.ID") || !strings.Contains(err.Error(), "GetUserByUsername") {
+			t.Errorf("ReportUser(%q) = %v, %v; want a refusal naming User.ID and GetUserByUsername", notAnID, rep, err)
+		}
+	}
 	if n := hits.Load(); n != 0 {
 		t.Errorf("%d request(s) reached the server", n)
+	}
+}
+
+// TestReportUser: profile reports (platform release 2026-11-16a). ReportUser
+// used to return an error and send nothing; it now sends POST /reports with
+// target_type "user" and the account's id, reads reported_user_id off the
+// answer, and returns the server's refusals as their error types.
+func TestReportUser(t *testing.T) {
+	const userID = "7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d"
+	var bodies []map[string]any
+	_, client := mockServer(t, tokenAndRoute(t, map[string]http.HandlerFunc{
+		"POST /reports": func(w http.ResponseWriter, r *http.Request) {
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			bodies = append(bodies, body)
+			// A profile report as the platform answers it: in no colony, the
+			// account in reported_user_id, every other target null.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"r7","reporter":{"id":"u1","username":"me"},"colony_id":null,` +
+				`"post_id":null,"comment_id":null,"wiki_page_id":null,"project_id":null,` +
+				`"reported_user_id":"` + userID + `","reason":"spam","description":null,` +
+				`"status":"pending","created_at":"2026-11-16T15:00:00Z"}`))
+		},
+	}))
+	ctx := context.Background()
+
+	rep, err := client.ReportUser(ctx, userID, "spam")
+	if err != nil {
+		t.Fatalf("ReportUser: %v", err)
+	}
+	want := map[string]any{"target_type": "user", "target_id": userID, "reason": "spam"}
+	if len(bodies) != 1 || !reflect.DeepEqual(bodies[0], want) {
+		t.Errorf("body %v, want %v", bodies, want)
+	}
+	if rep.ID != "r7" || rep.Status != "pending" || rep.ColonyID != "" {
+		t.Errorf("unexpected report: %+v", rep)
+	}
+	if rep.ReportedUserID == nil || *rep.ReportedUserID != userID {
+		t.Errorf("ReportedUserID = %v, want %s", rep.ReportedUserID, userID)
+	}
+	if rep.PostID != nil || rep.CommentID != nil || rep.WikiPageID != nil || rep.ProjectID != nil {
+		t.Errorf("a profile report carries another target: %+v", rep)
+	}
+
+	// The server's refusals, as the platform words them.
+	for _, tc := range []struct {
+		name   string
+		status int
+		code   string
+		as     func(error) bool
+	}{
+		{"your own profile", 400, "INVALID_INPUT", func(e error) bool { var v *colony.ValidationError; return errors.As(e, &v) }},
+		{"impersonation with no description", 400, "INVALID_INPUT", func(e error) bool { var v *colony.ValidationError; return errors.As(e, &v) }},
+		{"an unknown account", 404, "NOT_FOUND", func(e error) bool { var v *colony.NotFoundError; return errors.As(e, &v) }},
+		{"a second pending report", 409, "CONFLICT", func(e error) bool { var v *colony.ConflictError; return errors.As(e, &v) }},
+	} {
+		_, refusing := mockServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/auth/token" {
+				jsonResp(w, map[string]string{"access_token": "test-jwt"})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(tc.status)
+			_, _ = w.Write([]byte(`{"detail":{"message":"` + tc.name + `","code":"` + tc.code + `"}}`))
+		})
+		rep, err := refusing.ReportUser(ctx, userID, "impersonation")
+		var apiErr *colony.APIError
+		if rep != nil || !tc.as(err) || !errors.As(err, &apiErr) || apiErr.Code != tc.code {
+			t.Errorf("%s: ReportUser = %v, %T %v; want a nil report and a %d %s", tc.name, rep, err, err, tc.status, tc.code)
+		}
 	}
 }
 
