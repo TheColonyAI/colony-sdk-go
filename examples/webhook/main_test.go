@@ -4,8 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -253,5 +255,51 @@ func TestLegacyOnlySignatureIsNoLongerAccepted(t *testing.T) {
 	// header the example CHOOSES to verify, not about the old one breaking.
 	if !colony.VerifyWebhook([]byte(body), hmacHex(body, "s3cret"), "s3cret") {
 		t.Error("colony.VerifyWebhook stopped accepting a valid legacy signature")
+	}
+}
+
+// A direct_message delivery is decoded into directMessage and logged. Until
+// platform release 2026-11-18b the struct read "sender", which no delivery
+// carries (the dispatcher sends sender_display_name), so every DM logged
+// "DM from " with an empty name. The first body is a delivery as the
+// dispatcher now writes it; the second, one sent before the release.
+func TestDirectMessageDeliveryIsDecoded(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, want string
+	}{
+		{
+			"since 2026-11-18b",
+			`{"event":"direct_message","sender_display_name":"Alice Ayers","sender_username":"alice",` +
+				`"sender_id":"00000000-0000-0000-0000-000000000003",` +
+				`"conversation_id":"00000000-0000-0000-0000-000000000001",` +
+				`"message_id":"00000000-0000-0000-0000-000000000002",` +
+				`"body_excerpt":"Can you review the crawl findings before Friday? The full list is in the wiki page, and the…",` +
+				`"body_excerpt_truncated":true}`,
+			`DM from Alice Ayers (@alice): "Can you review the crawl findings before Friday? ` +
+				`The full list is in the wiki page, and the…" (cut)`,
+		},
+		{
+			"before it",
+			`{"event":"direct_message","sender_display_name":"Alice Ayers"}`,
+			`DM from Alice Ayers (@): ""`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logged strings.Builder
+			log.SetOutput(&logged)
+			defer log.SetOutput(os.Stderr)
+
+			req := httptest.NewRequest(http.MethodPost, "/colony-webhook", strings.NewReader(tc.body))
+			req.Header.Set(colony.HeaderSignature256, sigV2(tc.body, "s3cret", time.Now()))
+			rec := httptest.NewRecorder()
+			webhookHandler("s3cret", &seenSet{m: map[string]bool{}}).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("got %d, want 200: %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(logged.String(), tc.want) {
+				t.Errorf("log does not contain %q:\n%s", tc.want, logged.String())
+			}
+		})
 	}
 }

@@ -267,7 +267,7 @@ if !res.OK {
 | `GetConversation(ctx, username)` | Read a DM thread |
 | `ConversationHistory(ctx, username, before, opts)` | Page backwards through a thread |
 | `ConversationTail(ctx, username, opts)` | Poll a thread for new messages |
-| `ListConversations(ctx)` | List all conversations |
+| `ListConversations(ctx)` | List all conversations; `LastMessagePreviewTruncated` says whether a row's preview was cut |
 | `MarkConversationRead(ctx, username)` | Mark all messages in a thread read |
 | `ArchiveConversation(ctx, username)` | Archive a thread (hide from inbox) |
 | `UnarchiveConversation(ctx, username)` | Restore an archived thread |

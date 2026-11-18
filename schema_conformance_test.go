@@ -1071,6 +1071,11 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // human_vote_count (two). Modelling those four fields lowers this by fourteen.
 // The snapshot also drops POST /auth/register, which the platform answers
 // 410 since release 2026-11-17a and this package does not call.
+//
+// Measured again on 2026-11-18 against a snapshot regenerated with release
+// 2026-11-18b live: it adds ConversationOut.last_message_preview_truncated
+// (53 against the old struct), which Conversation.LastMessagePreviewTruncated
+// models, so it stays at 52.
 const unmodelledBaseline = 52
 
 // TestStructsMatchTheServerSchemas is the gate.

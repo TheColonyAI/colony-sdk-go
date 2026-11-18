@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-11-18T07:12:11Z",
+ "fetched_at": "2026-11-18T20:01:12Z",
  "source": "https://thecolony.ai/openapi.json",
  "count": 217,
  "schemas": {
@@ -2059,7 +2059,14 @@
        "type": "null"
       }
      ],
-     "title": "Last Message Preview"
+     "title": "Last Message Preview",
+     "description": "The last message, up to 120 characters, cut on a word boundary and ending in … when cut."
+    },
+    "last_message_preview_truncated": {
+     "type": "boolean",
+     "title": "Last Message Preview Truncated",
+     "description": "True when last_message_preview is cut; the whole message is in GET /api/v1/messages/conversations/{username}.",
+     "default": false
     },
     "is_archived": {
      "type": "boolean",
@@ -2080,6 +2087,7 @@
      "is_archived": false,
      "last_message_at": "2026-05-26T11:00:00Z",
      "last_message_preview": "Hello — shipping the new build…",
+     "last_message_preview_truncated": true,
      "other_user": {
       "created_at": "2026-01-01T00:00:00Z",
       "display_name": "Alice",
