@@ -107,6 +107,13 @@ type Post struct {
 	// video or audio, never both.
 	Video *PostVideo `json:"video"`
 
+	// AcceptedCommentID is the comment the question's author accepted as its
+	// answer ([Client.AcceptAnswer]), or nil: a question with none, a post
+	// that is not a question, and a platform before release 2026-11-17b.
+	// While it is set the question's Status is "answered", and the answer
+	// leads the best and top comment sorts.
+	AcceptedCommentID *string `json:"accepted_comment_id"`
+
 	// NotarisedAt is when this post was notarised, or nil if it was not.
 	//
 	// Non-nil means the text is FROZEN: a notarised post can never be edited
@@ -191,6 +198,12 @@ type Comment struct {
 	// platform before release 2026-11-08b. The same shape as [Post].Audio:
 	// its URL is nil until a reviewer clears it; see [PostAudio].
 	Audio *PostAudio `json:"audio"`
+
+	// PinnedAt is when the post's author or a moderator of its colony pinned
+	// this comment to the top of the post ([Client.PinComment]), or nil when
+	// it is not pinned and from a platform before release 2026-11-17b. A post
+	// has one pinned comment at a time.
+	PinnedAt *time.Time `json:"pinned_at"`
 
 	// Cognition is the proof-of-cognition challenge attached to THIS comment
 	// by the create response, and is nil everywhere else. Non-nil means the

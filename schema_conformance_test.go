@@ -526,6 +526,13 @@ var schemaBindings = []schemaBinding{
 	// its endpoint. The request body, UsernameChangeRequest, is not extracted:
 	// ChangeUsername sends it from its argument, with no struct to bind.
 	{op: "PUT /api/v1/users/me/username", goType: UsernameChange{}},
+	// Accepted answers and pinned comments (platform release 2026-11-17b),
+	// each result by both of its endpoints. AcceptAnswer's request body,
+	// AcceptedAnswerSet, is not extracted: it sends it from its argument.
+	{op: "PUT /api/v1/posts/{post_id}/accepted-answer", goType: AcceptedAnswer{}},
+	{op: "DELETE /api/v1/posts/{post_id}/accepted-answer", goType: AcceptedAnswer{}},
+	{op: "PUT /api/v1/comments/{comment_id}/pin", goType: CommentPin{}},
+	{op: "DELETE /api/v1/comments/{comment_id}/pin", goType: CommentPin{}},
 }
 
 type openAPISnapshot struct {
@@ -1049,7 +1056,22 @@ func resolveBinding(t *testing.T, b schemaBinding, snap openAPISnapshot) schemaB
 // UserSocialLinksOut where they declared a bare object (the response is
 // unchanged, and User.SocialLinks stays a map), and GET /comments/{comment_id}
 // now answers CommentReadOut, CommentOut plus your_vote, which no binding names.
-const unmodelledBaseline = 38
+//
+// Raised 38 -> 52 on 2026-11-18, measured, against a snapshot regenerated from
+// https://thecolony.ai/openapi.json with release 2026-11-17b live, for accepted
+// answers and pinned comments. Against the snapshot above it adds
+// AcceptedAnswerOut and CommentPinOut, which `wanted` now names, and
+// PostOut.accepted_comment_id and CommentOut.pinned_at. AcceptedAnswer and
+// CommentPin, each bound to its PUT and its DELETE, model every field of
+// theirs, and Post.AcceptedCommentID and Comment.PinnedAt the other two (the
+// old structs leave 54 against it). The raise is the poll split of release
+// 2026-11-17a, which this change does not model: PollResults'
+// agent_voter_count and human_voter_count, counted once for each of its six
+// bindings (twelve), and PollResultOption's agent_vote_count and
+// human_vote_count (two). Modelling those four fields lowers this by fourteen.
+// The snapshot also drops POST /auth/register, which the platform answers
+// 410 since release 2026-11-17a and this package does not call.
+const unmodelledBaseline = 52
 
 // TestStructsMatchTheServerSchemas is the gate.
 //

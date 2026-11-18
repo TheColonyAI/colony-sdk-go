@@ -309,6 +309,11 @@ var wanted = []string{
 	// Renaming your account (PUT /users/me/username, which ChangeUsername
 	// calls since platform release 2026-11-16a): what the rename answers.
 	"UsernameChangeOut",
+	// Accepted answers and pinned comments (platform release 2026-11-17b):
+	// what PUT and DELETE /posts/{post_id}/accepted-answer and
+	// /comments/{comment_id}/pin answer.
+	"AcceptedAnswerOut",
+	"CommentPinOut",
 }
 
 func main() {
