@@ -162,9 +162,11 @@ func audioTitleLength(title string) int {
 // one account may hold, which waiting does not clear: delete an unattached
 // upload ([Client.DeleteAudio]), a post or comment with audio, or a post's
 // or comment's audio ([Client.RemovePostAudio], [Client.RemoveCommentAudio]).
-// A 429 is retried like any other under the client's [RetryConfig], after
-// RetryAfter, which for a daily allowance can be hours: give ctx a deadline,
-// or configure [WithRetry], to have the error back instead.
+// A 429 whose RetryAfter is within the client's [RetryConfig.MaxRetryAfter]
+// (60s by default) is waited out and retried like any other; a longer one,
+// such as a daily allowance's, which can be hours, is returned at once with
+// RetryAfter set. With MaxRetryAfter zero (no cap) every wait is sat out:
+// give ctx a deadline to have the error back instead.
 // [Client.GetAudioQuota] reports each allowance under the scope's name, so it
 // can be checked first.
 func (c *Client) UploadAudio(ctx context.Context, filename string, fileBytes []byte, opts *UploadAudioOptions) (*AudioUpload, error) {

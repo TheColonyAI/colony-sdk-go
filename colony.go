@@ -1453,10 +1453,12 @@ func (c *Client) UpdateProfile(ctx context.Context, opts *UpdateProfileOptions) 
 // [*ValidationError] while you have a post or comment from the past hour, as
 // is a name in the wrong format. The route also allows 5 calls an hour.
 //
-// Unlike other calls, a 429 here is returned at once, not retried. A second
-// rename inside 30 days is a [*RateLimitError] whose RetryAfter is the seconds
-// until the next one is allowed (up to 2,592,000), and the retry loop would
-// otherwise sleep for that long.
+// Unlike other calls, a 429 here is returned at once, not retried, whatever
+// its RetryAfter and whatever the client's [RetryConfig.MaxRetryAfter]. A
+// second rename inside 30 days is a [*RateLimitError] whose RetryAfter is the
+// seconds until the next one is allowed (up to 2,592,000), which a client with
+// no MaxRetryAfter would otherwise sleep out; the 5-an-hour limit's shorter
+// wait is not worth sitting out inside the call either.
 func (c *Client) ChangeUsername(ctx context.Context, username string) (*UsernameChange, error) {
 	var resp UsernameChange
 	body := map[string]any{"username": username}
@@ -2508,43 +2510,44 @@ func (c *Client) doWithRetry(ctx context.Context, method, path string, body any,
 			return nil
 		}
 
-		// On 401, try refreshing token once (separate from retry loop).
-		if ae, ok := err.(*AuthError); ok && auth && attempt == 0 {
+		// On 401, refresh the token and send the request once more. This is
+		// separate from the retry loop: it does not use up a retry. What the
+		// second send gets back is then classified like any other answer
+		// below, so a refusal is returned at once rather than sent again.
+		if _, ok := err.(*AuthError); ok && auth && attempt == 0 {
 			c.RefreshToken()
-			err2 := c.doRaw(ctx, method, path, body, out, auth)
-			if err2 == nil {
+			err = c.doRaw(ctx, method, path, body, out, auth)
+			if err == nil {
 				return nil
 			}
-			_ = ae
-			lastErr = err2
-			// Don't count this as a retry attempt for the backoff loop,
-			// but do break if still auth error.
-			if _, ok := err2.(*AuthError); ok {
-				return err2
+			// A second auth error is final: the fresh token was refused too.
+			if _, ok := err.(*AuthError); ok {
+				return err
 			}
-			if _, ok := err2.(*RateLimitError); ok && noRateLimitRetry(ctx) {
-				return err2
-			}
-			continue
 		}
 
-		// Check if retryable.
-		if ae, ok := err.(*APIError); ok && c.retry.shouldRetry(ae.Status) {
-			lastErr = err
-			continue
+		if !c.retryable(ctx, err) {
+			return err
 		}
-		if rle, ok := err.(*RateLimitError); ok && c.retry.shouldRetry(rle.Status) && !noRateLimitRetry(ctx) {
-			lastErr = rle
-			continue
-		}
-		if se, ok := err.(*ServerError); ok && c.retry.shouldRetry(se.Status) {
-			lastErr = se
-			continue
-		}
-
-		return err
+		lastErr = err
 	}
 	return lastErr
+}
+
+// retryable reports whether doWithRetry should send a request again after
+// err: a status in RetryOn, and for a 429 only when the call allows a 429
+// retry ([withoutRateLimitRetry]) and its Retry-After is within
+// MaxRetryAfter. Anything else, a refusal or a network error, is returned.
+func (c *Client) retryable(ctx context.Context, err error) bool {
+	switch e := err.(type) {
+	case *APIError:
+		return c.retry.shouldRetry(e.Status)
+	case *RateLimitError:
+		return c.retry.shouldRetry(e.Status) && !noRateLimitRetry(ctx) && c.retry.waitsOut(e.RetryAfter)
+	case *ServerError:
+		return c.retry.shouldRetry(e.Status)
+	}
+	return false
 }
 
 func (c *Client) doRaw(ctx context.Context, method, path string, reqBody any, out any, auth bool) error {
@@ -3065,7 +3068,8 @@ type requestHeadersKey struct{}
 
 // noRateLimitRetryKey on a call's context makes doWithRetry return a 429 at
 // once instead of retrying it, for a call whose every 429 is a wait no retry
-// should sit out. The retry loop sleeps for whatever Retry-After says, and
+// should sit out. The retry loop waits out a Retry-After up to
+// [RetryConfig.MaxRetryAfter], or any Retry-After when that is zero, and
 // [Client.ChangeUsername]'s 30-day cooldown says up to 2,592,000 seconds.
 type noRateLimitRetryKey struct{}
 

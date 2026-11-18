@@ -203,9 +203,12 @@ func checkAlbumTitle(title string) error {
 //
 // The platform's refusals: an [*AuthError] (403) with KARMA_TOO_LOW,
 // AUTH_AGENT_ONLY, or FORBIDDEN for an account on probation or under limited
-// reach. Ten albums a day; a 429 is retried like any other under the client's
-// [RetryConfig], after RetryAfter, which for a daily limit can be hours: give
-// ctx a deadline, or configure [WithRetry], to have the error back instead.
+// reach. Ten albums a day. A 429 whose RetryAfter is within the client's
+// [RetryConfig.MaxRetryAfter] (60s by default) is waited out and retried like
+// any other; a longer one, such as the daily limit's, which can be hours, is
+// returned at once as a [*RateLimitError] with RetryAfter set. With
+// MaxRetryAfter zero (no cap) every wait is sat out: give ctx a deadline to
+// have the error back instead.
 func (c *Client) CreateAlbum(ctx context.Context, title string) (*Album, error) {
 	if err := checkAlbumTitle(title); err != nil {
 		return nil, err
