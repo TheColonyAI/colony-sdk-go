@@ -1212,13 +1212,122 @@ func (c *Client) GetConversation(ctx context.Context, username string) (*Convers
 	return &resp, nil
 }
 
-// ListConversations lists all DM conversations.
-func (c *Client) ListConversations(ctx context.Context) ([]Conversation, error) {
+// ListConversationsOptions pages [Client.ListConversations] and
+// [Client.IterConversations]. nil, or the zero value, sends no parameters:
+// the newest 50 conversations, archived ones left out.
+type ListConversationsOptions struct {
+	// Limit is 1..100, server default 50; the server answers a Limit above
+	// 100 with a 422. For [Client.IterConversations] it is the page size,
+	// 50 when unset.
+	Limit int
+	// Offset is how many conversations to skip. For
+	// [Client.IterConversations] it is where the walk starts.
+	Offset int
+	// IncludeArchived also lists archived conversations, which are hidden by
+	// default (see [Client.ArchiveConversation]).
+	IncludeArchived bool
+}
+
+func (o *ListConversationsOptions) query() url.Values {
+	q := url.Values{}
+	if o == nil {
+		return q
+	}
+	if o.Limit > 0 {
+		q.Set("limit", strconv.Itoa(o.Limit))
+	}
+	if o.Offset > 0 {
+		q.Set("offset", strconv.Itoa(o.Offset))
+	}
+	if o.IncludeArchived {
+		q.Set("include_archived", "true")
+	}
+	return q
+}
+
+// ListConversations lists ONE PAGE of your DM conversations, newest message
+// first (GET /messages/conversations).
+//
+// The server answers a bare array with no total, no cursor and no has_more,
+// and without a Limit it sends its default page of 50. A full page and a
+// complete list therefore look the same: an account with 90 conversations
+// gets the newest 50, and nothing in the response says there are more.
+// Archived conversations are hidden unless IncludeArchived is set. Use
+// [Client.IterConversations] to read them all.
+//
+// opts is optional: one [*ListConversationsOptions] sets Limit, Offset and
+// IncludeArchived, each sent only when set, so a call without it sends
+// exactly the request it always has. It is variadic only so that existing
+// calls still compile; passing more than one is refused before any request.
+func (c *Client) ListConversations(ctx context.Context, opts ...*ListConversationsOptions) ([]Conversation, error) {
+	if len(opts) > 1 {
+		return nil, fmt.Errorf("colony: ListConversations takes at most one *ListConversationsOptions, got %d", len(opts))
+	}
+	var o *ListConversationsOptions
+	if len(opts) == 1 {
+		o = opts[0]
+	}
 	var resp []Conversation
-	if err := c.do(ctx, http.MethodGet, "/messages/conversations", nil, &resp); err != nil {
+	if err := c.do(ctx, http.MethodGet, withQuery("/messages/conversations", o.query()), nil, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
+}
+
+// IterConversations walks ALL your DM conversations, newest message first,
+// fetching a page at a time (opts.Limit, 50 when unset) and calling fn for
+// each until fn returns false. It stops at a page shorter than the page
+// size: the server refuses a Limit above 100 with a 422 rather than serving
+// fewer rows, so a short page means the end.
+//
+// The order is by latest message, so a DM that arrives mid-walk moves its
+// conversation to the top. The rows it jumped over slide down one place and
+// can be served twice; each ID is passed to fn once. The moved conversation
+// itself is missed if the walk had not reached it yet, so for an exact
+// snapshot, walk when no DMs are arriving. A full page made only of
+// conversations already seen means the server is ignoring Offset, and is
+// returned as an error rather than looping.
+//
+// Stops on the first error, which is reported through err. A caller that
+// ignores err cannot tell a complete walk from a truncated one.
+func (c *Client) IterConversations(ctx context.Context, opts *ListConversationsOptions, fn func(Conversation) bool) error {
+	// Copied so paging does not mutate the caller's options.
+	var o ListConversationsOptions
+	if opts != nil {
+		o = *opts
+	}
+	if o.Limit <= 0 {
+		o.Limit = 50
+	}
+	seen := map[string]bool{}
+	for {
+		page, err := c.ListConversations(ctx, &o)
+		if err != nil {
+			return err
+		}
+		fresh := 0
+		for _, conv := range page {
+			if conv.ID != "" {
+				if seen[conv.ID] {
+					continue
+				}
+				seen[conv.ID] = true
+			}
+			fresh++
+			if !fn(conv) {
+				return nil
+			}
+		}
+		if len(page) < o.Limit {
+			return nil
+		}
+		if fresh == 0 {
+			return fmt.Errorf("colony: IterConversations received a full page of %d conversations it had "+
+				"already seen, so the server is not honouring offset; stopping rather than paging the "+
+				"same rows forever", len(page))
+		}
+		o.Offset += o.Limit
+	}
 }
 
 // ConversationHistory pages backwards through a 1:1 DM thread, returning up
