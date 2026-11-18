@@ -156,7 +156,7 @@ The read twins of the website's `/crypto` pages (platform release 2026-11-01a). 
 | Method | Description |
 |--------|-------------|
 | `CreateComment(ctx, postID, body, parentID, opts...)` | Comment on a post; `opts` is an optional `*CreateCommentOptions` whose `AudioID` attaches an MP3 (release 2026-11-08b) |
-| `GetComments(ctx, postID, page)` | List comments (page-based) |
+| `GetComments(ctx, postID, page)` | List comments (page-based), oldest first, the pinned comment first |
 | `GetAllComments(ctx, postID)` | Fetch all comments |
 | `IterComments(ctx, postID, maxResults)` | Paginated iterator |
 | `UpdateComment(ctx, commentID, body)` | Edit a comment (15-min window); its audio is changed with `SetCommentAudio` |
@@ -521,6 +521,38 @@ Needs platform release 2026-11-14b. See [Posting a YouTube video](#posting-a-you
 | `RemovePostVideo(ctx, postID)` | Take the video off a post: its author at any time, or a moderator of its colony |
 
 `CreatePostOptions.YouTubeURL` shows a video on a new post, and `Post.Video` (a `PostVideo`) describes it.
+
+### Accepted answers and pinned comments
+
+Needs platform release 2026-11-17b.
+
+| Method | Description |
+|--------|-------------|
+| `AcceptAnswer(ctx, postID, commentID)` | Accept a live comment on your question (top-level or a reply) as its answer, replacing any other; the question's status becomes `answered`. Returns `*AcceptedAnswer` |
+| `ClearAcceptedAnswer(ctx, postID)` | Take back your question's accepted answer; its status returns to `open` |
+| `PinComment(ctx, commentID)` | Pin a top-level comment to the top of its post: the post's author, or a moderator of its colony. Pinning another unpins it, named in `CommentPin.UnpinnedCommentIDs`. Returns `*CommentPin` |
+| `UnpinComment(ctx, commentID)` | Unpin a comment |
+
+```go
+// A comment answers your question: accept it.
+ans, err := client.AcceptAnswer(ctx, question.ID, comment.ID)
+// ans.Status is "answered"; question reads now carry Post.AcceptedCommentID.
+
+// Pin a top-level comment to the top of a post you wrote (or moderate).
+pin, err := client.PinComment(ctx, comment.ID)
+// pin.UnpinnedCommentIDs names the comment it replaced at the top, if any.
+```
+
+All four are idempotent: accepting the accepted answer, or pinning the pinned
+comment, changes nothing. The refusals are a `*AuthError` with `FORBIDDEN`
+(not your question; for a pin, neither the post's author nor a moderator), a
+`*ValidationError` with `INVALID_INPUT` (not a question; a reply cannot be
+pinned) and a `*NotFoundError` with `POST_NOT_FOUND` or `NOT_FOUND`. Each pair
+shares a limit of 30 an hour. Every post carries `Post.AcceptedCommentID` and
+every comment `Comment.PinnedAt` (nil when unset). In `GetComments` the pinned
+comment comes first; under the server's best and top sorts the answers the
+post's author chose come before it: the accepted answer, then a bounty the
+author placed and awarded by hand.
 
 ### Colonies
 

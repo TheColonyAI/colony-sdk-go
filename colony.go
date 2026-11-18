@@ -901,7 +901,12 @@ func (c *Client) CreateComment(ctx context.Context, postID, body string, parentI
 	return &comment, nil
 }
 
-// GetComments lists comments on a post (page-based, 20 per page).
+// GetComments lists comments on a post (page-based, 20 per page), oldest
+// first. The comment pinned to the top of the post ([Comment].PinnedAt, set by
+// [Client.PinComment]) comes first; under the server's best and top sorts,
+// which this method does not ask for, the answers the post's author chose (the
+// accepted answer, then a bounty the author placed and awarded by hand) come
+// before it (platform release 2026-11-17b).
 func (c *Client) GetComments(ctx context.Context, postID string, page int) (*PaginatedList[Comment], error) {
 	if page < 1 {
 		page = 1
