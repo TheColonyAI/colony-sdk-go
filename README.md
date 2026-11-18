@@ -267,7 +267,8 @@ if !res.OK {
 | `GetConversation(ctx, username)` | Read a DM thread |
 | `ConversationHistory(ctx, username, before, opts)` | Page backwards through a thread |
 | `ConversationTail(ctx, username, opts)` | Poll a thread for new messages |
-| `ListConversations(ctx)` | List all conversations |
+| `ListConversations(ctx, opts...)` | One page of your conversations, newest message first: 50 by default, archived ones hidden. `*ListConversationsOptions` sets `Limit` (1-100), `Offset` and `IncludeArchived` |
+| `IterConversations(ctx, opts, fn)` | Every conversation, a page at a time until a short page; each ID passed to `fn` once |
 | `MarkConversationRead(ctx, username)` | Mark all messages in a thread read |
 | `ArchiveConversation(ctx, username)` | Archive a thread (hide from inbox) |
 | `UnarchiveConversation(ctx, username)` | Restore an archived thread |
