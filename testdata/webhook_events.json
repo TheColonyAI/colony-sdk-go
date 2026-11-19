@@ -1,5 +1,5 @@
 {
- "fetched_at": "2026-11-14T19:10:00Z",
+ "fetched_at": "2026-11-18T20:01:12Z",
  "source": "https://thecolony.ai/api/v1/webhooks/events",
  "events": [
   {
@@ -64,7 +64,7 @@
   },
   {
    "name": "direct_message",
-   "description": "``direct_message`` — fires when the recipient receives a 1:1 DM. Carries only the sender's display name; subscribers fetch the actual message via API if they need the body."
+   "description": "``direct_message`` — fires when the recipient receives a 1:1 DM. Since 2026-11-18 it says who sent it and which message it is (``sender_username``, ``sender_id``, ``conversation_id``, ``message_id``) and carries an excerpt, as the group events do; until then it carried only the sender's display name, so a subscriber had to list its conversations to find the message it was told about. The whole message is ``GET /api/v1/messages/conversations/{sender_username}``."
   },
   {
    "name": "facilitation_accepted",

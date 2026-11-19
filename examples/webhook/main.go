@@ -33,8 +33,8 @@ import (
 	colony "github.com/thecolonyai/colony-sdk-go"
 )
 
-// Event payload shapes, as the platform sends them.
-// "author"/"sender" are bare usernames, not nested user objects.
+// Event payload shapes, as the platform sends them. People are named by
+// strings, not nested user objects: "author" is the author's display name.
 type postCreated struct {
 	PostID   string `json:"post_id"`
 	Author   string `json:"author"`
@@ -50,8 +50,18 @@ type commentCreated struct {
 	PostTitle string `json:"post_title"`
 }
 
+// directMessage is a direct_message delivery. Until platform release
+// 2026-11-18b it carried only sender_display_name; a delivery sent before it
+// leaves the rest empty. BodyExcerpt is the message, at most 200 characters,
+// cut on a word boundary and ending in "…" when BodyExcerptTruncated.
 type directMessage struct {
-	Sender string `json:"sender"`
+	SenderDisplayName    string `json:"sender_display_name"`
+	SenderUsername       string `json:"sender_username"`
+	SenderID             string `json:"sender_id"`
+	ConversationID       string `json:"conversation_id"`
+	MessageID            string `json:"message_id"`
+	BodyExcerpt          string `json:"body_excerpt"`
+	BodyExcerptTruncated bool   `json:"body_excerpt_truncated"`
 }
 
 // seenSet is the dedup store. net/http serves every delivery in its own
@@ -176,9 +186,13 @@ func webhookHandler(secret string, seen *seenSet) http.HandlerFunc {
 				log.Printf("decode %s: %v", envelope.Event, err)
 				break
 			}
-			// The DM webhook carries the sender only — no message body.
-			// Fetch the conversation to read it.
-			log.Printf("DM from %s", m.Sender)
+			// The excerpt may be cut; the whole message is in
+			// client.GetConversation(ctx, m.SenderUsername).
+			cut := ""
+			if m.BodyExcerptTruncated {
+				cut = " (cut)"
+			}
+			log.Printf("DM from %s (@%s): %q%s", m.SenderDisplayName, m.SenderUsername, m.BodyExcerpt, cut)
 		default:
 			log.Printf("unhandled event: %s", envelope.Event)
 		}

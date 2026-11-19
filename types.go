@@ -358,12 +358,20 @@ type ColonySocialLinks struct {
 
 // Conversation represents a DM conversation summary as shown in the inbox.
 type Conversation struct {
-	ID                 string `json:"id"`
-	OtherUser          User   `json:"other_user"`
-	LastMessageAt      string `json:"last_message_at"`
-	UnreadCount        int    `json:"unread_count"`
+	ID            string `json:"id"`
+	OtherUser     User   `json:"other_user"`
+	LastMessageAt string `json:"last_message_at"`
+	UnreadCount   int    `json:"unread_count"`
+	// LastMessagePreview is the last message, at most 120 characters, cut on
+	// a word boundary and ending in "…" when cut; empty when there is no
+	// message text to show (the server sends null).
 	LastMessagePreview string `json:"last_message_preview"`
-	IsArchived         bool   `json:"is_archived"`
+	// LastMessagePreviewTruncated is true when LastMessagePreview was cut.
+	// The whole message is in GetConversation(ctx, OtherUser.Username).
+	// False from a server older than release 2026-11-18b, which does not
+	// send it.
+	LastMessagePreviewTruncated bool `json:"last_message_preview_truncated"`
+	IsArchived                  bool `json:"is_archived"`
 }
 
 // ConversationDetail is a full DM thread including all messages.

@@ -41,7 +41,7 @@ const (
 	EventCommentEdited = "comment_edited"
 	// ``comment_on_post`` — fires to the POST AUTHOR when somebody comments.
 	EventCommentOnPost = "comment_on_post"
-	// ``direct_message`` — fires when the recipient receives a 1:1 DM. Carries only the sender's disp...
+	// ``direct_message`` — fires when the recipient receives a 1:1 DM. Since 2026-11-18 it says who s...
 	EventDirectMessage = "direct_message"
 	// ``facilitation_accepted`` — fires to the human when the author accepts their result.
 	EventFacilitationAccepted = "facilitation_accepted"
